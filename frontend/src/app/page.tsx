@@ -653,7 +653,7 @@ function JoystickCard({ joy, index, usedPins, usedAnalogPins, onUpdate, onRemove
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function Home() {
-  const [tab, setTab] = useState<"configure" | "test">("configure");
+  const [tab, setTab] = useState<"configure" | "test" | "info">("configure");
   const [ports, setPorts] = useState<Port[]>([]);
   const [selectedPort, setSelectedPort] = useState("");
   const [buttons, setButtons] = useState<ButtonConfig[]>([
@@ -845,6 +845,10 @@ export default function Home() {
               className={["flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
                 tab === "test" ? "bg-gray-700 text-gray-100" : "text-gray-500 hover:text-gray-300"].join(" ")}
             ><Gamepad2 size={12} /> Test</button>
+            <button onClick={() => setTab("info")}
+              className={["flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
+                tab === "info" ? "bg-gray-700 text-gray-100" : "text-gray-500 hover:text-gray-300"].join(" ")}
+            ><Info size={12} /> Info</button>
           </div>
         </div>
       </header>
@@ -1134,6 +1138,136 @@ export default function Home() {
               </div>
               <DeviceMockup buttons={buttons} leds={leds} ports={portInputs} />
             </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* ══ INFO TAB ═══════════════════════════════════════════════════════ */}
+      {tab === "info" && (
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 flex flex-col gap-6">
+
+            {/* ── Made by Jacob ── */}
+            <div className="relative bg-gradient-to-br from-blue-950/60 to-purple-950/60 border border-blue-700/30 rounded-2xl p-6 overflow-hidden">
+              <div className="absolute inset-0 rounded-2xl" style={{
+                background: "radial-gradient(ellipse at 70% 20%, rgba(59,130,246,0.12) 0%, transparent 60%)",
+                pointerEvents: "none",
+              }} />
+              <div className="relative flex items-start gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-xl shadow-blue-900/40 flex-shrink-0">
+                  <span className="text-white text-2xl font-black">J</span>
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-gray-100">Made by Jacob</h2>
+                  <p className="text-sm text-gray-400 mt-1 leading-relaxed">
+                    Arduino Button Mapper is a personal project built to make adaptive
+                    controller programming accessible — no IDE required, just configure
+                    your buttons, sensors, and upload.
+                  </p>
+                  <a
+                    href="https://github.com/jacob-majors/Arduino-Button-Mapper"
+                    target="_blank" rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 mt-3 text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                  >
+                    <ExternalLink size={11} />
+                    github.com/jacob-majors/Arduino-Button-Mapper
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            {/* ── How to connect ── */}
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Usb size={14} className="text-green-400" />
+                <h3 className="text-sm font-semibold text-gray-200">How to Connect Your Arduino</h3>
+              </div>
+              <ol className="space-y-3 text-sm text-gray-400">
+                {[
+                  { n: 1, title: "Install arduino-cli", body: "Download from arduino.cc/en/software and add it to your PATH. Then run: arduino-cli core install arduino:avr" },
+                  { n: 2, title: "Run the local backend", body: "In a terminal: cd backend && node server.js — this starts the upload server on port 3001. It must be running for Upload to work." },
+                  { n: 3, title: "Plug in your Arduino Leonardo", body: "Use a USB data cable (not charge-only). The port will appear in the dropdown — click Refresh if it doesn't." },
+                  { n: 4, title: "Configure your buttons & sensors", body: "Use the Configure tab to map pins to keys. Add buttons, back-panel ports, IR sensors, sip & puff, and joysticks." },
+                  { n: 5, title: "Click Upload", body: "The app compiles and uploads the generated sketch. Watch the log for errors. Once done, press your buttons to verify." },
+                ].map(({ n, title, body }) => (
+                  <li key={n} className="flex gap-3">
+                    <div className="w-5 h-5 rounded-full bg-green-500/20 border border-green-500/40 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-green-400 text-[10px] font-bold">{n}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-200 font-medium">{title}</span>
+                      <span className="text-gray-500"> — {body}</span>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+
+            {/* ── How code generation works ── */}
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Code size={14} className="text-yellow-400" />
+                <h3 className="text-sm font-semibold text-gray-200">How the Code is Generated</h3>
+              </div>
+              <div className="space-y-4 text-sm text-gray-400 leading-relaxed">
+                <p>
+                  Everything you configure in the app is translated into a single Arduino{" "}
+                  <span className="text-yellow-300 font-mono text-xs">.ino</span> sketch by{" "}
+                  <span className="text-gray-200 font-medium">generateSketch()</span> in{" "}
+                  <span className="text-yellow-300 font-mono text-xs">src/lib/keymap.ts</span>.
+                  Click <span className="text-gray-200 font-medium">Sketch</span> in the Configure tab to see the full output.
+                </p>
+                <div className="space-y-2">
+                  {[
+                    { label: "Buttons & ports", color: "text-blue-400", desc: "Each button maps to a pin + key + mode (momentary/toggle/power). The sketch uses INPUT_PULLUP wiring and 20 ms debounce." },
+                    { label: "Power button", color: "text-amber-400", desc: "Sets a systemActive flag. When off, all other inputs are ignored and Keyboard.releaseAll() is called." },
+                    { label: "LED indicators", color: "text-yellow-400", desc: "Two output pins driven by updateLEDs() — one HIGH when active, the other LOW, and vice versa." },
+                    { label: "IR sensors", color: "text-emerald-400", desc: "Digital inputs with configurable active polarity. Supports hold and toggle modes, same as buttons." },
+                    { label: "Sip & puff", color: "text-cyan-400", desc: "analogRead() on an A0–A5 pin. Values below the sip threshold press one key; values above the puff threshold press another." },
+                    { label: "Joystick", color: "text-violet-400", desc: "Two analogRead() calls (X and Y). Values are centered at 512 — if the deviation exceeds the deadzone, the matching direction key is pressed." },
+                  ].map(({ label, color, desc }) => (
+                    <div key={label} className="flex gap-2">
+                      <span className={`${color} font-semibold w-28 flex-shrink-0 text-xs mt-0.5`}>{label}</span>
+                      <span className="text-gray-500 text-xs">{desc}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* ── Tech stack ── */}
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Terminal size={14} className="text-purple-400" />
+                <h3 className="text-sm font-semibold text-gray-200">How This Was Built</h3>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { name: "Next.js 14", tag: "Frontend", color: "text-blue-400", desc: "App Router, React, TypeScript" },
+                  { name: "Tailwind CSS", tag: "Styling", color: "text-cyan-400", desc: "Utility-first, dark theme" },
+                  { name: "Express.js", tag: "Backend", color: "text-green-400", desc: "Local server on port 3001" },
+                  { name: "arduino-cli", tag: "Compiler", color: "text-yellow-400", desc: "Compile + upload over USB" },
+                  { name: "Canvas API", tag: "Games", color: "text-purple-400", desc: "Dino + Snake, no sprites" },
+                  { name: "SSE stream", tag: "Upload log", color: "text-orange-400", desc: "Real-time compile output" },
+                  { name: "Lucide React", tag: "Icons", color: "text-pink-400", desc: "Clean SVG icon set" },
+                  { name: "Claude AI", tag: "Coded with", color: "text-indigo-400", desc: "AI-assisted development" },
+                ].map(({ name, tag, color, desc }) => (
+                  <div key={name} className="bg-gray-800/50 border border-gray-700/60 rounded-xl p-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className={`text-xs font-bold ${color}`}>{name}</span>
+                      <span className="text-[9px] text-gray-600 bg-gray-900 px-1.5 py-0.5 rounded-full border border-gray-700">{tag}</span>
+                    </div>
+                    <p className="text-[11px] text-gray-500">{desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* ── Footer credit ── */}
+            <p className="text-center text-xs text-gray-700 pb-2">
+              Arduino Button Mapper · Built by Jacob · Open source on GitHub
+            </p>
 
           </div>
         </div>
