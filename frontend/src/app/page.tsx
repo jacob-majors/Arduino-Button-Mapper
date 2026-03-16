@@ -5,7 +5,7 @@ import {
   Zap, RefreshCw, Plus, Trash2, X, Upload, ChevronDown,
   Loader2, CheckCircle2, XCircle, Terminal, Usb, Keyboard,
   RotateCcw, Pencil, Gamepad2, Settings, Lightbulb, Power, Code,
-  Info, ExternalLink, Radio, Wind, Joystick,
+  Info, ExternalLink, Radio, Wind, Joystick, Minimize2, Maximize2,
 } from "lucide-react";
 import {
   ButtonConfig, ButtonMode, LedConfig, PortConfig,
@@ -669,6 +669,8 @@ export default function Home() {
   const [loadingPorts, setLoadingPorts] = useState(false);
   const [loadingSketch, setLoadingSketch] = useState(false);
   const [showLedInfo, setShowLedInfo] = useState(false);
+  const [dinoCollapsed,  setDinoCollapsed]  = useState(false);
+  const [snakeCollapsed, setSnakeCollapsed] = useState(false);
   const [irSensors, setIrSensors] = useState<IRSensorConfig[]>([]);
   const [sipPuffs, setSipPuffs] = useState<SipPuffConfig[]>([]);
   const [joysticks, setJoysticks] = useState<JoystickConfig[]>([]);
@@ -1082,22 +1084,48 @@ export default function Home() {
       {tab === "test" && (
         <div className="flex-1 overflow-y-auto">
           <div className="max-w-3xl mx-auto px-4 sm:px-6 py-5 flex flex-col gap-5">
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Gamepad2 size={14} className="text-purple-400" />
+
+            {/* ── Dino Game ── */}
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+              <div
+                className="flex items-center gap-2 px-5 py-3 cursor-pointer select-none hover:bg-gray-800/40 transition-colors"
+                onClick={() => setDinoCollapsed((c) => !c)}
+              >
+                <Gamepad2 size={14} className="text-purple-400 flex-shrink-0" />
                 <h2 className="text-sm font-semibold text-gray-200">Dino Game</h2>
-                <span className="text-xs text-gray-600">↑ jump · ↓ duck · mapped keys work too</span>
+                {dinoCollapsed && <span className="text-xs text-gray-600">↑ jump · ↓ duck</span>}
+                <div className="ml-auto flex-shrink-0 text-gray-600 hover:text-gray-400 transition-colors">
+                  {dinoCollapsed ? <Maximize2 size={13} /> : <Minimize2 size={13} />}
+                </div>
               </div>
-              <DinoGame jumpKeys={jumpKeys} />
+              {!dinoCollapsed && (
+                <div className="px-5 pb-5">
+                  <DinoGame jumpKeys={jumpKeys} />
+                </div>
+              )}
             </div>
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Joystick size={14} className="text-violet-400" />
+
+            {/* ── Snake Game ── */}
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+              <div
+                className="flex items-center gap-2 px-5 py-3 cursor-pointer select-none hover:bg-gray-800/40 transition-colors"
+                onClick={() => setSnakeCollapsed((c) => !c)}
+              >
+                <Joystick size={14} className="text-violet-400 flex-shrink-0" />
                 <h2 className="text-sm font-semibold text-gray-200">Snake</h2>
-                <span className="text-xs text-gray-600">↑↓←→ · WASD · joystick mapped keys</span>
+                {snakeCollapsed && <span className="text-xs text-gray-600">↑↓←→ · WASD · joystick</span>}
+                <div className="ml-auto flex-shrink-0 text-gray-600 hover:text-gray-400 transition-colors">
+                  {snakeCollapsed ? <Maximize2 size={13} /> : <Minimize2 size={13} />}
+                </div>
               </div>
-              <SnakeGame joystickMaps={joystickMaps} />
+              {!snakeCollapsed && (
+                <div className="px-5 pb-5">
+                  <SnakeGame joystickMaps={joystickMaps} />
+                </div>
+              )}
             </div>
+
+            {/* ── Device Tester ── */}
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
               <div className="flex items-center gap-2 mb-4">
                 <Zap size={14} className="text-blue-400" />
@@ -1106,6 +1134,7 @@ export default function Home() {
               </div>
               <DeviceMockup buttons={buttons} leds={leds} ports={portInputs} />
             </div>
+
           </div>
         </div>
       )}
