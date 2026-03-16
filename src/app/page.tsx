@@ -1159,12 +1159,19 @@ export default function Home() {
                   <span className="text-white text-2xl font-black">J</span>
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold text-gray-100">Made by Jacob</h2>
+                  <h2 className="text-lg font-bold text-gray-100">Made by Jacob Majors</h2>
                   <p className="text-sm text-gray-400 mt-1 leading-relaxed">
-                    Arduino Button Mapper is a personal project built to make adaptive
-                    controller programming accessible — no IDE required, just configure
-                    your buttons, sensors, and upload.
+                    Arduino Button Mapper was built to make adaptive controller programming
+                    accessible — no Arduino IDE required. Configure buttons, sensors, and
+                    input devices visually, then upload directly to your Arduino Leonardo
+                    with one click.
                   </p>
+                  <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-blue-950/50 border border-blue-800/40 rounded-xl w-fit">
+                    <Zap size={11} className="text-blue-400 flex-shrink-0" />
+                    <span className="text-xs text-blue-300 font-medium">
+                      Developed for Ramsey Mussalum&apos;s <span className="text-white">Design for Social Good</span> class
+                    </span>
+                  </div>
                   <a
                     href="https://github.com/jacob-majors/Arduino-Button-Mapper"
                     target="_blank" rel="noopener noreferrer"
@@ -1179,25 +1186,52 @@ export default function Home() {
 
             {/* ── How to connect ── */}
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
+              <div className="flex items-center gap-2 mb-3">
                 <Usb size={14} className="text-green-400" />
                 <h3 className="text-sm font-semibold text-gray-200">How to Connect Your Arduino</h3>
               </div>
-              <ol className="space-y-3 text-sm text-gray-400">
-                {[
-                  { n: 1, title: "Install arduino-cli", body: "Download from arduino.cc/en/software and add it to your PATH. Then run: arduino-cli core install arduino:avr" },
-                  { n: 2, title: "Run the local backend", body: "In a terminal: cd backend && node server.js — this starts the upload server on port 3001. It must be running for Upload to work." },
-                  { n: 3, title: "Plug in your Arduino Leonardo", body: "Use a USB data cable (not charge-only). The port will appear in the dropdown — click Refresh if it doesn't." },
-                  { n: 4, title: "Configure your buttons & sensors", body: "Use the Configure tab to map pins to keys. Add buttons, back-panel ports, IR sensors, sip & puff, and joysticks." },
-                  { n: 5, title: "Click Upload", body: "The app compiles and uploads the generated sketch. Watch the log for errors. Once done, press your buttons to verify." },
-                ].map(({ n, title, body }) => (
+              <p className="text-xs text-gray-600 mb-4 leading-relaxed">
+                The website handles configuration and code generation. Uploading to the board
+                requires the local backend server running on your computer — it provides USB
+                access that a browser cannot do on its own.
+              </p>
+              <ol className="space-y-4">
+                {([
+                  {
+                    n: 1, title: "Install arduino-cli",
+                    body: "Download from arduino.cc/en/software and add it to your PATH. Then install the Leonardo core:",
+                    code: "arduino-cli core install arduino:avr",
+                  },
+                  {
+                    n: 2, title: "Run the local backend",
+                    body: "Open a terminal in the project folder and start the upload server:",
+                    code: "cd backend && node server.js",
+                    note: "Keep this running whenever you want to upload. It listens on port 3001.",
+                  },
+                  {
+                    n: 3, title: "Plug in your Arduino Leonardo",
+                    body: "Use a USB data cable — not a charge-only cable. The port appears in the dropdown at the top of the Configure tab. Hit the refresh button if it doesn't show up.",
+                  },
+                  {
+                    n: 4, title: "Configure your inputs",
+                    body: "In the Configure tab, assign pins to keys. Add buttons, back-panel 3.5mm ports, IR sensors, sip & puff sensors, and joysticks — each with its own key mapping and logic mode.",
+                  },
+                  {
+                    n: 5, title: "Click Upload",
+                    body: "The app generates the Arduino sketch, compiles it with arduino-cli, and flashes it to the board over USB. Watch the log for errors. Once done, press your inputs to confirm the right keys are sent.",
+                  },
+                ] as { n: number; title: string; body: string; code?: string; note?: string }[]).map(({ n, title, body, code, note }) => (
                   <li key={n} className="flex gap-3">
                     <div className="w-5 h-5 rounded-full bg-green-500/20 border border-green-500/40 flex items-center justify-center flex-shrink-0 mt-0.5">
                       <span className="text-green-400 text-[10px] font-bold">{n}</span>
                     </div>
-                    <div>
-                      <span className="text-gray-200 font-medium">{title}</span>
-                      <span className="text-gray-500"> — {body}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-200">{title}</p>
+                      <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{body}</p>
+                      {code && (
+                        <code className="inline-block mt-1.5 px-2.5 py-1 bg-gray-950 border border-gray-700 rounded-lg text-[11px] text-green-400 font-mono">{code}</code>
+                      )}
+                      {note && <p className="text-[11px] text-gray-600 mt-1 italic">{note}</p>}
                     </div>
                   </li>
                 ))}
@@ -1211,25 +1245,26 @@ export default function Home() {
                 <h3 className="text-sm font-semibold text-gray-200">How the Code is Generated</h3>
               </div>
               <div className="space-y-4 text-sm text-gray-400 leading-relaxed">
-                <p>
-                  Everything you configure in the app is translated into a single Arduino{" "}
-                  <span className="text-yellow-300 font-mono text-xs">.ino</span> sketch by{" "}
-                  <span className="text-gray-200 font-medium">generateSketch()</span> in{" "}
-                  <span className="text-yellow-300 font-mono text-xs">src/lib/keymap.ts</span>.
-                  Click <span className="text-gray-200 font-medium">Sketch</span> in the Configure tab to see the full output.
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  Everything you configure is translated into a single Arduino{" "}
+                  <span className="text-yellow-300 font-mono">.ino</span> sketch by{" "}
+                  <span className="text-gray-300 font-mono">generateSketch()</span> in{" "}
+                  <span className="text-yellow-300 font-mono">src/lib/keymap.ts</span>.
+                  No code is stored on a server — it is generated in your browser on demand.
+                  Click <span className="text-gray-200 font-medium">Sketch</span> in the Configure tab to preview the full output before uploading.
                 </p>
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   {[
-                    { label: "Buttons & ports", color: "text-blue-400", desc: "Each button maps to a pin + key + mode (momentary/toggle/power). The sketch uses INPUT_PULLUP wiring and 20 ms debounce." },
-                    { label: "Power button", color: "text-amber-400", desc: "Sets a systemActive flag. When off, all other inputs are ignored and Keyboard.releaseAll() is called." },
-                    { label: "LED indicators", color: "text-yellow-400", desc: "Two output pins driven by updateLEDs() — one HIGH when active, the other LOW, and vice versa." },
-                    { label: "IR sensors", color: "text-emerald-400", desc: "Digital inputs with configurable active polarity. Supports hold and toggle modes, same as buttons." },
-                    { label: "Sip & puff", color: "text-cyan-400", desc: "analogRead() on an A0–A5 pin. Values below the sip threshold press one key; values above the puff threshold press another." },
-                    { label: "Joystick", color: "text-violet-400", desc: "Two analogRead() calls (X and Y). Values are centered at 512 — if the deviation exceeds the deadzone, the matching direction key is pressed." },
+                    { label: "Buttons & ports", color: "text-blue-400", desc: "Each input maps to a digital pin, a key, and a mode. Momentary holds the key while pressed; Toggle alternates on/off each press. Uses INPUT_PULLUP wiring with 20 ms debounce." },
+                    { label: "Power button", color: "text-amber-400", desc: "One button can be set as a power toggle. It flips a systemActive flag — when off, all other inputs stop sending keys and Keyboard.releaseAll() is called immediately." },
+                    { label: "LED indicators", color: "text-yellow-400", desc: "Two digital output pins — one goes HIGH when the system is active, the other when off. Wire each through a 220Ω resistor to an LED." },
+                    { label: "IR sensors", color: "text-emerald-400", desc: "Digital inputs with configurable active polarity (HIGH=on or LOW=on). Most IR proximity modules pull output LOW when triggered, so LOW=on is the default." },
+                    { label: "Sip & puff", color: "text-cyan-400", desc: "An analog pressure sensor on A0–A5. analogRead() returns 0–1023. Values below the sip threshold press one key; values above the puff threshold press another; in between releases both." },
+                    { label: "Joystick", color: "text-violet-400", desc: "Two analog axes read via analogRead(). Center is 512 — if deviation from center exceeds the deadzone, the matching direction key is pressed. Optional click button uses a digital pin with INPUT_PULLUP." },
                   ].map(({ label, color, desc }) => (
-                    <div key={label} className="flex gap-2">
+                    <div key={label} className="flex gap-2.5">
                       <span className={`${color} font-semibold w-28 flex-shrink-0 text-xs mt-0.5`}>{label}</span>
-                      <span className="text-gray-500 text-xs">{desc}</span>
+                      <span className="text-gray-500 text-xs leading-relaxed">{desc}</span>
                     </div>
                   ))}
                 </div>
@@ -1266,7 +1301,7 @@ export default function Home() {
 
             {/* ── Footer credit ── */}
             <p className="text-center text-xs text-gray-700 pb-2">
-              Arduino Button Mapper · Built by Jacob · Open source on GitHub
+              Arduino Button Mapper · Jacob Majors · Design for Social Good · Open source on GitHub
             </p>
 
           </div>
