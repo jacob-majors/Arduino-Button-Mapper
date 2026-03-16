@@ -16,6 +16,8 @@ import DinoGame from "@/components/DinoGame";
 import SnakeGame from "@/components/SnakeGame";
 import DeviceMockup from "@/components/DeviceMockup";
 import { arduinoToBrowserKey } from "@/lib/keymap";
+import { supabase, loadConfig, saveConfig } from "@/lib/supabase";
+import type { User } from "@supabase/supabase-js";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
 const ALL_PINS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
@@ -669,6 +671,10 @@ export default function Home() {
   const [loadingPorts, setLoadingPorts] = useState(false);
   const [loadingSketch, setLoadingSketch] = useState(false);
   const [showLedInfo, setShowLedInfo] = useState(false);
+  const [user,      setUser]      = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [saving,    setSaving]    = useState(false);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [dinoCollapsed,  setDinoCollapsed]  = useState(false);
   const [snakeCollapsed, setSnakeCollapsed] = useState(false);
   const [irSensors, setIrSensors] = useState<IRSensorConfig[]>([]);
@@ -679,6 +685,42 @@ export default function Home() {
 
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [uploadLog]);
   useEffect(() => { fetchPorts(); }, []);
+
+  // ── Auth: listen for login/logout and load config on sign-in ──────────────
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setAuthReady(true);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const u = session?.user ?? null;
+      setUser(u);
+      if (u) {
+        loadConfig().then((cfg) => {
+          if (!cfg) return;
+          if (cfg.buttons)    setButtons(cfg.buttons as ButtonConfig[]);
+          if (cfg.portInputs) setPortInputs(cfg.portInputs as PortConfig[]);
+          if (cfg.leds)       setLeds(cfg.leds as LedConfig);
+          if (cfg.irSensors)  setIrSensors(cfg.irSensors as IRSensorConfig[]);
+          if (cfg.sipPuffs)   setSipPuffs(cfg.sipPuffs as SipPuffConfig[]);
+          if (cfg.joysticks)  setJoysticks(cfg.joysticks as JoystickConfig[]);
+        });
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // ── Auto-save config 1.5 s after any change (only when logged in) ─────────
+  useEffect(() => {
+    if (!user) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      setSaving(true);
+      await saveConfig({ buttons, portInputs, leds, irSensors, sipPuffs, joysticks });
+      setSaving(false);
+    }, 1500);
+    return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
+  }, [user, buttons, portInputs, leds, irSensors, sipPuffs, joysticks]);
 
   const fetchPorts = async () => {
     setLoadingPorts(true);
@@ -836,6 +878,46 @@ export default function Home() {
             <h1 className="text-sm font-bold text-gray-100 leading-none">Arduino Button Mapper</h1>
             <p className="text-[10px] text-gray-500 leading-none mt-0.5 hidden sm:block">Configure → Upload → Test</p>
           </div>
+          {/* Auth */}
+          {authReady && (
+            user ? (
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {saving && <span className="text-[10px] text-gray-600 hidden sm:block">saving…</span>}
+                {!saving && <span className="text-[10px] text-green-600 hidden sm:block">saved</span>}
+                <div className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-800/60 border border-gray-700 rounded-xl">
+                  <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                    <span className="text-white text-[9px] font-bold">
+                      {(user.user_metadata?.full_name ?? user.email ?? "?")[0].toUpperCase()}
+                    </span>
+                  </div>
+                  <span className="text-xs text-gray-300 hidden sm:block max-w-[100px] truncate">
+                    {user.user_metadata?.full_name ?? user.email}
+                  </span>
+                  <button
+                    onClick={() => supabase.auth.signOut()}
+                    className="text-[10px] text-gray-600 hover:text-red-400 transition-colors ml-1"
+                  >Sign out</button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => supabase.auth.signInWithOAuth({
+                  provider: "google",
+                  options: { redirectTo: window.location.origin },
+                })}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-800/60 border border-gray-700 hover:border-gray-500 text-xs text-gray-300 hover:text-gray-100 transition-all flex-shrink-0"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                Sign in with Google
+              </button>
+            )
+          )}
+
           <div className="flex bg-gray-800/60 border border-gray-700 rounded-xl p-0.5 gap-0.5">
             <button onClick={() => setTab("configure")}
               className={["flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
