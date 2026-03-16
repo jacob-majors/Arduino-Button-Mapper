@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Hide scrollbars globally while keeping scroll functionality */
+* {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+*::-webkit-scrollbar {
+  display: none; /* Chrome/Safari/WebKit */
+}
+
+@layer utilities {
+  .animate-pulse-border {
+    animation: pulse-border 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulse-border {
+    0%, 100% {
+      border-color: rgb(59 130 246);
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+    }
+    50% {
+      border-color: rgb(168 85 247);
+      box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.3);
+    }
+  }
+}
