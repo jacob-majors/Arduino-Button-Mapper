@@ -13,7 +13,9 @@ import {
   resolveKey, generateSketch,
 } from "@/lib/keymap";
 import DinoGame from "@/components/DinoGame";
+import SnakeGame from "@/components/SnakeGame";
 import DeviceMockup from "@/components/DeviceMockup";
+import { arduinoToBrowserKey } from "@/lib/keymap";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
 const ALL_PINS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
@@ -761,6 +763,16 @@ export default function Home() {
     [buttons, portInputs]
   );
 
+  const joystickMaps = useMemo(
+    () => joysticks.map((j) => ({
+      up:    arduinoToBrowserKey(j.upKey),
+      down:  arduinoToBrowserKey(j.downKey),
+      left:  arduinoToBrowserKey(j.leftKey),
+      right: arduinoToBrowserKey(j.rightKey),
+    })),
+    [joysticks]
+  );
+
   const openSketch = async () => {
     setLoadingSketch(true);
     try {
@@ -1077,6 +1089,14 @@ export default function Home() {
                 <span className="text-xs text-gray-600">↑ jump · ↓ duck · mapped keys work too</span>
               </div>
               <DinoGame jumpKeys={jumpKeys} />
+            </div>
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Joystick size={14} className="text-violet-400" />
+                <h2 className="text-sm font-semibold text-gray-200">Snake</h2>
+                <span className="text-xs text-gray-600">↑↓←→ · WASD · joystick mapped keys</span>
+              </div>
+              <SnakeGame joystickMaps={joystickMaps} />
             </div>
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
               <div className="flex items-center gap-2 mb-4">

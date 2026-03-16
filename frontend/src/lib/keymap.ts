@@ -94,6 +94,14 @@ export interface JoystickConfig {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+/** Map an Arduino key constant back to the browser e.key value */
+export function arduinoToBrowserKey(arduinoKey: string): string {
+  for (const [browserKey, val] of Object.entries(KEY_MAP)) {
+    if (val.arduino === arduinoKey) return browserKey;
+  }
+  return arduinoKey; // single printable chars are already the browser key
+}
+
 export function resolveKey(
   event: KeyboardEvent
 ): { display: string; arduino: string } | null {
