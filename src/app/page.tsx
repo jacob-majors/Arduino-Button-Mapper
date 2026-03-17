@@ -16,7 +16,8 @@ import DinoGame from "@/components/DinoGame";
 import SnakeGame from "@/components/SnakeGame";
 import DeviceMockup from "@/components/DeviceMockup";
 import { arduinoToBrowserKey } from "@/lib/keymap";
-import { supabase, loadConfig, saveConfig } from "@/lib/supabase";
+import { supabase, loadAllSaves, upsertSave, deleteSave } from "@/lib/supabase";
+import type { SaveSlot } from "@/lib/supabase";
 import type { User } from "@supabase/supabase-js";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
@@ -675,6 +676,10 @@ export default function Home() {
   const [authReady, setAuthReady] = useState(false);
   const [saving,    setSaving]    = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [saves, setSaves] = useState<SaveSlot[]>([]);
+  const [currentSaveId, setCurrentSaveId] = useState<string | null>(null);
+  const [currentSaveName, setCurrentSaveName] = useState("My Setup");
+  const [showSaveMenu, setShowSaveMenu] = useState(false);
   const [dinoCollapsed,  setDinoCollapsed]  = useState(false);
   const [snakeCollapsed, setSnakeCollapsed] = useState(false);
   const [irSensors, setIrSensors] = useState<IRSensorConfig[]>([]);
@@ -682,11 +687,18 @@ export default function Home() {
   const [joysticks, setJoysticks] = useState<JoystickConfig[]>([]);
 
   const logEndRef = useRef<HTMLDivElement>(null);
+  const saveMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [uploadLog]);
   useEffect(() => { fetchPorts(); }, []);
+  useEffect(() => {
+    if (!showSaveMenu) return;
+    const h = (e: MouseEvent) => { if (!saveMenuRef.current?.contains(e.target as Node)) setShowSaveMenu(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [showSaveMenu]);
 
-  // ── Auth: listen for login/logout and load config on sign-in ──────────────
+  // ── Auth: listen for login/logout and load saves on sign-in ───────────────
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
@@ -696,15 +708,25 @@ export default function Home() {
       const u = session?.user ?? null;
       setUser(u);
       if (u) {
-        loadConfig().then((cfg) => {
-          if (!cfg) return;
-          if (cfg.buttons)    setButtons(cfg.buttons as ButtonConfig[]);
-          if (cfg.portInputs) setPortInputs(cfg.portInputs as PortConfig[]);
-          if (cfg.leds)       setLeds(cfg.leds as LedConfig);
-          if (cfg.irSensors)  setIrSensors(cfg.irSensors as IRSensorConfig[]);
-          if (cfg.sipPuffs)   setSipPuffs(cfg.sipPuffs as SipPuffConfig[]);
-          if (cfg.joysticks)  setJoysticks(cfg.joysticks as JoystickConfig[]);
+        loadAllSaves().then((allSaves) => {
+          setSaves(allSaves);
+          if (allSaves.length > 0) {
+            const s = allSaves[0];
+            setCurrentSaveId(s.id);
+            setCurrentSaveName(s.name);
+            const cfg = s.config;
+            if (cfg.buttons)    setButtons(cfg.buttons as ButtonConfig[]);
+            if (cfg.portInputs) setPortInputs(cfg.portInputs as PortConfig[]);
+            if (cfg.leds)       setLeds(cfg.leds as LedConfig);
+            if (cfg.irSensors)  setIrSensors(cfg.irSensors as IRSensorConfig[]);
+            if (cfg.sipPuffs)   setSipPuffs(cfg.sipPuffs as SipPuffConfig[]);
+            if (cfg.joysticks)  setJoysticks(cfg.joysticks as JoystickConfig[]);
+          }
         });
+      } else {
+        setSaves([]);
+        setCurrentSaveId(null);
+        setCurrentSaveName("My Setup");
       }
     });
     return () => subscription.unsubscribe();
@@ -716,11 +738,21 @@ export default function Home() {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       setSaving(true);
-      await saveConfig({ buttons, portInputs, leds, irSensors, sipPuffs, joysticks });
+      const newId = await upsertSave(currentSaveId, currentSaveName, { buttons, portInputs, leds, irSensors, sipPuffs, joysticks });
+      if (newId && newId !== currentSaveId) {
+        setCurrentSaveId(newId);
+        setSaves((prev) => {
+          const exists = prev.find((s) => s.id === newId);
+          if (exists) return prev.map((s) => s.id === newId ? { ...s, name: currentSaveName, config: { buttons, portInputs, leds, irSensors, sipPuffs, joysticks }, updated_at: new Date().toISOString() } : s);
+          return [{ id: newId, name: currentSaveName, config: { buttons, portInputs, leds, irSensors, sipPuffs, joysticks }, updated_at: new Date().toISOString() }, ...prev];
+        });
+      } else if (newId) {
+        setSaves((prev) => prev.map((s) => s.id === newId ? { ...s, name: currentSaveName, config: { buttons, portInputs, leds, irSensors, sipPuffs, joysticks }, updated_at: new Date().toISOString() } : s));
+      }
       setSaving(false);
     }, 1500);
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
-  }, [user, buttons, portInputs, leds, irSensors, sipPuffs, joysticks]);
+  }, [user, buttons, portInputs, leds, irSensors, sipPuffs, joysticks, currentSaveId, currentSaveName]);
 
   const fetchPorts = async () => {
     setLoadingPorts(true);
@@ -817,6 +849,38 @@ export default function Home() {
     [joysticks]
   );
 
+  const switchSave = (s: SaveSlot) => {
+    setCurrentSaveId(s.id);
+    setCurrentSaveName(s.name);
+    const cfg = s.config;
+    if (cfg.buttons)    setButtons(cfg.buttons as ButtonConfig[]);
+    if (cfg.portInputs) setPortInputs(cfg.portInputs as PortConfig[]);
+    if (cfg.leds)       setLeds(cfg.leds as LedConfig);
+    if (cfg.irSensors)  setIrSensors(cfg.irSensors as IRSensorConfig[]);
+    if (cfg.sipPuffs)   setSipPuffs(cfg.sipPuffs as SipPuffConfig[]);
+    if (cfg.joysticks)  setJoysticks(cfg.joysticks as JoystickConfig[]);
+    setShowSaveMenu(false);
+  };
+
+  const createNewSave = () => {
+    setCurrentSaveId(null);
+    setCurrentSaveName("New Setup");
+    setButtons([{ id: generateId(), name: "", pin: 2, keyDisplay: "", arduinoKey: "", mode: "momentary" }]);
+    setPortInputs([]); setLeds({ enabled: false, onPin: 11, offPin: 12 });
+    setIrSensors([]); setSipPuffs([]); setJoysticks([]);
+    setShowSaveMenu(false);
+  };
+
+  const handleDeleteSave = async (id: string) => {
+    await deleteSave(id);
+    const remaining = saves.filter((s) => s.id !== id);
+    setSaves(remaining);
+    if (currentSaveId === id) {
+      if (remaining.length > 0) switchSave(remaining[0]);
+      else createNewSave();
+    }
+  };
+
   const openSketch = async () => {
     setLoadingSketch(true);
     try {
@@ -878,10 +942,58 @@ export default function Home() {
             <h1 className="text-sm font-bold text-gray-100 leading-none">Arduino Button Mapper</h1>
             <p className="text-[10px] text-gray-500 leading-none mt-0.5 hidden sm:block">Configure → Upload → Test</p>
           </div>
-          {/* Auth */}
+          {/* Auth + Save Switcher */}
           {authReady && (
             user ? (
               <div className="flex items-center gap-2 flex-shrink-0">
+                {/* Save switcher */}
+                <div className="relative" ref={saveMenuRef}>
+                  <button
+                    onClick={() => setShowSaveMenu((v) => !v)}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-gray-800/60 border border-gray-700 hover:border-gray-500 text-xs text-gray-300 hover:text-gray-100 transition-all max-w-[140px]"
+                  >
+                    <span className="truncate">{currentSaveName}</span>
+                    <ChevronDown size={10} className="flex-shrink-0 text-gray-500" />
+                  </button>
+                  {showSaveMenu && (
+                    <div className="absolute right-0 top-full mt-1 w-52 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden">
+                      {/* Rename current save */}
+                      <div className="px-3 py-2 border-b border-gray-800">
+                        <input
+                          value={currentSaveName}
+                          onChange={(e) => setCurrentSaveName(e.target.value)}
+                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs text-gray-200 focus:outline-none focus:border-blue-500 transition-colors"
+                          placeholder="Save name"
+                        />
+                      </div>
+                      <div className="max-h-48 overflow-y-auto">
+                        {saves.map((s) => (
+                          <div key={s.id} className="flex items-center group">
+                            <button
+                              onClick={() => switchSave(s)}
+                              className={["flex-1 text-left px-3 py-2 text-xs transition-colors truncate",
+                                s.id === currentSaveId ? "bg-blue-600/20 text-blue-300" : "text-gray-300 hover:bg-gray-800"
+                              ].join(" ")}
+                            >{s.name}</button>
+                            <button
+                              onClick={() => handleDeleteSave(s.id)}
+                              className="px-2 py-2 text-gray-700 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0"
+                            ><Trash2 size={11} /></button>
+                          </div>
+                        ))}
+                        {saves.length === 0 && (
+                          <p className="px-3 py-2 text-xs text-gray-600 italic">No saves yet</p>
+                        )}
+                      </div>
+                      <div className="border-t border-gray-800">
+                        <button
+                          onClick={createNewSave}
+                          className="flex items-center gap-1.5 w-full px-3 py-2 text-xs text-gray-400 hover:text-gray-100 hover:bg-gray-800 transition-colors"
+                        ><Plus size={11} /> New save</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
                 {saving && <span className="text-[10px] text-gray-600 hidden sm:block">saving…</span>}
                 {!saving && <span className="text-[10px] text-green-600 hidden sm:block">saved</span>}
                 <div className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-800/60 border border-gray-700 rounded-xl">

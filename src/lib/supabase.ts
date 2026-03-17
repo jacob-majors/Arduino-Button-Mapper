@@ -14,21 +14,43 @@ export type UserConfig = {
   joysticks: unknown[];
 };
 
-export async function loadConfig(): Promise<UserConfig | null> {
+export type SaveSlot = {
+  id: string;
+  name: string;
+  config: UserConfig;
+  updated_at: string;
+};
+
+export async function loadAllSaves(): Promise<SaveSlot[]> {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  if (!user) return [];
   const { data } = await supabase
     .from("user_configs")
-    .select("config")
+    .select("id, name, config, updated_at")
     .eq("user_id", user.id)
-    .maybeSingle();
-  return data?.config ?? null;
+    .order("updated_at", { ascending: false });
+  return (data as SaveSlot[]) ?? [];
 }
 
-export async function saveConfig(config: UserConfig): Promise<void> {
+export async function upsertSave(id: string | null, name: string, config: UserConfig): Promise<string> {
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
-  await supabase
+  if (!user) return "";
+  if (id) {
+    await supabase
+      .from("user_configs")
+      .update({ name, config, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .eq("user_id", user.id);
+    return id;
+  }
+  const { data } = await supabase
     .from("user_configs")
-    .upsert({ user_id: user.id, config, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+    .insert({ user_id: user.id, name, config })
+    .select("id")
+    .single();
+  return data?.id ?? "";
+}
+
+export async function deleteSave(id: string): Promise<void> {
+  await supabase.from("user_configs").delete().eq("id", id);
 }
