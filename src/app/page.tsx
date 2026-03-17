@@ -370,6 +370,58 @@ function LogLineView({ line }: { line: LogLine }) {
   );
 }
 
+// ─── Wiring Panel ─────────────────────────────────────────────────────────────
+
+type WireRow = { label: string; to: string; color: string };
+
+function WiringPanel({ wires, docsUrl, docsLabel }: {
+  wires: WireRow[];
+  docsUrl: string;
+  docsLabel: string;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-0.5">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1 text-[10px] text-gray-600 hover:text-gray-400 transition-colors"
+      >
+        <ChevronDown size={10} className={`transition-transform ${open ? "rotate-180" : ""}`} />
+        Wiring diagram
+      </button>
+      {open && (
+        <div className="mt-2 rounded-lg border border-gray-800 bg-gray-950/60 p-3 flex flex-col gap-1.5">
+          {/* Wire table */}
+          <div className="flex items-center gap-2 pb-1 border-b border-gray-800">
+            <span className="text-[10px] text-gray-600 font-semibold w-16 flex-shrink-0">Sensor</span>
+            <span className="text-[10px] text-gray-600 font-semibold flex-1">Arduino Leonardo</span>
+          </div>
+          {wires.map((w) => (
+            <div key={w.label} className="flex items-center gap-2">
+              <span className="text-[10px] font-mono font-semibold w-16 flex-shrink-0" style={{ color: w.color }}>{w.label}</span>
+              <div className="flex-1 flex items-center gap-1.5">
+                <div className="flex-1 border-t border-dashed" style={{ borderColor: w.color + "55" }} />
+                <span className="text-[10px] font-mono text-gray-300">{w.to}</span>
+              </div>
+            </div>
+          ))}
+          {/* Docs link */}
+          <a
+            href={docsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 mt-1 text-[10px] text-blue-500 hover:text-blue-400 transition-colors"
+          >
+            <ExternalLink size={9} />
+            {docsLabel}
+          </a>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Pin Selector ─────────────────────────────────────────────────────────────
 
 function PinSelect({ value, onChange, label, excludePins }: {
@@ -476,6 +528,15 @@ function IRSensorCard({ sensor, index, usedPins, onUpdate, onRemove }: {
         </div>
       </div>
       <p className="text-[10px] text-emerald-600/70 pl-8">Most IR modules output LOW when triggered → use LOW=on</p>
+      <WiringPanel
+        wires={[
+          { label: "VCC", to: "5V", color: "#f87171" },
+          { label: "GND", to: "GND", color: "#9ca3af" },
+          { label: "OUT", to: `D${sensor.pin}`, color: "#34d399" },
+        ]}
+        docsUrl="https://arduinogetstarted.com/tutorials/arduino-ir-obstacle-avoidance-sensor"
+        docsLabel="IR Sensor wiring guide"
+      />
     </div>
   );
 }
@@ -546,6 +607,15 @@ function SipPuffCard({ sensor, index, usedAnalogPins, onUpdate, onRemove }: {
         </div>
       </div>
       <p className="text-[10px] text-cyan-600/70 pl-8">Sip = inhale (low pressure) · Puff = exhale (high pressure)</p>
+      <WiringPanel
+        wires={[
+          { label: "VCC", to: "5V", color: "#f87171" },
+          { label: "GND", to: "GND", color: "#9ca3af" },
+          { label: "OUT/Vout", to: `A${sensor.analogPin}`, color: "#22d3ee" },
+        ]}
+        docsUrl="https://www.instructables.com/Sip-and-Puff-Arduino-Interface/"
+        docsLabel="Sip & Puff Arduino guide"
+      />
     </div>
   );
 }
@@ -649,6 +719,17 @@ function JoystickCard({ joy, index, usedPins, usedAnalogPins, onUpdate, onRemove
           </div>
         )}
       </div>
+      <WiringPanel
+        wires={[
+          { label: "VCC (+5V)", to: "5V", color: "#f87171" },
+          { label: "GND", to: "GND", color: "#9ca3af" },
+          { label: "VRx", to: `A${joy.xPin}`, color: "#a78bfa" },
+          { label: "VRy", to: `A${joy.yPin}`, color: "#c4b5fd" },
+          ...(joy.buttonPin >= 0 ? [{ label: "SW (click)", to: `D${joy.buttonPin}`, color: "#818cf8" }] : []),
+        ]}
+        docsUrl="https://arduinogetstarted.com/tutorials/arduino-joystick"
+        docsLabel="Joystick wiring guide"
+      />
     </div>
   );
 }
