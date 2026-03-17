@@ -921,14 +921,15 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
   const [showVCC, setShowVCC] = useState(false);
   const [showGND, setShowGND] = useState(false);
   const [showResistorInfo, setShowResistorInfo] = useState(false);
+  const [componentInfo, setComponentInfo] = useState<{ type: string; label: string } | null>(null);
 
   const connNeedsVCC = (type: string) => ["ir", "sipPuff", "joystickX"].includes(type);
   const connNeedsGND = (type: string) => type !== "joystickY";
 
-  const BX = 345, BY = 65, BW = 170, BH = 450;
+  const BX = 345, BY = 65, BW = 170, BH = 560;
 
-  const digitalPinY = (pin: number) => BY + 81 + (13 - pin) * 26;
-  const analogPinY = (pin: number) => BY + 291 + pin * 26;
+  const digitalPinY = (pin: number) => BY + 81 + (13 - pin) * 34;
+  const analogPinY = (pin: number) => BY + 291 + pin * 34;
 
   // Collect all right-side (digital) connections
   type RightConn = { pinY: number; color: string; label: string; type: "button" | "power" | "port" | "led" | "ir" | "swclick" };
@@ -1027,10 +1028,9 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
 
   // ── Physical-drawing style component icons ──────────────────────────────────
 
-  function ButtonIcon({ cx, cy, color, isPower }: { cx: number; cy: number; color: string; isPower: boolean }) {
-    // Looks like a real pushbutton: square base, raised round cap, 4 legs
+  function ButtonIcon({ cx, cy, color, isPower, onClick }: { cx: number; cy: number; color: string; isPower: boolean; onClick?: () => void }) {
     return (
-      <g>
+      <g onClick={onClick} style={onClick ? { cursor: "pointer" } : undefined}>
         {/* PCB footprint / base plate */}
         <rect x={cx - 18} y={cy - 4} width="36" height="14" rx="2" fill="#111827" stroke="#374151" strokeWidth="1" />
         {/* 4 legs */}
@@ -1057,10 +1057,9 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
     );
   }
 
-  function PortIcon({ cx, cy, color }: { cx: number; cy: number; color: string }) {
-    // Looks like a 3.5mm audio jack
+  function PortIcon({ cx, cy, color, onClick }: { cx: number; cy: number; color: string; onClick?: () => void }) {
     return (
-      <g>
+      <g onClick={onClick} style={onClick ? { cursor: "pointer" } : undefined}>
         {/* Jack body - cylinder */}
         <rect x={cx - 20} y={cy - 8} width="40" height="16" rx="8" fill="#0a1520" stroke={color} strokeWidth="1.5" />
         {/* Tip opening */}
@@ -1075,10 +1074,9 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
     );
   }
 
-  function LedIcon({ cx, cy, color }: { cx: number; cy: number; color: string }) {
-    // Looks like a physical 5mm LED: round dome, flat bottom, 2 legs (anode longer)
+  function LedIcon({ cx, cy, color, onClick }: { cx: number; cy: number; color: string; onClick?: () => void }) {
     return (
-      <g>
+      <g onClick={onClick} style={onClick ? { cursor: "pointer" } : undefined}>
         {/* Anode lead (longer, left) */}
         <line x1={cx - 6} y1={cy + 10} x2={cx - 6} y2={cy + 22} stroke={color} strokeWidth="2" strokeLinecap="round" />
         {/* Cathode lead (shorter, right) */}
@@ -1099,10 +1097,9 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
     );
   }
 
-  function IrIcon({ cx, cy, color }: { cx: number; cy: number; color: string }) {
-    // Looks like an IR sensor module (small black PCB with dome)
+  function IrIcon({ cx, cy, color, onClick }: { cx: number; cy: number; color: string; onClick?: () => void }) {
     return (
-      <g>
+      <g onClick={onClick} style={onClick ? { cursor: "pointer" } : undefined}>
         {/* PCB board */}
         <rect x={cx - 24} y={cy - 9} width="48" height="18" rx="3" fill="#0a100a" stroke={color} strokeWidth="1.5" />
         {/* Receiver dome (dark) */}
@@ -1123,10 +1120,9 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
     );
   }
 
-  function SipPuffIcon({ cx, cy, color }: { cx: number; cy: number; color: string }) {
-    // Looks like a pressure sensor with a tube coming out
+  function SipPuffIcon({ cx, cy, color, onClick }: { cx: number; cy: number; color: string; onClick?: () => void }) {
     return (
-      <g>
+      <g onClick={onClick} style={onClick ? { cursor: "pointer" } : undefined}>
         {/* Sensor body */}
         <rect x={cx - 22} y={cy - 10} width="44" height="20" rx="4" fill="#060f15" stroke={color} strokeWidth="1.5" />
         {/* Tube port on top */}
@@ -1144,10 +1140,9 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
     );
   }
 
-  function JoystickAxisIcon({ cx, cy, color }: { cx: number; cy: number; color: string }) {
-    // Looks like a physical joystick module with stick and base
+  function JoystickAxisIcon({ cx, cy, color, onClick }: { cx: number; cy: number; color: string; onClick?: () => void }) {
     return (
-      <g>
+      <g onClick={onClick} style={onClick ? { cursor: "pointer" } : undefined}>
         {/* Module PCB */}
         <rect x={cx - 22} y={cy - 10} width="44" height="20" rx="3" fill="#1a0a2a" stroke={color} strokeWidth="1.5" />
         {/* Gimbal circle */}
@@ -1167,10 +1162,9 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
     );
   }
 
-  function SwClickIcon({ cx, cy, color }: { cx: number; cy: number; color: string }) {
-    // Joystick click button — same physical button style
+  function SwClickIcon({ cx, cy, color, onClick }: { cx: number; cy: number; color: string; onClick?: () => void }) {
     return (
-      <g>
+      <g onClick={onClick} style={onClick ? { cursor: "pointer" } : undefined}>
         <rect x={cx - 18} y={cy - 4} width="36" height="14" rx="2" fill="#111827" stroke="#374151" strokeWidth="1" />
         <line x1={cx - 12} y1={cy + 10} x2={cx - 12} y2={cy + 20} stroke={color} strokeWidth="2" strokeLinecap="round" />
         <line x1={cx - 5}  y1={cy + 10} x2={cx - 5}  y2={cy + 20} stroke={color} strokeWidth="2" strokeLinecap="round" />
@@ -1253,7 +1247,7 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
         {/* SVG Body */}
         <div className="flex-1 overflow-auto p-4">
           <svg
-            viewBox="0 0 920 580"
+            viewBox="0 0 920 660"
             xmlns="http://www.w3.org/2000/svg"
             style={{ width: "100%", height: "auto", background: "#0a0f1a", borderRadius: 10 }}
           >
@@ -1263,7 +1257,7 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
                 <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1f2937" strokeWidth="0.5" />
               </pattern>
             </defs>
-            <rect width="920" height="580" fill="url(#wdgrid)" />
+            <rect width="920" height="660" fill="url(#wdgrid)" />
 
             {/* ── Arduino Leonardo Board ── */}
             {/* Outer PCB */}
@@ -1315,7 +1309,7 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
             <text x={BX + BW / 2} y={BY + 145} textAnchor="middle" fontFamily="monospace" fontSize="8" fill="#004f52" letterSpacing="1">LEONARDO</text>
 
             {/* ── Right Pin Header Bracket ── */}
-            <rect x={515} y={BY + 52} width="10" height="378" fill="#1f2937" stroke="#374151" strokeWidth="1" />
+            <rect x={515} y={BY + 52} width="10" height="470" fill="#1f2937" stroke="#374151" strokeWidth="1" />
 
             {/* Right digital pins */}
             {ALL_PINS.concat([0, 1]).map((pin) => {
@@ -1345,7 +1339,7 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
             })}
 
             {/* Left Analog Header Bracket */}
-            <rect x={335} y={BY + 278} width="10" height="164" fill="#1f2937" stroke="#374151" strokeWidth="1" />
+            <rect x={335} y={BY + 278} width="10" height="200" fill="#1f2937" stroke="#374151" strokeWidth="1" />
 
             {/* Analog pins */}
             {ANALOG_PINS.map((pin) => {
@@ -1411,12 +1405,12 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
                     <line x1={RCX + 28} y1={cy + 8} x2={860} y2={cy + 8} stroke="#6b7280" strokeWidth="1" strokeDasharray="4 3" opacity={0.6} />
                   )}
                   {/* Component icon */}
-                  {conn.type === "button" && <ButtonIcon cx={RCX} cy={cy} color={color} isPower={false} />}
-                  {conn.type === "power" && <ButtonIcon cx={RCX} cy={cy} color={color} isPower={true} />}
-                  {conn.type === "port" && <PortIcon cx={RCX} cy={cy} color={color} />}
-                  {conn.type === "led" && <LedIcon cx={RCX} cy={cy} color={color} />}
-                  {conn.type === "ir" && <IrIcon cx={RCX} cy={cy} color={color} />}
-                  {conn.type === "swclick" && <SwClickIcon cx={RCX} cy={cy} color={color} />}
+                  {conn.type === "button" && <ButtonIcon cx={RCX} cy={cy} color={color} isPower={false} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
+                  {conn.type === "power" && <ButtonIcon cx={RCX} cy={cy} color={color} isPower={true} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
+                  {conn.type === "port" && <PortIcon cx={RCX} cy={cy} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
+                  {conn.type === "led" && <LedIcon cx={RCX} cy={cy} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
+                  {conn.type === "ir" && <IrIcon cx={RCX} cy={cy} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
+                  {conn.type === "swclick" && <SwClickIcon cx={RCX} cy={cy} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
                   {/* Label */}
                   <text x={RCX + 28} y={cy + 4} fontFamily="sans-serif" fontSize="9" fill={color} textAnchor="start">
                     {conn.label}
@@ -1442,9 +1436,9 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
                     <line x1={LCX - 28} y1={cy + 8} x2={35} y2={cy + 8} stroke="#6b7280" strokeWidth="1" strokeDasharray="4 3" opacity={0.6} />
                   )}
                   {/* Component icon */}
-                  {conn.type === "sipPuff" && <SipPuffIcon cx={LCX} cy={cy} color={color} />}
+                  {conn.type === "sipPuff" && <SipPuffIcon cx={LCX} cy={cy} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
                   {(conn.type === "joystickX" || conn.type === "joystickY") && (
-                    <JoystickAxisIcon cx={LCX} cy={cy} color={color} />
+                    <JoystickAxisIcon cx={LCX} cy={cy} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />
                   )}
                   {/* Label */}
                   <text x={LCX - 28} y={cy + 4} fontFamily="sans-serif" fontSize="9" fill={color} textAnchor="end">
@@ -1462,8 +1456,8 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
             )}
 
             {/* ── Notes strip ── */}
-            <rect x={10} y={545} width={900} height={22} rx="4" fill="#111827" />
-            <text x={20} y={560} fontFamily="sans-serif" fontSize="8.5" fill="#6b7280">
+            <rect x={10} y={630} width={900} height={22} rx="4" fill="#111827" />
+            <text x={20} y={645} fontFamily="sans-serif" fontSize="8.5" fill="#6b7280">
               Toggle +5V and GND in the header to show power connections. Sensors need +5V &amp; GND; buttons/LEDs need GND only.
             </text>
           </svg>
@@ -1526,6 +1520,86 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
             </div>
           </div>
         )}
+
+        {/* ── Component Info Popup ── */}
+        {componentInfo && (() => {
+          const infoMap: Record<string, { title: string; desc: string; wiring: string }> = {
+            button: {
+              title: "Pushbutton",
+              desc: "A momentary switch that sends a keypress while held down. Each press triggers the configured key on your computer.",
+              wiring: "Wire one leg to the Arduino digital pin, other leg to GND. Uses INPUT_PULLUP — no resistor needed.",
+            },
+            power: {
+              title: "Power Button",
+              desc: "Toggles the entire controller on or off. While off, all inputs stop sending keys and Keyboard.releaseAll() is called immediately.",
+              wiring: "Wired the same as a regular button: one leg to digital pin, other to GND. Uses INPUT_PULLUP.",
+            },
+            port: {
+              title: "3.5mm Port",
+              desc: "An external input jack for switches, sip & puff adapters, or other adapted devices using a standard 3.5mm audio cable.",
+              wiring: "Tip → digital pin, Sleeve → GND. Uses INPUT_PULLUP — activates when tip is shorted to sleeve.",
+            },
+            led: {
+              title: "LED",
+              desc: "Lights up to show button state (pressed / toggled / power on). Always use a series resistor to limit current.",
+              wiring: "Pin → 220Ω resistor → LED anode (+, longer leg). LED cathode (−, shorter leg) → GND.",
+            },
+            ir: {
+              title: "IR Proximity Sensor",
+              desc: "Detects objects in front of it using infrared light. Outputs LOW when an object is detected, HIGH otherwise.",
+              wiring: "OUT → digital pin. Also needs +5V (VCC) and GND. No resistor needed on the signal wire.",
+            },
+            swclick: {
+              title: "Joystick Click (SW)",
+              desc: "The push-down button built into the joystick stick. Pressing the stick down activates it like a normal button.",
+              wiring: "SW → digital pin with INPUT_PULLUP. GND on the joystick module goes to Arduino GND.",
+            },
+            sipPuff: {
+              title: "Sip & Puff Sensor",
+              desc: "A pressure transducer that detects breath. Sipping (inhale) and puffing (exhale) generate different analog voltage levels.",
+              wiring: "OUT → analog pin (A0–A5). Needs +5V (VCC) and GND. The sketch reads the voltage to detect sip vs puff.",
+            },
+            joystickX: {
+              title: "Joystick X-Axis (VRx)",
+              desc: "A potentiometer tracking left/right movement of the stick. Outputs 0–5V based on position, read by an analog pin.",
+              wiring: "VRx → analog pin. The full module also needs +5V (VCC) and GND connected.",
+            },
+            joystickY: {
+              title: "Joystick Y-Axis (VRy)",
+              desc: "A potentiometer tracking up/down movement of the stick. Shares the same physical module as the X-axis.",
+              wiring: "VRy → analog pin. VCC and GND are shared with the X-axis — only one set of power wires needed.",
+            },
+          };
+          const info = infoMap[componentInfo.type] ?? { title: componentInfo.label, desc: "Component info not available.", wiring: "" };
+          return (
+            <div
+              className="absolute top-14 left-1/2 -translate-x-1/2 z-30 w-80 bg-gray-950 border border-gray-700 rounded-xl shadow-2xl p-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <span className="text-sm font-semibold text-gray-100">{info.title}</span>
+                  {componentInfo.label && (
+                    <span className="ml-2 text-xs text-gray-500 font-mono">{componentInfo.label}</span>
+                  )}
+                </div>
+                <button
+                  onClick={() => setComponentInfo(null)}
+                  className="text-gray-500 hover:text-gray-200 p-0.5"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+              <p className="text-xs text-gray-400 leading-relaxed mb-2">{info.desc}</p>
+              {info.wiring && (
+                <div className="bg-gray-900 rounded-lg p-2.5">
+                  <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide block mb-1">Wiring</span>
+                  <p className="text-xs text-gray-300 leading-relaxed">{info.wiring}</p>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
@@ -2055,41 +2129,64 @@ export default function Home() {
 
               {/* LED Config */}
               <section className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex-shrink-0">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <Lightbulb size={13} className="text-yellow-400" />
-                    <h2 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">LED Indicators</h2>
-                    <button onClick={() => setShowLedInfo(true)}
-                      className="p-0.5 rounded text-gray-600 hover:text-yellow-400 transition-colors"
-                      title="LED wiring guide"
-                    ><Info size={13} /></button>
-                  </div>
-                  <div onClick={() => setLeds((l) => ({ ...l, enabled: !l.enabled }))}
-                    className={["relative w-9 h-5 rounded-full transition-colors cursor-pointer flex-shrink-0",
-                      leds.enabled ? "bg-blue-600" : "bg-gray-700"].join(" ")}
-                  >
-                    <div className={["absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform",
-                      leds.enabled ? "translate-x-4" : "translate-x-0.5"].join(" ")} />
-                  </div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Lightbulb size={13} className="text-yellow-400" />
+                  <h2 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">LED Indicators</h2>
+                  <button onClick={() => setShowLedInfo(true)}
+                    className="p-0.5 rounded text-gray-600 hover:text-yellow-400 transition-colors"
+                    title="LED wiring guide"
+                  ><Info size={13} /></button>
                 </div>
-                {leds.enabled ? (
-                  <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.8)] flex-shrink-0" />
-                      <PinSelect label="Active (green)" value={leds.onPin}
-                        onChange={(v) => setLeds((l) => ({ ...l, onPin: v }))}
-                        excludePins={usedPins.filter((p) => p !== leds.onPin)} />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-red-400 shadow-[0_0_6px_rgba(248,113,113,0.8)] flex-shrink-0" />
-                      <PinSelect label="Inactive (red)" value={leds.offPin}
-                        onChange={(v) => setLeds((l) => ({ ...l, offPin: v }))}
-                        excludePins={usedPins.filter((p) => p !== leds.offPin)} />
+
+                {/* Power Button Status LEDs */}
+                <div className="mb-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">Power Button</span>
+                    <div onClick={() => setLeds((l) => ({ ...l, enabled: !l.enabled }))}
+                      className={["relative w-9 h-5 rounded-full transition-colors cursor-pointer flex-shrink-0",
+                        leds.enabled ? "bg-blue-600" : "bg-gray-700"].join(" ")}
+                    >
+                      <div className={["absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform",
+                        leds.enabled ? "translate-x-4" : "translate-x-0.5"].join(" ")} />
                     </div>
                   </div>
-                ) : (
-                  <p className="text-xs text-gray-600">Enable to add two status LEDs to your build.</p>
-                )}
+                  {leds.enabled ? (
+                    <div className="flex flex-col gap-2 pl-1">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.8)] flex-shrink-0" />
+                        <PinSelect label="Power On" value={leds.onPin}
+                          onChange={(v) => setLeds((l) => ({ ...l, onPin: v }))}
+                          excludePins={usedPins.filter((p) => p !== leds.onPin)} />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-red-400 shadow-[0_0_6px_rgba(248,113,113,0.8)] flex-shrink-0" />
+                        <PinSelect label="Power Off" value={leds.offPin}
+                          onChange={(v) => setLeds((l) => ({ ...l, offPin: v }))}
+                          excludePins={usedPins.filter((p) => p !== leds.offPin)} />
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-600 pl-1">Toggle on to add status LEDs linked to the power button.</p>
+                  )}
+                </div>
+
+                {/* Per-button LEDs */}
+                <div className="border-t border-gray-800 pt-3">
+                  <span className="text-[11px] text-gray-500 font-medium uppercase tracking-wide block mb-2">Button LEDs</span>
+                  {buttons.filter((b) => (b.ledPin ?? -1) >= 0).length > 0 ? (
+                    <div className="flex flex-col gap-1.5">
+                      {buttons.filter((b) => (b.ledPin ?? -1) >= 0).map((b) => (
+                        <div key={b.id} className="flex items-center gap-2 pl-1">
+                          <div className="w-3 h-3 rounded-full bg-yellow-400 shadow-[0_0_5px_rgba(251,191,36,0.7)] flex-shrink-0" />
+                          <span className="text-xs text-gray-300 flex-1 truncate">{b.name || "Button"}</span>
+                          <span className="text-[10px] text-gray-500 font-mono bg-gray-800 px-1.5 py-0.5 rounded">D{b.ledPin}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-gray-600 pl-1">Use the 💡 icon on a button card to assign an LED pin.</p>
+                  )}
+                </div>
               </section>
 
               {/* Port Inputs */}
@@ -2374,23 +2471,6 @@ export default function Home() {
                   </li>
                 ))}
               </ol>
-            </div>
-
-            {/* ── Live wiring diagram ── */}
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-1">
-                <Zap size={14} className="text-yellow-400" />
-                <h3 className="text-sm font-semibold text-gray-200">Your Wiring Diagram</h3>
-              </div>
-              <p className="text-xs text-gray-600 mb-4 leading-relaxed">
-                Based on your current configuration. Each highlighted pin shows what&apos;s connected and where. Connect sensor power (VCC) to the 5V pin and GND to any GND pin.
-              </p>
-              <div className="bg-gray-950 border border-gray-800 rounded-xl overflow-hidden p-2">
-                <LiveWiringDiagram
-                  buttons={buttons} portInputs={portInputs} leds={leds}
-                  irSensors={irSensors} sipPuffs={sipPuffs} joysticks={joysticks}
-                />
-              </div>
             </div>
 
             {/* ── How code generation works ── */}
