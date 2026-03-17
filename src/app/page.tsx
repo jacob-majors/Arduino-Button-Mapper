@@ -14,6 +14,7 @@ import {
 } from "@/lib/keymap";
 import DinoGame from "@/components/DinoGame";
 import SnakeGame from "@/components/SnakeGame";
+import PongGame from "@/components/PongGame";
 import DeviceMockup from "@/components/DeviceMockup";
 import { arduinoToBrowserKey } from "@/lib/keymap";
 import { supabase, loadAllSaves, upsertSave, deleteSave } from "@/lib/supabase";
@@ -1629,6 +1630,8 @@ export default function Home() {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("arduino_cli_dismissed") !== "1";
   });
+  const [cliCheckState, setCliCheckState] = useState<"idle" | "checking" | "ok" | "missing">("idle");
+  const [cliVersion, setCliVersion] = useState<string | null>(null);
   const [user,      setUser]      = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [saving,    setSaving]    = useState(false);
@@ -1637,8 +1640,7 @@ export default function Home() {
   const [currentSaveId, setCurrentSaveId] = useState<string | null>(null);
   const [currentSaveName, setCurrentSaveName] = useState("My Setup");
   const [showSaveMenu, setShowSaveMenu] = useState(false);
-  const [dinoCollapsed,  setDinoCollapsed]  = useState(false);
-  const [snakeCollapsed, setSnakeCollapsed] = useState(false);
+  const [selectedGame, setSelectedGame] = useState<"dino" | "snake" | "pong">("dino");
   const [irSensors, setIrSensors] = useState<IRSensorConfig[]>([]);
   const [sipPuffs, setSipPuffs] = useState<SipPuffConfig[]>([]);
   const [joysticks, setJoysticks] = useState<JoystickConfig[]>([]);
@@ -2016,7 +2018,43 @@ export default function Home() {
               <div className="max-w-[1400px] mx-auto flex items-start gap-3">
                 <Terminal size={16} className="text-amber-400 flex-shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-semibold text-amber-300">One-time setup required to upload sketches to your Arduino</p>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <p className="text-xs font-semibold text-amber-300">One-time setup required to upload sketches to your Arduino</p>
+                    {/* Check installed button */}
+                    {cliCheckState === "idle" && (
+                      <button
+                        onClick={async () => {
+                          setCliCheckState("checking");
+                          try {
+                            const r = await fetch(`${BACKEND_URL}/api/check-cli`);
+                            const d = await r.json();
+                            setCliCheckState(d.installed ? "ok" : "missing");
+                            if (d.installed) setCliVersion(d.version);
+                          } catch {
+                            setCliCheckState("missing");
+                          }
+                        }}
+                        className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-amber-800/30 border border-amber-700/40 text-xs text-amber-300 hover:bg-amber-700/30 transition-colors"
+                      >
+                        <CheckCircle2 size={10} /> Check if installed
+                      </button>
+                    )}
+                    {cliCheckState === "checking" && (
+                      <span className="flex items-center gap-1.5 text-xs text-amber-500">
+                        <Loader2 size={10} className="animate-spin" /> Checking…
+                      </span>
+                    )}
+                    {cliCheckState === "ok" && (
+                      <span className="flex items-center gap-1.5 text-xs text-green-400 font-medium">
+                        <CheckCircle2 size={10} /> Installed{cliVersion ? ` (v${cliVersion})` : ""} — you&apos;re all set!
+                      </span>
+                    )}
+                    {cliCheckState === "missing" && (
+                      <span className="flex items-center gap-1.5 text-xs text-red-400 font-medium">
+                        <XCircle size={10} /> Not found — download below
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-amber-600/80 mt-0.5">
                     Download <span className="text-amber-300 font-medium">arduino-cli</span>, then run{" "}
                     <code className="bg-amber-950/60 px-1.5 py-0.5 rounded text-[11px] text-green-400 font-mono">arduino-cli core install arduino:avr</code>{" "}
@@ -2316,46 +2354,61 @@ export default function Home() {
       {/* ══ TEST TAB ═══════════════════════════════════════════════════════ */}
       {tab === "test" && (
         <div className="flex-1 overflow-y-auto">
-          <div className="max-w-3xl mx-auto px-4 sm:px-6 py-5 flex flex-col gap-5">
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5 flex flex-col gap-5">
 
-            {/* ── Dino Game ── */}
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
-              <div
-                className="flex items-center gap-2 px-5 py-3 cursor-pointer select-none hover:bg-gray-800/40 transition-colors"
-                onClick={() => setDinoCollapsed((c) => !c)}
-              >
-                <Gamepad2 size={14} className="text-purple-400 flex-shrink-0" />
-                <h2 className="text-sm font-semibold text-gray-200">Dino Game</h2>
-                {dinoCollapsed && <span className="text-xs text-gray-600">↑ jump · ↓ duck</span>}
-                <div className="ml-auto flex-shrink-0 text-gray-600 hover:text-gray-400 transition-colors">
-                  {dinoCollapsed ? <Maximize2 size={13} /> : <Minimize2 size={13} />}
+            {/* ── Game area + selector ── */}
+            <div className="flex gap-4 items-start">
+
+              {/* Game canvas */}
+              <div className="flex-1 bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden min-w-0">
+                <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-800">
+                  <Gamepad2 size={14} className="text-purple-400" />
+                  <h2 className="text-sm font-semibold text-gray-200">
+                    {selectedGame === "dino" && "Dino Game"}
+                    {selectedGame === "snake" && "Snake"}
+                    {selectedGame === "pong" && "Pong"}
+                  </h2>
+                  <span className="text-xs text-gray-600 ml-1">
+                    {selectedGame === "dino" && "↑ jump · ↓ duck"}
+                    {selectedGame === "snake" && "↑↓←→ · WASD · joystick"}
+                    {selectedGame === "pong" && "W/S or ↑/↓ to move"}
+                  </span>
+                </div>
+                <div className="p-4">
+                  {selectedGame === "dino" && <DinoGame jumpKeys={jumpKeys} />}
+                  {selectedGame === "snake" && <SnakeGame joystickMaps={joystickMaps} />}
+                  {selectedGame === "pong" && <PongGame joystickMaps={joystickMaps[0] ? { up: [joystickMaps[0].up], down: [joystickMaps[0].down] } : undefined} />}
                 </div>
               </div>
-              {!dinoCollapsed && (
-                <div className="px-5 pb-5">
-                  <DinoGame jumpKeys={jumpKeys} />
-                </div>
-              )}
-            </div>
 
-            {/* ── Snake Game ── */}
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
-              <div
-                className="flex items-center gap-2 px-5 py-3 cursor-pointer select-none hover:bg-gray-800/40 transition-colors"
-                onClick={() => setSnakeCollapsed((c) => !c)}
-              >
-                <Joystick size={14} className="text-violet-400 flex-shrink-0" />
-                <h2 className="text-sm font-semibold text-gray-200">Snake</h2>
-                {snakeCollapsed && <span className="text-xs text-gray-600">↑↓←→ · WASD · joystick</span>}
-                <div className="ml-auto flex-shrink-0 text-gray-600 hover:text-gray-400 transition-colors">
-                  {snakeCollapsed ? <Maximize2 size={13} /> : <Minimize2 size={13} />}
-                </div>
+              {/* Game selector */}
+              <div className="w-44 flex-shrink-0 bg-gray-900 border border-gray-800 rounded-2xl p-3 flex flex-col gap-2">
+                <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide px-1 mb-1">Games</p>
+                {(
+                  [
+                    { id: "dino",  label: "Dino Game", emoji: "🦕", hint: "↑ jump  ↓ duck" },
+                    { id: "snake", label: "Snake",     emoji: "🐍", hint: "Arrow keys / WASD" },
+                    { id: "pong",  label: "Pong",      emoji: "🏓", hint: "W/S or ↑/↓" },
+                  ] as const
+                ).map((g) => (
+                  <button
+                    key={g.id}
+                    onClick={() => setSelectedGame(g.id)}
+                    className={[
+                      "w-full text-left px-3 py-2.5 rounded-xl transition-all",
+                      selectedGame === g.id
+                        ? "bg-purple-600/20 border border-purple-600/40 text-purple-300"
+                        : "border border-transparent hover:bg-gray-800 text-gray-400 hover:text-gray-200",
+                    ].join(" ")}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-base leading-none">{g.emoji}</span>
+                      <span className="text-xs font-medium">{g.label}</span>
+                    </div>
+                    <p className="text-[10px] text-gray-600 mt-1 pl-6">{g.hint}</p>
+                  </button>
+                ))}
               </div>
-              {!snakeCollapsed && (
-                <div className="px-5 pb-5">
-                  <SnakeGame joystickMaps={joystickMaps} />
-                </div>
-              )}
             </div>
 
             {/* ── Device Tester ── */}

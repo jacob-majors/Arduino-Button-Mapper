@@ -92,6 +92,18 @@ app.get('/api/ports', (req, res) => {
   });
 });
 
+// ─── CLI Check ────────────────────────────────────────────────────────────────
+
+app.get('/api/check-cli', (req, res) => {
+  exec('arduino-cli version 2>&1', (err, stdout) => {
+    if (err || !stdout.toLowerCase().includes('arduino-cli')) {
+      return res.json({ installed: false, version: null });
+    }
+    const match = stdout.match(/arduino-cli\s+([\d.]+)/i);
+    res.json({ installed: true, version: match ? match[1] : stdout.trim().slice(0, 40) });
+  });
+});
+
 // ─── Sketch Generation ────────────────────────────────────────────────────────
 
 function generateSketch(buttons) {
