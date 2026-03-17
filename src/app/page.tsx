@@ -534,8 +534,8 @@ function IRSensorCard({ sensor, index, usedPins, onUpdate, onRemove }: {
           { label: "GND", to: "GND", color: "#9ca3af" },
           { label: "OUT", to: `D${sensor.pin}`, color: "#34d399" },
         ]}
-        docsUrl="https://arduinogetstarted.com/tutorials/arduino-ir-obstacle-avoidance-sensor"
-        docsLabel="IR Sensor wiring guide"
+        docsUrl="https://www.arduino.cc/reference/en/language/functions/digital-io/digitalread/"
+        docsLabel="Arduino digitalRead() docs"
       />
     </div>
   );
@@ -613,8 +613,8 @@ function SipPuffCard({ sensor, index, usedAnalogPins, onUpdate, onRemove }: {
           { label: "GND", to: "GND", color: "#9ca3af" },
           { label: "OUT/Vout", to: `A${sensor.analogPin}`, color: "#22d3ee" },
         ]}
-        docsUrl="https://www.instructables.com/Sip-and-Puff-Arduino-Interface/"
-        docsLabel="Sip & Puff Arduino guide"
+        docsUrl="https://www.arduino.cc/reference/en/language/functions/analog-io/analogread/"
+        docsLabel="Arduino analogRead() docs"
       />
     </div>
   );
@@ -727,10 +727,141 @@ function JoystickCard({ joy, index, usedPins, usedAnalogPins, onUpdate, onRemove
           { label: "VRy", to: `A${joy.yPin}`, color: "#c4b5fd" },
           ...(joy.buttonPin >= 0 ? [{ label: "SW (click)", to: `D${joy.buttonPin}`, color: "#818cf8" }] : []),
         ]}
-        docsUrl="https://arduinogetstarted.com/tutorials/arduino-joystick"
-        docsLabel="Joystick wiring guide"
+        docsUrl="https://www.arduino.cc/reference/en/language/functions/analog-io/analogread/"
+        docsLabel="Arduino analogRead() docs"
       />
     </div>
+  );
+}
+
+// ─── Live Wiring Diagram ──────────────────────────────────────────────────────
+
+function LiveWiringDiagram({ buttons, portInputs, leds, irSensors, sipPuffs, joysticks }: {
+  buttons: ButtonConfig[]; portInputs: PortConfig[]; leds: LedConfig;
+  irSensors: IRSensorConfig[]; sipPuffs: SipPuffConfig[]; joysticks: JoystickConfig[];
+}) {
+  const BX = 255, BY = 25, BW = 110, BH = 308;
+  const dpY = (pin: number) => BY + 46 + (13 - pin) * 18;
+  const dpX = BX + BW;
+  const apY = (pin: number) => BY + 120 + pin * 22;
+  const apX = BX;
+
+  type Conn = { pin: number; label: string; color: string };
+  const right: Conn[] = [];
+  const left: Conn[]  = [];
+  const seenD = new Set<number>();
+  const seenA = new Set<number>();
+
+  const addD = (pin: number, label: string, color: string) => {
+    if (pin >= 0 && pin <= 13 && !seenD.has(pin)) { seenD.add(pin); right.push({ pin, label, color }); }
+  };
+  const addA = (pin: number, label: string, color: string) => {
+    if (pin >= 0 && pin <= 5 && !seenA.has(pin)) { seenA.add(pin); left.push({ pin, label, color }); }
+  };
+
+  const trunc = (s: string, n = 17) => s.length > n ? s.slice(0, n - 1) + "…" : s;
+
+  buttons.forEach((b) => addD(b.pin, trunc(b.name || `Button`), b.mode === "power" ? "#f59e0b" : "#60a5fa"));
+  portInputs.forEach((p) => addD(p.pin, trunc(p.name || `Port Input`), "#38bdf8"));
+  if (leds.enabled) {
+    addD(leds.onPin,  "LED — active",   "#fbbf24");
+    addD(leds.offPin, "LED — inactive", "#78716c");
+  }
+  irSensors.forEach((s) => addD(s.pin, trunc(s.name || `IR Sensor`), "#34d399"));
+  joysticks.forEach((j) => {
+    addA(j.xPin, trunc((j.name || "Joystick") + " VRx"), "#a78bfa");
+    addA(j.yPin, trunc((j.name || "Joystick") + " VRy"), "#c084fc");
+    if (j.buttonPin >= 0) addD(j.buttonPin, trunc((j.name || "Joystick") + " SW"), "#818cf8");
+  });
+  sipPuffs.forEach((s) => addA(s.analogPin, trunc(s.name || "Sip & Puff"), "#22d3ee"));
+
+  const hasAny = right.length > 0 || left.length > 0 || leds.enabled;
+
+  return (
+    <svg viewBox="0 0 620 372" width="100%" xmlns="http://www.w3.org/2000/svg" style={{ maxHeight: 372 }}>
+      {/* Board body */}
+      <rect x={BX} y={BY} width={BW} height={BH} rx="7" fill="#0b1a10" stroke="#166534" strokeWidth="2" />
+      <rect x={BX + 2} y={BY + 2} width={BW - 4} height={BH - 4} rx="6" fill="#0d2015" />
+
+      {/* Board labels */}
+      <text x={BX + BW / 2} y={BY + 16} textAnchor="middle" fontFamily="monospace" fontSize="10" fill="#4ade80" fontWeight="bold">Arduino</text>
+      <text x={BX + BW / 2} y={BY + 28} textAnchor="middle" fontFamily="monospace" fontSize="9" fill="#16a34a">Leonardo</text>
+
+      {/* Reset button */}
+      <circle cx={BX + 20} cy={BY + 22} r={7} fill="none" stroke="#374151" strokeWidth="1.5" />
+      <text x={BX + 20} y={BY + 26} textAnchor="middle" fontFamily="monospace" fontSize="6" fill="#4b5563">RST</text>
+
+      {/* USB connector */}
+      <rect x={BX + 30} y={BY + BH} width={50} height={20} rx="3" fill="#1f2937" stroke="#374151" strokeWidth="1.5" />
+      <text x={BX + 55} y={BY + BH + 13} textAnchor="middle" fontFamily="monospace" fontSize="8" fill="#4b5563">USB</text>
+
+      {/* ── Digital pin header bracket (right) */}
+      <rect x={dpX} y={dpY(13) - 6} width={8} height={13 * 18 + 14} rx="2" fill="#1f2937" stroke="#374151" strokeWidth="1" />
+
+      {Array.from({ length: 14 }, (_, i) => {
+        const pin = 13 - i;
+        const y = dpY(pin);
+        const conn = right.find((c) => c.pin === pin);
+        const used = !!conn;
+        return (
+          <g key={`d${pin}`}>
+            <line x1={dpX + 8} y1={y} x2={dpX + 14} y2={y} stroke={used ? conn!.color : "#374151"} strokeWidth={used ? 1.5 : 1} />
+            <circle cx={dpX + 14} cy={y} r={used ? 3.5 : 2} fill={used ? conn!.color : "#1f2937"} stroke={used ? conn!.color : "#4b5563"} strokeWidth="1" />
+            <text x={dpX - 3} y={y + 3.5} textAnchor="end" fontFamily="monospace" fontSize="7" fill={used ? "#6b7280" : "#374151"}>D{pin}</text>
+            {used && conn && (
+              <>
+                <line x1={dpX + 14} y1={y} x2={dpX + 40} y2={y} stroke={conn.color} strokeWidth="1.5" strokeDasharray="4 2" opacity="0.85" />
+                <text x={dpX + 44} y={y + 3.5} fontFamily="sans-serif" fontSize="9.5" fill={conn.color} fontWeight="500">{conn.label}</text>
+              </>
+            )}
+          </g>
+        );
+      })}
+
+      {/* ── Left header bracket */}
+      <rect x={apX - 8} y={BY + 40} width={8} height={BH - 52} rx="2" fill="#1f2937" stroke="#374151" strokeWidth="1" />
+
+      {/* 5V power */}
+      <line x1={apX - 8} y1={BY + 52} x2={apX - 14} y2={BY + 52} stroke="#f87171" strokeWidth="1.5" />
+      <circle cx={apX - 14} cy={BY + 52} r={3} fill="#f87171" />
+      <text x={apX - 4} y={BY + 55.5} textAnchor="end" fontFamily="monospace" fontSize="7" fill="#6b7280">5V</text>
+      <line x1={apX - 14} y1={BY + 52} x2={apX - 40} y2={BY + 52} stroke="#f87171" strokeWidth="1.5" strokeDasharray="4 2" opacity="0.7" />
+      <text x={apX - 44} y={BY + 55.5} textAnchor="end" fontFamily="sans-serif" fontSize="9.5" fill="#f87171">Power (VCC)</text>
+
+      {/* GND power */}
+      <line x1={apX - 8} y1={BY + 70} x2={apX - 14} y2={BY + 70} stroke="#9ca3af" strokeWidth="1.5" />
+      <circle cx={apX - 14} cy={BY + 70} r={3} fill="#9ca3af" />
+      <text x={apX - 4} y={BY + 73.5} textAnchor="end" fontFamily="monospace" fontSize="7" fill="#6b7280">GND</text>
+      <line x1={apX - 14} y1={BY + 70} x2={apX - 40} y2={BY + 70} stroke="#9ca3af" strokeWidth="1.5" strokeDasharray="4 2" opacity="0.7" />
+      <text x={apX - 44} y={BY + 73.5} textAnchor="end" fontFamily="sans-serif" fontSize="9.5" fill="#9ca3af">Ground</text>
+
+      {/* ── Analog pins (left) */}
+      {Array.from({ length: 6 }, (_, pin) => {
+        const y = apY(pin);
+        const conn = left.find((c) => c.pin === pin);
+        const used = !!conn;
+        return (
+          <g key={`a${pin}`}>
+            <line x1={apX - 8} y1={y} x2={apX - 14} y2={y} stroke={used ? conn!.color : "#374151"} strokeWidth={used ? 1.5 : 1} />
+            <circle cx={apX - 14} cy={y} r={used ? 3.5 : 2} fill={used ? conn!.color : "#1f2937"} stroke={used ? conn!.color : "#4b5563"} strokeWidth="1" />
+            <text x={apX - 4} y={y + 3.5} textAnchor="end" fontFamily="monospace" fontSize="7" fill={used ? "#6b7280" : "#374151"}>A{pin}</text>
+            {used && conn && (
+              <>
+                <line x1={apX - 14} y1={y} x2={apX - 40} y2={y} stroke={conn.color} strokeWidth="1.5" strokeDasharray="4 2" opacity="0.85" />
+                <text x={apX - 44} y={y + 3.5} textAnchor="end" fontFamily="sans-serif" fontSize="9.5" fill={conn.color} fontWeight="500">{conn.label}</text>
+              </>
+            )}
+          </g>
+        );
+      })}
+
+      {/* Empty state */}
+      {!hasAny && (
+        <text x={BX + BW / 2} y={BY + BH / 2 + 10} textAnchor="middle" fontFamily="sans-serif" fontSize="10" fill="#374151">
+          Configure inputs to see wiring
+        </text>
+      )}
+    </svg>
   );
 }
 
@@ -1463,13 +1594,23 @@ export default function Home() {
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
               <div className="flex items-center gap-2 mb-3">
                 <Usb size={14} className="text-green-400" />
-                <h3 className="text-sm font-semibold text-gray-200">How to Connect Your Arduino</h3>
+                <h3 className="text-sm font-semibold text-gray-200">How to Use This App</h3>
               </div>
+
+              {/* Just use the website */}
+              <div className="mb-4 px-3 py-2.5 bg-green-950/30 border border-green-800/40 rounded-xl">
+                <p className="text-xs text-green-300 font-medium mb-0.5">Just open the website — no setup needed</p>
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  Configure your inputs, assign keys, preview the sketch, and save your setup. All of this works in the browser with no installation required.
+                </p>
+              </div>
+
+              {/* Uploading to Arduino needs the backend */}
               <p className="text-xs text-gray-600 mb-4 leading-relaxed">
-                The website handles configuration and code generation. Uploading to the board
-                requires the local backend server running on your computer — it provides USB
-                access that a browser cannot do on its own.
+                To actually <span className="text-gray-400">flash the sketch onto your Arduino</span>, you need the local backend running on your computer. Browsers can&apos;t access USB directly, so a small local server handles the compile and upload.
               </p>
+
+              <p className="text-[11px] text-gray-600 uppercase tracking-wider font-semibold mb-3">One-time setup for uploading</p>
               <ol className="space-y-4">
                 {([
                   {
@@ -1479,20 +1620,16 @@ export default function Home() {
                   },
                   {
                     n: 2, title: "Run the local backend",
-                    body: "Open a terminal in the project folder and start the upload server:",
+                    body: "Open a terminal in the project folder and start the server:",
                     code: "cd backend && node server.js",
                     note: "Keep this running whenever you want to upload. It listens on port 3001.",
                   },
                   {
                     n: 3, title: "Plug in your Arduino Leonardo",
-                    body: "Use a USB data cable — not a charge-only cable. The port appears in the dropdown at the top of the Configure tab. Hit the refresh button if it doesn't show up.",
+                    body: "Use a USB data cable — not a charge-only cable. The port appears in the dropdown at the top of the Configure tab. Hit refresh if it doesn't show up.",
                   },
                   {
-                    n: 4, title: "Configure your inputs",
-                    body: "In the Configure tab, assign pins to keys. Add buttons, back-panel 3.5mm ports, IR sensors, sip & puff sensors, and joysticks — each with its own key mapping and logic mode.",
-                  },
-                  {
-                    n: 5, title: "Click Upload",
+                    n: 4, title: "Click Upload",
                     body: "The app generates the Arduino sketch, compiles it with arduino-cli, and flashes it to the board over USB. Watch the log for errors. Once done, press your inputs to confirm the right keys are sent.",
                   },
                 ] as { n: number; title: string; body: string; code?: string; note?: string }[]).map(({ n, title, body, code, note }) => (
@@ -1511,6 +1648,23 @@ export default function Home() {
                   </li>
                 ))}
               </ol>
+            </div>
+
+            {/* ── Live wiring diagram ── */}
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+              <div className="flex items-center gap-2 mb-1">
+                <Zap size={14} className="text-yellow-400" />
+                <h3 className="text-sm font-semibold text-gray-200">Your Wiring Diagram</h3>
+              </div>
+              <p className="text-xs text-gray-600 mb-4 leading-relaxed">
+                Based on your current configuration. Each highlighted pin shows what&apos;s connected and where. Connect sensor power (VCC) to the 5V pin and GND to any GND pin.
+              </p>
+              <div className="bg-gray-950 border border-gray-800 rounded-xl overflow-hidden p-2">
+                <LiveWiringDiagram
+                  buttons={buttons} portInputs={portInputs} leds={leds}
+                  irSensors={irSensors} sipPuffs={sipPuffs} joysticks={joysticks}
+                />
+              </div>
             </div>
 
             {/* ── How code generation works ── */}
@@ -1556,11 +1710,11 @@ export default function Home() {
                 {[
                   { name: "Next.js 14", tag: "Frontend", color: "text-blue-400", desc: "App Router, React, TypeScript" },
                   { name: "Tailwind CSS", tag: "Styling", color: "text-cyan-400", desc: "Utility-first, dark theme" },
+                  { name: "Supabase", tag: "Auth + DB", color: "text-emerald-400", desc: "Google login + save slots" },
                   { name: "Express.js", tag: "Backend", color: "text-green-400", desc: "Local server on port 3001" },
                   { name: "arduino-cli", tag: "Compiler", color: "text-yellow-400", desc: "Compile + upload over USB" },
                   { name: "Canvas API", tag: "Games", color: "text-purple-400", desc: "Dino + Snake, no sprites" },
                   { name: "SSE stream", tag: "Upload log", color: "text-orange-400", desc: "Real-time compile output" },
-                  { name: "Lucide React", tag: "Icons", color: "text-pink-400", desc: "Clean SVG icon set" },
                   { name: "Claude AI", tag: "Coded with", color: "text-indigo-400", desc: "AI-assisted development" },
                 ].map(({ name, tag, color, desc }) => (
                   <div key={name} className="bg-gray-800/50 border border-gray-700/60 rounded-xl p-3">
