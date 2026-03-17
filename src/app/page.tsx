@@ -901,6 +901,480 @@ function LiveWiringDiagram({ buttons, portInputs, leds, irSensors, sipPuffs, joy
   );
 }
 
+// ─── Wiring Diagram Modal ─────────────────────────────────────────────────────
+
+function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, joysticks, onClose }: {
+  buttons: ButtonConfig[];
+  portInputs: PortConfig[];
+  leds: LedConfig;
+  irSensors: IRSensorConfig[];
+  sipPuffs: SipPuffConfig[];
+  joysticks: JoystickConfig[];
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
+
+  const BX = 345, BY = 65, BW = 170, BH = 450;
+
+  const digitalPinY = (pin: number) => BY + 81 + (13 - pin) * 26;
+  const analogPinY = (pin: number) => BY + 291 + pin * 26;
+
+  // Collect all right-side (digital) connections
+  type RightConn = { pinY: number; color: string; label: string; type: "button" | "power" | "port" | "led" | "ir" | "swclick" };
+  const rightConns: RightConn[] = [];
+
+  buttons.forEach((b) => {
+    if (!ALL_PINS.includes(b.pin)) return;
+    rightConns.push({
+      pinY: digitalPinY(b.pin),
+      color: b.mode === "power" ? "#f59e0b" : "#60a5fa",
+      label: b.name.slice(0, 15),
+      type: b.mode === "power" ? "power" : "button",
+    });
+    if (b.ledPin && ALL_PINS.includes(b.ledPin)) {
+      rightConns.push({
+        pinY: digitalPinY(b.ledPin),
+        color: "#fbbf24",
+        label: (b.name + " LED").slice(0, 15),
+        type: "led",
+      });
+    }
+  });
+
+  portInputs.forEach((p) => {
+    if (!ALL_PINS.includes(p.pin)) return;
+    rightConns.push({
+      pinY: digitalPinY(p.pin),
+      color: "#38bdf8",
+      label: p.name.slice(0, 15),
+      type: "port",
+    });
+  });
+
+  if (leds.enabled) {
+    if (leds.onPin && ALL_PINS.includes(leds.onPin)) {
+      rightConns.push({ pinY: digitalPinY(leds.onPin), color: "#fbbf24", label: "LED (on)", type: "led" });
+    }
+    if (leds.offPin && ALL_PINS.includes(leds.offPin)) {
+      rightConns.push({ pinY: digitalPinY(leds.offPin), color: "#fbbf24", label: "LED (off)", type: "led" });
+    }
+  }
+
+  irSensors.forEach((ir) => {
+    if (!ALL_PINS.includes(ir.pin)) return;
+    rightConns.push({ pinY: digitalPinY(ir.pin), color: "#34d399", label: ir.name.slice(0, 15), type: "ir" });
+  });
+
+  joysticks.forEach((j) => {
+    if (j.buttonPin && ALL_PINS.includes(j.buttonPin)) {
+      rightConns.push({ pinY: digitalPinY(j.buttonPin), color: "#818cf8", label: (j.name + " SW").slice(0, 15), type: "swclick" });
+    }
+  });
+
+  // Collect all left-side (analog) connections
+  type LeftConn = { pinY: number; color: string; label: string; type: "sipPuff" | "joystickX" | "joystickY" };
+  const leftConns: LeftConn[] = [];
+
+  sipPuffs.forEach((s) => {
+    if (ANALOG_PINS.includes(s.analogPin)) {
+      leftConns.push({ pinY: analogPinY(s.analogPin), color: "#22d3ee", label: s.name.slice(0, 15), type: "sipPuff" });
+    }
+  });
+
+  joysticks.forEach((j) => {
+    if (ANALOG_PINS.includes(j.xPin)) {
+      leftConns.push({ pinY: analogPinY(j.xPin), color: "#a78bfa", label: (j.name + " X").slice(0, 15), type: "joystickX" });
+    }
+    if (ANALOG_PINS.includes(j.yPin)) {
+      leftConns.push({ pinY: analogPinY(j.yPin), color: "#c084fc", label: (j.name + " Y").slice(0, 15), type: "joystickY" });
+    }
+  });
+
+  const hasAny = rightConns.length > 0 || leftConns.length > 0;
+
+  // Left power pin labels/colors
+  const leftPowerPins = [
+    { label: "NC",    color: "#374151" },
+    { label: "IOREF", color: "#374151" },
+    { label: "RESET", color: "#ef4444" },
+    { label: "+3V3",  color: "#f87171" },
+    { label: "+5V",   color: "#f87171" },
+    { label: "GND",   color: "#6b7280" },
+    { label: "GND",   color: "#6b7280" },
+    { label: "VIN",   color: "#f59e0b" },
+  ];
+
+  const usedDigitalPins = new Set(rightConns.map((c) => {
+    // find which pin number yields this pinY
+    for (const p of ALL_PINS) { if (digitalPinY(p) === c.pinY) return p; }
+    return -1;
+  }));
+  const usedAnalogPins = new Set(leftConns.map((c) => {
+    for (const p of ANALOG_PINS) { if (analogPinY(p) === c.pinY) return p; }
+    return -1;
+  }));
+
+  // ── Physical-drawing style component icons ──────────────────────────────────
+
+  function ButtonIcon({ cx, cy, color, isPower }: { cx: number; cy: number; color: string; isPower: boolean }) {
+    // Looks like a real pushbutton: square base, raised round cap, 4 legs
+    return (
+      <g>
+        {/* PCB footprint / base plate */}
+        <rect x={cx - 18} y={cy - 4} width="36" height="14" rx="2" fill="#111827" stroke="#374151" strokeWidth="1" />
+        {/* 4 legs */}
+        <line x1={cx - 12} y1={cy + 10} x2={cx - 12} y2={cy + 20} stroke={color} strokeWidth="2" strokeLinecap="round" />
+        <line x1={cx - 5}  y1={cy + 10} x2={cx - 5}  y2={cy + 20} stroke={color} strokeWidth="2" strokeLinecap="round" />
+        <line x1={cx + 5}  y1={cy + 10} x2={cx + 5}  y2={cy + 20} stroke={color} strokeWidth="2" strokeLinecap="round" />
+        <line x1={cx + 12} y1={cy + 10} x2={cx + 12} y2={cy + 20} stroke={color} strokeWidth="2" strokeLinecap="round" />
+        {/* Button body (raised cylinder) */}
+        <ellipse cx={cx} cy={cy - 4} rx="13" ry="5" fill="#1e3a5f" stroke={color} strokeWidth="1.5" />
+        <ellipse cx={cx} cy={cy - 10} rx="13" ry="5" fill={isPower ? color : "#2563eb"} opacity={0.9} />
+        <rect x={cx - 13} y={cy - 14} width="26" height="10" fill={isPower ? color : "#2563eb"} opacity={0.9} />
+        {/* Cap sheen */}
+        <ellipse cx={cx - 4} cy={cy - 13} rx="4" ry="2" fill="white" opacity={0.15} />
+        {isPower && (
+          <>
+            {/* Power symbol on cap */}
+            <circle cx={cx} cy={cy - 10} r="5" fill="none" stroke="white" strokeWidth="1.2" strokeDasharray="8 4" opacity={0.8} />
+            <line x1={cx} y1={cy - 16} x2={cx} y2={cy - 12} stroke="white" strokeWidth="1.5" strokeLinecap="round" />
+          </>
+        )}
+        {/* Label: "BTN" */}
+        <text x={cx} y={cy + 32} textAnchor="middle" fontFamily="sans-serif" fontSize="8" fill={color} fontWeight="600">{isPower ? "PWR" : "BTN"}</text>
+      </g>
+    );
+  }
+
+  function PortIcon({ cx, cy, color }: { cx: number; cy: number; color: string }) {
+    // Looks like a 3.5mm audio jack
+    return (
+      <g>
+        {/* Jack body - cylinder */}
+        <rect x={cx - 20} y={cy - 8} width="40" height="16" rx="8" fill="#0a1520" stroke={color} strokeWidth="1.5" />
+        {/* Tip opening */}
+        <circle cx={cx + 20} cy={cy} r="5" fill="#020810" stroke={color} strokeWidth="1.5" />
+        <circle cx={cx + 20} cy={cy} r="2.5" fill={color} opacity={0.6} />
+        {/* Ring bands on barrel */}
+        <line x1={cx + 6} y1={cy - 8} x2={cx + 6} y2={cy + 8} stroke={color} strokeWidth="1" opacity={0.5} />
+        <line x1={cx + 2} y1={cy - 8} x2={cx + 2} y2={cy + 8} stroke={color} strokeWidth="1" opacity={0.3} />
+        {/* Label */}
+        <text x={cx - 6} y={cy + 22} textAnchor="middle" fontFamily="sans-serif" fontSize="8" fill={color} fontWeight="600">3.5mm</text>
+      </g>
+    );
+  }
+
+  function LedIcon({ cx, cy, color }: { cx: number; cy: number; color: string }) {
+    // Looks like a physical 5mm LED: round dome, flat bottom, 2 legs (anode longer)
+    return (
+      <g>
+        {/* Anode lead (longer, left) */}
+        <line x1={cx - 6} y1={cy + 10} x2={cx - 6} y2={cy + 22} stroke={color} strokeWidth="2" strokeLinecap="round" />
+        {/* Cathode lead (shorter, right) */}
+        <line x1={cx + 6} y1={cy + 10} x2={cx + 6} y2={cy + 18} stroke={color} strokeWidth="2" strokeLinecap="round" />
+        {/* Flat plastic collar at base */}
+        <rect x={cx - 10} y={cy + 4} width="20" height="6" rx="1" fill="#1a1a2e" stroke={color} strokeWidth="1.2" />
+        {/* LED body cylinder */}
+        <rect x={cx - 10} y={cy - 8} width="20" height="12" fill={color} opacity={0.75} />
+        {/* Dome on top */}
+        <ellipse cx={cx} cy={cy - 8} rx="10" ry="7" fill={color} opacity={0.85} />
+        {/* Dome sheen / highlight */}
+        <ellipse cx={cx - 3} cy={cy - 11} rx="4" ry="3" fill="white" opacity={0.25} />
+        {/* Glow halo */}
+        <ellipse cx={cx} cy={cy - 8} rx="14" ry="10" fill={color} opacity={0.08} />
+        {/* Label */}
+        <text x={cx} y={cy + 34} textAnchor="middle" fontFamily="sans-serif" fontSize="8" fill={color} fontWeight="600">LED</text>
+      </g>
+    );
+  }
+
+  function IrIcon({ cx, cy, color }: { cx: number; cy: number; color: string }) {
+    // Looks like an IR sensor module (small black PCB with dome)
+    return (
+      <g>
+        {/* PCB board */}
+        <rect x={cx - 24} y={cy - 9} width="48" height="18" rx="3" fill="#0a100a" stroke={color} strokeWidth="1.5" />
+        {/* Receiver dome (dark) */}
+        <ellipse cx={cx - 8} cy={cy} rx="7" ry="7" fill="#060c06" stroke={color} strokeWidth="1" />
+        <ellipse cx={cx - 8} cy={cy} rx="4" ry="4" fill={color} opacity={0.2} />
+        {/* Emitter dome */}
+        <ellipse cx={cx + 8} cy={cy} rx="5" ry="5" fill="#080e08" stroke={color} strokeWidth="1" opacity={0.8} />
+        {/* IR emission waves */}
+        <path d={`M${cx + 15},${cy - 4} Q${cx + 22},${cy} ${cx + 15},${cy + 4}`} fill="none" stroke={color} strokeWidth="1.2" opacity={0.7} />
+        <path d={`M${cx + 18},${cy - 7} Q${cx + 27},${cy} ${cx + 18},${cy + 7}`} fill="none" stroke={color} strokeWidth="1" opacity={0.45} />
+        {/* 3 leads */}
+        <line x1={cx - 14} y1={cy + 9} x2={cx - 14} y2={cy + 19} stroke={color} strokeWidth="2" strokeLinecap="round" />
+        <line x1={cx}     y1={cy + 9} x2={cx}     y2={cy + 19} stroke={color} strokeWidth="2" strokeLinecap="round" />
+        <line x1={cx + 14} y1={cy + 9} x2={cx + 14} y2={cy + 19} stroke={color} strokeWidth="2" strokeLinecap="round" />
+        {/* Label */}
+        <text x={cx - 6} y={cy + 31} textAnchor="middle" fontFamily="sans-serif" fontSize="8" fill={color} fontWeight="600">IR</text>
+      </g>
+    );
+  }
+
+  function SipPuffIcon({ cx, cy, color }: { cx: number; cy: number; color: string }) {
+    // Looks like a pressure sensor with a tube coming out
+    return (
+      <g>
+        {/* Sensor body */}
+        <rect x={cx - 22} y={cy - 10} width="44" height="20" rx="4" fill="#060f15" stroke={color} strokeWidth="1.5" />
+        {/* Tube port on top */}
+        <rect x={cx - 4} y={cy - 22} width="8" height="12" rx="4" fill="#040c12" stroke={color} strokeWidth="1.5" />
+        {/* Tube opening circle */}
+        <circle cx={cx} cy={cy - 22} r="3" fill="#020809" stroke={color} strokeWidth="1" />
+        {/* Sensor chip detail */}
+        <rect x={cx - 10} y={cy - 5} width="20" height="10" rx="2" fill="#0a1a24" stroke={color} strokeWidth="0.8" opacity={0.7} />
+        {/* Leads */}
+        <line x1={cx - 14} y1={cy + 10} x2={cx - 14} y2={cy + 20} stroke={color} strokeWidth="2" strokeLinecap="round" />
+        <line x1={cx + 14} y1={cy + 10} x2={cx + 14} y2={cy + 20} stroke={color} strokeWidth="2" strokeLinecap="round" />
+        {/* Label */}
+        <text x={cx} y={cy + 32} textAnchor="middle" fontFamily="sans-serif" fontSize="8" fill={color} fontWeight="600">S&P</text>
+      </g>
+    );
+  }
+
+  function JoystickAxisIcon({ cx, cy, color }: { cx: number; cy: number; color: string }) {
+    // Looks like a physical joystick module with stick and base
+    return (
+      <g>
+        {/* Module PCB */}
+        <rect x={cx - 22} y={cy - 10} width="44" height="20" rx="3" fill="#1a0a2a" stroke={color} strokeWidth="1.5" />
+        {/* Gimbal circle */}
+        <circle cx={cx} cy={cy} r="8" fill="#120520" stroke={color} strokeWidth="1" />
+        {/* Stick (angled) */}
+        <line x1={cx} y1={cy} x2={cx - 5} y2={cy - 24} stroke={color} strokeWidth="3" strokeLinecap="round" />
+        {/* Ball top */}
+        <circle cx={cx - 5} cy={cy - 27} r="6" fill="#5b21b6" stroke={color} strokeWidth="1.5" />
+        <ellipse cx={cx - 7} cy={cy - 30} rx="2.5" ry="1.5" fill="white" opacity={0.2} />
+        {/* 5 pins at bottom */}
+        {[-14, -7, 0, 7, 14].map((dx) => (
+          <line key={dx} x1={cx + dx} y1={cy + 10} x2={cx + dx} y2={cy + 18} stroke={color} strokeWidth="1.5" strokeLinecap="round" />
+        ))}
+        {/* Label */}
+        <text x={cx} y={cy + 30} textAnchor="middle" fontFamily="sans-serif" fontSize="8" fill={color} fontWeight="600">JOY</text>
+      </g>
+    );
+  }
+
+  function SwClickIcon({ cx, cy, color }: { cx: number; cy: number; color: string }) {
+    // Joystick click button — same physical button style
+    return (
+      <g>
+        <rect x={cx - 18} y={cy - 4} width="36" height="14" rx="2" fill="#111827" stroke="#374151" strokeWidth="1" />
+        <line x1={cx - 12} y1={cy + 10} x2={cx - 12} y2={cy + 20} stroke={color} strokeWidth="2" strokeLinecap="round" />
+        <line x1={cx - 5}  y1={cy + 10} x2={cx - 5}  y2={cy + 20} stroke={color} strokeWidth="2" strokeLinecap="round" />
+        <line x1={cx + 5}  y1={cy + 10} x2={cx + 5}  y2={cy + 20} stroke={color} strokeWidth="2" strokeLinecap="round" />
+        <line x1={cx + 12} y1={cy + 10} x2={cx + 12} y2={cy + 20} stroke={color} strokeWidth="2" strokeLinecap="round" />
+        <ellipse cx={cx} cy={cy - 4} rx="13" ry="5" fill="#1e3a5f" stroke={color} strokeWidth="1.5" />
+        <ellipse cx={cx} cy={cy - 10} rx="13" ry="5" fill={color} opacity={0.9} />
+        <rect x={cx - 13} y={cy - 14} width="26" height="10" fill={color} opacity={0.9} />
+        <ellipse cx={cx - 4} cy={cy - 13} rx="4" ry="2" fill="white" opacity={0.15} />
+        <text x={cx} y={cy + 32} textAnchor="middle" fontFamily="sans-serif" fontSize="8" fill={color} fontWeight="600">SW</text>
+      </g>
+    );
+  }
+
+  const RCX = 660; // right component center x
+  const LCX = 185; // left component center x
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-5xl max-h-[92vh] flex flex-col bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-800 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <Zap size={14} className="text-yellow-400" />
+            <span className="text-sm font-semibold text-gray-200">Wiring Diagram</span>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-gray-500 hover:text-gray-200 hover:bg-gray-800 transition-colors"
+          >
+            <X size={15} />
+          </button>
+        </div>
+
+        {/* SVG Body */}
+        <div className="flex-1 overflow-auto p-4">
+          <svg
+            viewBox="0 0 860 580"
+            xmlns="http://www.w3.org/2000/svg"
+            style={{ width: "100%", height: "auto", background: "#0a0f1a", borderRadius: 10 }}
+          >
+            {/* ── Background grid ── */}
+            <defs>
+              <pattern id="wdgrid" width="20" height="20" patternUnits="userSpaceOnUse">
+                <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1f2937" strokeWidth="0.5" />
+              </pattern>
+            </defs>
+            <rect width="860" height="580" fill="url(#wdgrid)" />
+
+            {/* ── Arduino Leonardo Board ── */}
+            {/* Outer PCB */}
+            <rect x={BX} y={BY} width={BW} height={BH} rx="8" fill="#00696f" stroke="#004f52" strokeWidth="2" />
+            {/* Inner PCB */}
+            <rect x={BX + 6} y={BY + 6} width={BW - 12} height={BH - 12} rx="6" fill="#00797d" />
+
+            {/* USB Micro connector at top */}
+            <rect x={BX + 55} y={BY - 25} width="60" height="30" rx="4" fill="#1f2937" stroke="#374151" strokeWidth="1.5" />
+            <rect x={BX + 62} y={BY - 20} width="46" height="20" rx="2" fill="#111827" />
+            <text x={BX + 85} y={BY - 7} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#4b5563">USB</text>
+
+            {/* ATmega32U4 chip */}
+            <rect x={BX + 40} y={BY + 200} width="90" height="70" rx="4" fill="#111" stroke="#333" strokeWidth="1.5" />
+            <text x={BX + 85} y={BY + 230} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#4b5563">ATmega</text>
+            <text x={BX + 85} y={BY + 242} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#4b5563">32U4</text>
+            {/* Pin stubs left side of chip */}
+            {[0, 1, 2, 3].map((i) => (
+              <line key={`cl${i}`} x1={BX + 40} y1={BY + 215 + i * 14} x2={BX + 34} y2={BY + 215 + i * 14} stroke="#333" strokeWidth="1.5" />
+            ))}
+            {/* Pin stubs right side of chip */}
+            {[0, 1, 2, 3].map((i) => (
+              <line key={`cr${i}`} x1={BX + 130} y1={BY + 215 + i * 14} x2={BX + 136} y2={BY + 215 + i * 14} stroke="#333" strokeWidth="1.5" />
+            ))}
+
+            {/* Reset button */}
+            <circle cx={BX + 22} cy={BY + 60} r="8" fill="#cc2222" stroke="#991111" strokeWidth="1" />
+            <circle cx={BX + 22} cy={BY + 60} r="4" fill="#ff4444" opacity={0.6} />
+
+            {/* Power LED */}
+            <circle cx={BX + 45} cy={BY + 60} r="4" fill="#00ff88" opacity={0.8} />
+
+            {/* Crystal */}
+            <rect x={BX + 62} y={BY + 60} width="18" height="8" rx="2" fill="#c8a800" stroke="#a07800" strokeWidth="1" />
+
+            {/* Mounting holes */}
+            {[
+              [BX + 12, BY + 12], [BX + BW - 12, BY + 12],
+              [BX + 12, BY + BH - 12], [BX + BW - 12, BY + BH - 12],
+            ].map(([hx, hy], i) => (
+              <g key={`mh${i}`}>
+                <circle cx={hx} cy={hy} r="6" fill="#005f62" stroke="#004f52" strokeWidth="1.5" />
+                <circle cx={hx} cy={hy} r="3" fill="#003f42" />
+              </g>
+            ))}
+
+            {/* Board title */}
+            <text x={BX + BW / 2} y={BY + 130} textAnchor="middle" fontFamily="monospace" fontSize="10" fill="#004f52" fontWeight="bold" letterSpacing="2">ARDUINO</text>
+            <text x={BX + BW / 2} y={BY + 145} textAnchor="middle" fontFamily="monospace" fontSize="8" fill="#004f52" letterSpacing="1">LEONARDO</text>
+
+            {/* ── Right Pin Header Bracket ── */}
+            <rect x={515} y={BY + 52} width="10" height="378" fill="#1f2937" stroke="#374151" strokeWidth="1" />
+
+            {/* Right digital pins */}
+            {ALL_PINS.concat([0, 1]).map((pin) => {
+              const py = digitalPinY(pin);
+              const conn = rightConns.find((c) => c.pinY === py);
+              const color = conn ? conn.color : "#374151";
+              return (
+                <g key={`dp${pin}`}>
+                  <circle cx={520} cy={py} r="3" fill={color} />
+                  <text x={528} y={py + 4} fontFamily="monospace" fontSize="8" fill="#4b5563">D{pin}</text>
+                </g>
+              );
+            })}
+
+            {/* ── Left Power Header Bracket ── */}
+            <rect x={335} y={BY + 52} width="10" height="216" fill="#1f2937" stroke="#374151" strokeWidth="1" />
+
+            {/* Left power pins */}
+            {leftPowerPins.map((pp, i) => {
+              const py = BY + 55 + i * 26;
+              return (
+                <g key={`lpp${i}`}>
+                  <circle cx={340} cy={py} r="3" fill={pp.color} />
+                  <text x={332} y={py + 4} fontFamily="monospace" fontSize="8" fill="#4b5563" textAnchor="end">{pp.label}</text>
+                </g>
+              );
+            })}
+
+            {/* Left Analog Header Bracket */}
+            <rect x={335} y={BY + 278} width="10" height="164" fill="#1f2937" stroke="#374151" strokeWidth="1" />
+
+            {/* Analog pins */}
+            {ANALOG_PINS.map((pin) => {
+              const py = analogPinY(pin);
+              const conn = leftConns.find((c) => c.pinY === py);
+              const color = conn ? conn.color : "#374151";
+              return (
+                <g key={`ap${pin}`}>
+                  <circle cx={340} cy={py} r="3" fill={color} />
+                  <text x={332} y={py + 4} fontFamily="monospace" fontSize="8" fill="#4b5563" textAnchor="end">A{pin}</text>
+                </g>
+              );
+            })}
+
+            {/* ── Wires + Components RIGHT side ── */}
+            {rightConns.map((conn, idx) => {
+              const cy = conn.pinY;
+              const color = conn.color;
+              return (
+                <g key={`rc${idx}`}>
+                  {/* Dashed wire */}
+                  <line x1={520} y1={cy} x2={630} y2={cy} stroke={color} strokeWidth="1.5" strokeDasharray="5 3" opacity={0.8} />
+                  {/* Component icon */}
+                  {conn.type === "button" && <ButtonIcon cx={RCX} cy={cy} color={color} isPower={false} />}
+                  {conn.type === "power" && <ButtonIcon cx={RCX} cy={cy} color={color} isPower={true} />}
+                  {conn.type === "port" && <PortIcon cx={RCX} cy={cy} color={color} />}
+                  {conn.type === "led" && <LedIcon cx={RCX} cy={cy} color={color} />}
+                  {conn.type === "ir" && <IrIcon cx={RCX} cy={cy} color={color} />}
+                  {conn.type === "swclick" && <SwClickIcon cx={RCX} cy={cy} color={color} />}
+                  {/* Label */}
+                  <text x={RCX + 28} y={cy + 4} fontFamily="sans-serif" fontSize="9" fill={color} textAnchor="start">
+                    {conn.label}
+                  </text>
+                </g>
+              );
+            })}
+
+            {/* ── Wires + Components LEFT side ── */}
+            {leftConns.map((conn, idx) => {
+              const cy = conn.pinY;
+              const color = conn.color;
+              return (
+                <g key={`lc${idx}`}>
+                  {/* Dashed wire */}
+                  <line x1={337} y1={cy} x2={215} y2={cy} stroke={color} strokeWidth="1.5" strokeDasharray="5 3" opacity={0.8} />
+                  {/* Component icon */}
+                  {conn.type === "sipPuff" && <SipPuffIcon cx={LCX} cy={cy} color={color} />}
+                  {(conn.type === "joystickX" || conn.type === "joystickY") && (
+                    <JoystickAxisIcon cx={LCX} cy={cy} color={color} />
+                  )}
+                  {/* Label */}
+                  <text x={LCX - 28} y={cy + 4} fontFamily="sans-serif" fontSize="9" fill={color} textAnchor="end">
+                    {conn.label}
+                  </text>
+                </g>
+              );
+            })}
+
+            {/* ── Empty state ── */}
+            {!hasAny && (
+              <text x={430} y={295} textAnchor="middle" fontFamily="sans-serif" fontSize="13" fill="#374151">
+                No components configured — add inputs to see wiring
+              </text>
+            )}
+
+            {/* ── Notes strip ── */}
+            <rect x={10} y={545} width={840} height={22} rx="4" fill="#111827" />
+            <text x={20} y={560} fontFamily="sans-serif" fontSize="8.5" fill="#6b7280">
+              Note: All components also require +5V (VCC) and GND connections. Wire each sensor&apos;s VCC to the Arduino +5V pin and GND to any GND pin.
+            </text>
+          </svg>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function Home() {
@@ -920,6 +1394,11 @@ export default function Home() {
   const [loadingPorts, setLoadingPorts] = useState(false);
   const [loadingSketch, setLoadingSketch] = useState(false);
   const [showLedInfo, setShowLedInfo] = useState(false);
+  const [showWiring, setShowWiring] = useState(false);
+  const [showSetupBanner, setShowSetupBanner] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("arduino_cli_dismissed") !== "1";
+  });
   const [user,      setUser]      = useState<User | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [saving,    setSaving]    = useState(false);
@@ -1299,7 +1778,53 @@ export default function Home() {
 
       {/* ══ CONFIGURE TAB ══════════════════════════════════════════════════ */}
       {tab === "configure" && (
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 overflow-hidden flex flex-col">
+
+          {/* ── arduino-cli setup banner ── */}
+          {showSetupBanner && (
+            <div className="flex-shrink-0 bg-amber-950/40 border-b border-amber-700/40 px-4 sm:px-6 py-3">
+              <div className="max-w-[1400px] mx-auto flex items-start gap-3">
+                <Terminal size={16} className="text-amber-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-amber-300">One-time setup required to upload sketches to your Arduino</p>
+                  <p className="text-xs text-amber-600/80 mt-0.5">
+                    Download <span className="text-amber-300 font-medium">arduino-cli</span>, then run{" "}
+                    <code className="bg-amber-950/60 px-1.5 py-0.5 rounded text-[11px] text-green-400 font-mono">arduino-cli core install arduino:avr</code>{" "}
+                    once in a terminal. After that, just plug in your Arduino and click Upload.
+                  </p>
+                  <div className="flex items-center gap-3 mt-2 flex-wrap">
+                    <a
+                      href="https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_macOS_64bit.tar.gz"
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-800/40 border border-amber-700/50 text-xs text-amber-200 hover:bg-amber-700/40 transition-colors"
+                    >
+                      <ExternalLink size={10} /> Download for macOS
+                    </a>
+                    <a
+                      href="https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_Windows_64bit.zip"
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-800/40 border border-amber-700/50 text-xs text-amber-200 hover:bg-amber-700/40 transition-colors"
+                    >
+                      <ExternalLink size={10} /> Download for Windows
+                    </a>
+                    <a
+                      href="https://arduino.github.io/arduino-cli/latest/installation/"
+                      target="_blank" rel="noopener noreferrer"
+                      className="text-xs text-amber-600 hover:text-amber-400 transition-colors"
+                    >
+                      Full install guide →
+                    </a>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setShowSetupBanner(false); localStorage.setItem("arduino_cli_dismissed", "1"); }}
+                  className="p-1 text-amber-700 hover:text-amber-400 transition-colors flex-shrink-0"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="flex-1 overflow-hidden">
           <div className="h-full max-w-[1400px] mx-auto px-4 sm:px-6 py-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
 
             {/* Left column: Port + LEDs + Upload */}
@@ -1337,6 +1862,12 @@ export default function Home() {
                   >
                     {loadingSketch ? <Loader2 size={13} className="animate-spin" /> : <Code size={13} />}
                     Sketch
+                  </button>
+                  <button onClick={() => setShowWiring(true)}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-yellow-700/50 bg-yellow-950/30 hover:bg-yellow-900/30 text-xs text-yellow-300 hover:text-yellow-100 transition-all"
+                  >
+                    <Zap size={13} />
+                    Wiring
                   </button>
                   <button onClick={startUpload} disabled={!selectedPort || uploading}
                     className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-semibold text-sm transition-all shadow-lg shadow-blue-900/30 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none flex-shrink-0"
@@ -1524,6 +2055,7 @@ export default function Home() {
                 <Plus size={13} /> Add Button
               </button>
             </section>
+          </div>
           </div>
         </div>
       )}
@@ -1782,6 +2314,15 @@ export default function Home() {
 
       {/* LED info modal */}
       {showLedInfo && <LedInfoModal onClose={() => setShowLedInfo(false)} />}
+
+      {/* Wiring diagram modal */}
+      {showWiring && (
+        <WiringDiagramModal
+          buttons={buttons} portInputs={portInputs} leds={leds}
+          irSensors={irSensors} sipPuffs={sipPuffs} joysticks={joysticks}
+          onClose={() => setShowWiring(false)}
+        />
+      )}
     </div>
   );
 }
