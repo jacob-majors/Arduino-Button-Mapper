@@ -186,6 +186,36 @@ function ButtonCard({ button, index, usedPins, onUpdate, onRemove, isPort = fals
       {isPower && (
         <p className="text-[10px] text-amber-500/70 pl-8">Toggles all buttons on/off</p>
       )}
+
+      {/* LED pin */}
+      <div className="flex gap-2 items-center">
+        <label className="text-[10px] text-gray-500 uppercase tracking-wider w-6 flex-shrink-0 flex items-center gap-1">
+          <Lightbulb size={9} className={(button.ledPin ?? -1) >= 0 ? "text-yellow-400" : "text-gray-600"} />
+        </label>
+        <div className="relative" style={{ width: 68 }}>
+          <select
+            value={button.ledPin ?? -1}
+            onChange={(e) => onUpdate(button.id, { ledPin: parseInt(e.target.value) })}
+            className={[
+              "w-full appearance-none border rounded-lg px-2 py-1.5 text-xs focus:outline-none transition-colors cursor-pointer pr-5",
+              (button.ledPin ?? -1) >= 0
+                ? "bg-yellow-950/30 border-yellow-700/50 text-yellow-300"
+                : "bg-gray-900 border-gray-700 text-gray-500",
+            ].join(" ")}
+          >
+            <option value={-1}>No LED</option>
+            {ALL_PINS.filter((p) => p === button.ledPin || !usedPins.includes(p)).map((p) => (
+              <option key={p} value={p}>D{p}</option>
+            ))}
+          </select>
+          <ChevronDown size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+        </div>
+        {(button.ledPin ?? -1) >= 0 && (
+          <span className="text-[10px] text-yellow-600/70">
+            {isPower ? "on = system active" : button.mode === "toggle" ? "on = toggled on" : "on = held"}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -761,8 +791,14 @@ function LiveWiringDiagram({ buttons, portInputs, leds, irSensors, sipPuffs, joy
 
   const trunc = (s: string, n = 17) => s.length > n ? s.slice(0, n - 1) + "…" : s;
 
-  buttons.forEach((b) => addD(b.pin, trunc(b.name || `Button`), b.mode === "power" ? "#f59e0b" : "#60a5fa"));
-  portInputs.forEach((p) => addD(p.pin, trunc(p.name || `Port Input`), "#38bdf8"));
+  buttons.forEach((b) => {
+    addD(b.pin, trunc(b.name || `Button`), b.mode === "power" ? "#f59e0b" : "#60a5fa");
+    if ((b.ledPin ?? -1) >= 0) addD(b.ledPin, trunc((b.name || "Button") + " LED"), "#fbbf24");
+  });
+  portInputs.forEach((p) => {
+    addD(p.pin, trunc(p.name || `Port Input`), "#38bdf8");
+    if ((p.ledPin ?? -1) >= 0) addD(p.ledPin, trunc((p.name || "Port") + " LED"), "#fbbf24");
+  });
   if (leds.enabled) {
     addD(leds.onPin,  "LED — active",   "#fbbf24");
     addD(leds.offPin, "LED — inactive", "#78716c");
@@ -872,7 +908,7 @@ export default function Home() {
   const [ports, setPorts] = useState<Port[]>([]);
   const [selectedPort, setSelectedPort] = useState("");
   const [buttons, setButtons] = useState<ButtonConfig[]>([
-    { id: generateId(), name: "", pin: 2, keyDisplay: "", arduinoKey: "", mode: "momentary" },
+    { id: generateId(), name: "", pin: 2, keyDisplay: "", arduinoKey: "", mode: "momentary", ledPin: -1 },
   ]);
   const [portInputs, setPortInputs] = useState<PortConfig[]>([]);
   const [leds, setLeds] = useState<LedConfig>({ enabled: false, onPin: 11, offPin: 12 });
@@ -979,7 +1015,9 @@ export default function Home() {
 
   const usedPins = [
     ...buttons.map((b) => b.pin),
+    ...buttons.filter((b) => b.ledPin >= 0).map((b) => b.ledPin),
     ...portInputs.map((p) => p.pin),
+    ...portInputs.filter((p) => p.ledPin >= 0).map((p) => p.ledPin),
     ...irSensors.map((s) => s.pin),
     ...joysticks.filter((j) => j.buttonPin >= 0).map((j) => j.buttonPin),
     ...(leds.enabled ? [leds.onPin, leds.offPin] : []),
@@ -992,13 +1030,13 @@ export default function Home() {
   const addButton = () => {
     if (buttons.length >= 12) return;
     const next = ALL_PINS.find((p) => !usedPins.includes(p)) ?? 2;
-    setButtons((prev) => [...prev, { id: generateId(), name: "", pin: next, keyDisplay: "", arduinoKey: "", mode: "momentary" }]);
+    setButtons((prev) => [...prev, { id: generateId(), name: "", pin: next, keyDisplay: "", arduinoKey: "", mode: "momentary", ledPin: -1 }]);
   };
 
   const addPort = () => {
     if (portInputs.length >= 4) return;
     const next = ALL_PINS.find((p) => !usedPins.includes(p)) ?? 2;
-    setPortInputs((prev) => [...prev, { id: generateId(), name: "", pin: next, keyDisplay: "", arduinoKey: "", mode: "momentary" }]);
+    setPortInputs((prev) => [...prev, { id: generateId(), name: "", pin: next, keyDisplay: "", arduinoKey: "", mode: "momentary", ledPin: -1 }]);
   };
 
   const updateButton = (id: string, updates: Partial<ButtonConfig>) =>
@@ -1077,7 +1115,7 @@ export default function Home() {
   const createNewSave = () => {
     setCurrentSaveId(null);
     setCurrentSaveName("New Setup");
-    setButtons([{ id: generateId(), name: "", pin: 2, keyDisplay: "", arduinoKey: "", mode: "momentary" }]);
+    setButtons([{ id: generateId(), name: "", pin: 2, keyDisplay: "", arduinoKey: "", mode: "momentary", ledPin: -1 }]);
     setPortInputs([]); setLeds({ enabled: false, onPin: 11, offPin: 12 });
     setIrSensors([]); setSipPuffs([]); setJoysticks([]);
     setShowSaveMenu(false);

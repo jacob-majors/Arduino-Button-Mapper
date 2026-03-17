@@ -38,6 +38,7 @@ export interface ButtonConfig {
   keyDisplay: string;
   arduinoKey: string;
   mode: ButtonMode;
+  ledPin: number;  // -1 = no LED
 }
 
 export interface LedConfig {
@@ -159,13 +160,15 @@ export function generateSketch(
     })
     .join("\n");
 
-  const btnPins  = configured.map((b) => b.pin).join(", ");
-  const btnKeys  = configured.map((b) =>
+  const btnPins    = configured.map((b) => b.pin).join(", ");
+  const btnKeys    = configured.map((b) =>
     b.mode === "power" ? "0" : keyLiteral(b.arduinoKey)
   ).join(", ");
-  const btnModes = configured.map((b) =>
+  const btnModes   = configured.map((b) =>
     b.mode === "power" ? "2" : b.mode === "toggle" ? "1" : "0"
   ).join(", ");
+  const btnLedPins = configured.map((b) => (b.ledPin ?? -1)).join(", ");
+  const hasAnyLed  = configured.some((b) => (b.ledPin ?? -1) >= 0);
 
   const ledSection = leds.enabled
     ? `\n// LED pins\nconst int LED_ON_PIN = ${leds.onPin};   // lights when system is active\nconst int LED_OFF_PIN = ${leds.offPin}; // lights when system is off\n\nvoid updateLEDs() {\n  digitalWrite(LED_ON_PIN, systemActive ? HIGH : LOW);\n  digitalWrite(LED_OFF_PIN, systemActive ? LOW : HIGH);\n}\n`
@@ -350,6 +353,7 @@ const int numButtons = ${n};
 const int buttonPins[${n}] = {${btnPins}};
 const int keyValues[${n}] = {${btnKeys}};
 const int buttonModes[${n}] = {${btnModes}}; // 0=momentary 1=toggle 2=power
+const int buttonLedPins[${n}] = {${btnLedPins}}; // -1 = no LED
 bool lastButtonState[${n}];
 bool toggleState[${n}] = {${configured.map(() => "false").join(", ")}};` : "";
 
@@ -364,16 +368,19 @@ bool toggleState[${n}] = {${configured.map(() => "false").join(", ")}};` : "";
             systemActive = !systemActive;
             if (!systemActive) Keyboard.releaseAll();
             updateLEDs();
+            if (buttonLedPins[i] >= 0) digitalWrite(buttonLedPins[i], systemActive ? HIGH : LOW);
           }
         } else if (systemActive) {
           if (buttonModes[i] == 0) {
             if (state == LOW) Keyboard.press(keyValues[i]);
             else Keyboard.release(keyValues[i]);
+            if (buttonLedPins[i] >= 0) digitalWrite(buttonLedPins[i], state == LOW ? HIGH : LOW);
           } else {
             if (state == LOW) {
               toggleState[i] = !toggleState[i];
               if (toggleState[i]) Keyboard.press(keyValues[i]);
               else Keyboard.release(keyValues[i]);
+              if (buttonLedPins[i] >= 0) digitalWrite(buttonLedPins[i], toggleState[i] ? HIGH : LOW);
             }
           }
         }
@@ -382,10 +389,18 @@ bool toggleState[${n}] = {${configured.map(() => "false").join(", ")}};` : "";
     }
   }` : "";
 
+  const btnLedSetup = hasAnyLed ? `  for (int i = 0; i < numButtons; i++) {
+    if (buttonLedPins[i] >= 0) {
+      pinMode(buttonLedPins[i], OUTPUT);
+      digitalWrite(buttonLedPins[i], LOW);
+    }
+  }` : "";
+
   const btnSetup = n > 0 ? `  for (int i = 0; i < numButtons; i++) {
     pinMode(buttonPins[i], INPUT_PULLUP);
     lastButtonState[i] = HIGH;
-  }` : "";
+  }
+${btnLedSetup}` : "";
 
   const allSetupParts = [btnSetup, ledSetup, irSetup, joySetup].filter(Boolean);
 
