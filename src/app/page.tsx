@@ -918,6 +918,13 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
     return () => window.removeEventListener("keydown", h);
   }, [onClose]);
 
+  const [showVCC, setShowVCC] = useState(false);
+  const [showGND, setShowGND] = useState(false);
+  const [showResistorInfo, setShowResistorInfo] = useState(false);
+
+  const connNeedsVCC = (type: string) => ["ir", "sipPuff", "joystickX"].includes(type);
+  const connNeedsGND = (type: string) => type !== "joystickY";
+
   const BX = 345, BY = 65, BW = 170, BH = 450;
 
   const digitalPinY = (pin: number) => BY + 81 + (13 - pin) * 26;
@@ -1178,6 +1185,25 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
     );
   }
 
+  function ResistorIcon({ cx, cy, onClick }: { cx: number; cy: number; onClick: () => void }) {
+    // Physical resistor: tan body, colored bands (Red-Red-Brown-Gold = 220Ω ±5%)
+    return (
+      <g onClick={onClick} style={{ cursor: "pointer" }}>
+        {/* Highlight ring on hover target */}
+        <rect x={cx - 12} y={cy - 8} width="24" height="16" rx="4" fill="transparent" stroke="#fbbf24" strokeWidth="0.8" opacity={0.35} />
+        {/* Body */}
+        <rect x={cx - 10} y={cy - 6} width="20" height="12" rx="3" fill="#d4b896" stroke="#a07850" strokeWidth="1" />
+        {/* Color bands: Red Red Brown Gold */}
+        <rect x={cx - 7}   y={cy - 6} width="3.5" height="12" fill="#cc2200" opacity={0.9} />
+        <rect x={cx - 2}   y={cy - 6} width="3.5" height="12" fill="#cc2200" opacity={0.9} />
+        <rect x={cx + 3}   y={cy - 6} width="3.5" height="12" fill="#5c2d00" opacity={0.9} />
+        <rect x={cx + 7.5} y={cy - 6} width="2.5" height="12" fill="#ffd700" opacity={0.8} />
+        {/* Ω label below */}
+        <text x={cx} y={cy + 18} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#fbbf24" fontWeight="600">220Ω</text>
+      </g>
+    );
+  }
+
   const RCX = 660; // right component center x
   const LCX = 185; // left component center x
 
@@ -1194,18 +1220,40 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
             <Zap size={14} className="text-yellow-400" />
             <span className="text-sm font-semibold text-gray-200">Wiring Diagram</span>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-gray-500 hover:text-gray-200 hover:bg-gray-800 transition-colors"
-          >
-            <X size={15} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowVCC((v) => !v)}
+              className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors border ${
+                showVCC
+                  ? "bg-red-900/60 text-red-300 border-red-700"
+                  : "bg-gray-800 text-gray-500 border-gray-700 hover:text-red-400"
+              }`}
+            >
+              +5V
+            </button>
+            <button
+              onClick={() => setShowGND((v) => !v)}
+              className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors border ${
+                showGND
+                  ? "bg-gray-700 text-gray-200 border-gray-500"
+                  : "bg-gray-800 text-gray-500 border-gray-700 hover:text-gray-300"
+              }`}
+            >
+              GND
+            </button>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg text-gray-500 hover:text-gray-200 hover:bg-gray-800 transition-colors"
+            >
+              <X size={15} />
+            </button>
+          </div>
         </div>
 
         {/* SVG Body */}
         <div className="flex-1 overflow-auto p-4">
           <svg
-            viewBox="0 0 860 580"
+            viewBox="0 0 920 580"
             xmlns="http://www.w3.org/2000/svg"
             style={{ width: "100%", height: "auto", background: "#0a0f1a", borderRadius: 10 }}
           >
@@ -1215,7 +1263,7 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
                 <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1f2937" strokeWidth="0.5" />
               </pattern>
             </defs>
-            <rect width="860" height="580" fill="url(#wdgrid)" />
+            <rect width="920" height="580" fill="url(#wdgrid)" />
 
             {/* ── Arduino Leonardo Board ── */}
             {/* Outer PCB */}
@@ -1312,14 +1360,56 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
               );
             })}
 
+            {/* ── Power Bus Bars ── */}
+            {showVCC && rightConns.some((c) => connNeedsVCC(c.type)) && (
+              <g>
+                <line x1={845} y1={BY + 60} x2={845} y2={BY + 460} stroke="#f87171" strokeWidth="2.5" strokeLinecap="round" />
+                <text x={845} y={BY + 52} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#f87171">+5V</text>
+              </g>
+            )}
+            {showGND && rightConns.some((c) => connNeedsGND(c.type)) && (
+              <g>
+                <line x1={860} y1={BY + 60} x2={860} y2={BY + 460} stroke="#6b7280" strokeWidth="2.5" strokeLinecap="round" />
+                <text x={860} y={BY + 52} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#6b7280">GND</text>
+              </g>
+            )}
+            {showVCC && leftConns.some((c) => connNeedsVCC(c.type)) && (
+              <g>
+                <line x1={50} y1={BY + 270} x2={50} y2={BY + 460} stroke="#f87171" strokeWidth="2.5" strokeLinecap="round" />
+                <text x={50} y={BY + 262} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#f87171">+5V</text>
+              </g>
+            )}
+            {showGND && leftConns.some((c) => connNeedsGND(c.type)) && (
+              <g>
+                <line x1={35} y1={BY + 270} x2={35} y2={BY + 460} stroke="#6b7280" strokeWidth="2.5" strokeLinecap="round" />
+                <text x={35} y={BY + 262} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#6b7280">GND</text>
+              </g>
+            )}
+
             {/* ── Wires + Components RIGHT side ── */}
             {rightConns.map((conn, idx) => {
               const cy = conn.pinY;
               const color = conn.color;
               return (
                 <g key={`rc${idx}`}>
-                  {/* Dashed wire */}
-                  <line x1={520} y1={cy} x2={630} y2={cy} stroke={color} strokeWidth="1.5" strokeDasharray="5 3" opacity={0.8} />
+                  {/* Dashed signal wire (split around resistor for LEDs) */}
+                  {conn.type === "led" ? (
+                    <>
+                      <line x1={520} y1={cy} x2={562} y2={cy} stroke={color} strokeWidth="1.5" strokeDasharray="5 3" opacity={0.8} />
+                      <line x1={588} y1={cy} x2={630} y2={cy} stroke={color} strokeWidth="1.5" strokeDasharray="5 3" opacity={0.8} />
+                      <ResistorIcon cx={575} cy={cy} onClick={() => setShowResistorInfo((v) => !v)} />
+                    </>
+                  ) : (
+                    <line x1={520} y1={cy} x2={630} y2={cy} stroke={color} strokeWidth="1.5" strokeDasharray="5 3" opacity={0.8} />
+                  )}
+                  {/* VCC stub */}
+                  {showVCC && connNeedsVCC(conn.type) && (
+                    <line x1={RCX + 28} y1={cy - 8} x2={845} y2={cy - 8} stroke="#f87171" strokeWidth="1" strokeDasharray="4 3" opacity={0.6} />
+                  )}
+                  {/* GND stub */}
+                  {showGND && connNeedsGND(conn.type) && (
+                    <line x1={RCX + 28} y1={cy + 8} x2={860} y2={cy + 8} stroke="#6b7280" strokeWidth="1" strokeDasharray="4 3" opacity={0.6} />
+                  )}
                   {/* Component icon */}
                   {conn.type === "button" && <ButtonIcon cx={RCX} cy={cy} color={color} isPower={false} />}
                   {conn.type === "power" && <ButtonIcon cx={RCX} cy={cy} color={color} isPower={true} />}
@@ -1341,8 +1431,16 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
               const color = conn.color;
               return (
                 <g key={`lc${idx}`}>
-                  {/* Dashed wire */}
+                  {/* Dashed signal wire */}
                   <line x1={337} y1={cy} x2={215} y2={cy} stroke={color} strokeWidth="1.5" strokeDasharray="5 3" opacity={0.8} />
+                  {/* VCC stub */}
+                  {showVCC && connNeedsVCC(conn.type) && (
+                    <line x1={LCX - 28} y1={cy - 8} x2={50} y2={cy - 8} stroke="#f87171" strokeWidth="1" strokeDasharray="4 3" opacity={0.6} />
+                  )}
+                  {/* GND stub */}
+                  {showGND && connNeedsGND(conn.type) && (
+                    <line x1={LCX - 28} y1={cy + 8} x2={35} y2={cy + 8} stroke="#6b7280" strokeWidth="1" strokeDasharray="4 3" opacity={0.6} />
+                  )}
                   {/* Component icon */}
                   {conn.type === "sipPuff" && <SipPuffIcon cx={LCX} cy={cy} color={color} />}
                   {(conn.type === "joystickX" || conn.type === "joystickY") && (
@@ -1364,12 +1462,70 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
             )}
 
             {/* ── Notes strip ── */}
-            <rect x={10} y={545} width={840} height={22} rx="4" fill="#111827" />
+            <rect x={10} y={545} width={900} height={22} rx="4" fill="#111827" />
             <text x={20} y={560} fontFamily="sans-serif" fontSize="8.5" fill="#6b7280">
-              Note: All components also require +5V (VCC) and GND connections. Wire each sensor&apos;s VCC to the Arduino +5V pin and GND to any GND pin.
+              Toggle +5V and GND in the header to show power connections. Sensors need +5V &amp; GND; buttons/LEDs need GND only.
             </text>
           </svg>
         </div>
+
+        {/* ── Resistor Info Popup ── */}
+        {showResistorInfo && (
+          <div
+            className="absolute top-14 left-1/2 -translate-x-1/2 z-30 w-80 bg-gray-950 border border-yellow-700/50 rounded-xl shadow-2xl p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-semibold text-yellow-400">LED Series Resistor</span>
+              <button
+                onClick={() => setShowResistorInfo(false)}
+                className="text-gray-500 hover:text-gray-200 p-0.5"
+              >
+                <X size={13} />
+              </button>
+            </div>
+
+            {/* Resistor drawing */}
+            <div className="flex justify-center mb-3">
+              <svg width="230" height="64" viewBox="0 0 230 64">
+                {/* Lead wires */}
+                <line x1={8} y1={32} x2={52} y2={32} stroke="#fbbf24" strokeWidth="2.5" />
+                <line x1={178} y1={32} x2={222} y2={32} stroke="#fbbf24" strokeWidth="2.5" />
+                {/* Body */}
+                <rect x={52} y={18} width="126" height="28" rx="5" fill="#d4b896" stroke="#a07850" strokeWidth="1.5" />
+                {/* Bands: Red Red Brown Gold */}
+                <rect x={68}  y={18} width="14" height="28" fill="#cc2200" opacity={0.9} rx="1" />
+                <rect x={92}  y={18} width="14" height="28" fill="#cc2200" opacity={0.9} rx="1" />
+                <rect x={116} y={18} width="14" height="28" fill="#5c2d00" opacity={0.9} rx="1" />
+                <rect x={152} y={18} width="11" height="28" fill="#ffd700" opacity={0.85} rx="1" />
+                {/* Band labels */}
+                <text x={75}  y={60} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#ef4444">RED</text>
+                <text x={99}  y={60} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#ef4444">RED</text>
+                <text x={123} y={60} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#a07850">BRN</text>
+                <text x={157} y={60} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#ffd700">GLD</text>
+                {/* Lead labels */}
+                <text x={5}  y={28} fontFamily="monospace" fontSize="8" fill="#9ca3af">+</text>
+                <text x={218} y={28} fontFamily="monospace" fontSize="8" fill="#9ca3af">−</text>
+              </svg>
+            </div>
+
+            {/* Value */}
+            <div className="text-center mb-3">
+              <span className="text-3xl font-bold text-yellow-400 tabular-nums">220Ω</span>
+              <span className="text-xs text-gray-500 ml-2">±5% gold tolerance</span>
+            </div>
+
+            {/* Formula */}
+            <div className="text-xs text-gray-400 bg-gray-900 rounded-lg p-2.5 space-y-1">
+              <div className="font-mono">R = (V<sub>supply</sub> − V<sub>f</sub>) ÷ I<sub>LED</sub></div>
+              <div className="font-mono">= (5V − 2V) ÷ 20mA = 150Ω min</div>
+              <div className="pt-1 border-t border-gray-800 mt-1 space-y-0.5">
+                <div className="text-yellow-400/80">220Ω → red / green / yellow LEDs</div>
+                <div className="text-blue-400/80">100Ω → blue / white LEDs (V<sub>f</sub> ≈ 3.2V)</div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
