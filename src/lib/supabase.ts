@@ -29,6 +29,9 @@ export type SaveSlot = {
 export type AdminSettings = {
   show_ports: boolean;
   show_leds: boolean;
+  show_upload: boolean;
+  show_sensors: boolean;
+  show_buttons: boolean;
 };
 
 // ── Auth (username-only, no password) ───────────────────────────────────────
@@ -118,7 +121,7 @@ export async function getAdminSettings(): Promise<AdminSettings> {
     .select("show_ports, show_leds")
     .eq("id", 1)
     .single();
-  return (data as AdminSettings) ?? { show_ports: true, show_leds: true };
+  return (data as AdminSettings) ?? { show_ports: true, show_leds: true, show_upload: true, show_sensors: true, show_buttons: true };
 }
 
 export async function updateAdminSettings(settings: Partial<AdminSettings>): Promise<void> {

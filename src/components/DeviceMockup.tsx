@@ -122,14 +122,6 @@ export default function DeviceMockup({ buttons, leds, ports }: Props) {
             opacity: systemOn ? 1 : 0.55,
           }}
         >
-          {/* Center bolt/screw */}
-          <div style={{
-            width: 14, height: 14, borderRadius: 3,
-            background: "#0c4a6e",
-            border: "1.5px solid #075985",
-            boxShadow: "inset 0 1px 3px rgba(0,0,0,0.6)",
-          }}>
-          </div>
           {leftBtn?.name && (
             <span style={{
               position: "absolute", bottom: 24,

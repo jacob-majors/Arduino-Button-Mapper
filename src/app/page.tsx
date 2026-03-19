@@ -1646,7 +1646,7 @@ export default function Home() {
   const [authReady, setAuthReady] = useState(false);
   const [loginUsername, setLoginUsername] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
-  const [adminSettings, setAdminSettings] = useState<AdminSettings>({ show_ports: true, show_leds: true });
+  const [adminSettings, setAdminSettings] = useState<AdminSettings>({ show_ports: true, show_leds: true, show_upload: true, show_sensors: true, show_buttons: true });
   const [allUsers, setAllUsers] = useState<AppUser[]>([]);
   const [shadowUser, setShadowUser] = useState<AppUser | null>(null);
   const [shadowSaves, setShadowSaves] = useState<SaveSlot[]>([]);
@@ -1711,7 +1711,13 @@ export default function Home() {
         { event: "UPDATE", schema: "public", table: "admin_settings" },
         (payload) => {
           const s = payload.new as AdminSettings;
-          setAdminSettings({ show_ports: s.show_ports, show_leds: s.show_leds });
+          setAdminSettings({
+            show_ports: s.show_ports,
+            show_leds: s.show_leds,
+            show_upload: s.show_upload ?? true,
+            show_sensors: s.show_sensors ?? true,
+            show_buttons: s.show_buttons ?? true,
+          });
         }
       )
       .subscribe();
@@ -2172,7 +2178,7 @@ export default function Home() {
             <div className="flex flex-col gap-3 overflow-y-auto pr-1">
 
               {/* Upload (top) */}
-              <section className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex-shrink-0">
+              {adminSettings.show_upload && <section className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex-shrink-0">
                 <div className="flex items-center gap-2 mb-3">
                   <Upload size={13} className="text-green-400" />
                   <h2 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Upload to Arduino</h2>
@@ -2236,7 +2242,7 @@ export default function Home() {
                     </div>
                   </div>
                 )}
-              </section>
+              </section>}
 
               {/* LED Config */}
               {adminSettings.show_leds && <section className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex-shrink-0">
@@ -2323,7 +2329,7 @@ export default function Home() {
               </section>}
 
               {/* ── Sensors ──────────────────────────────────────── */}
-              <section className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex-shrink-0">
+              {adminSettings.show_sensors && <section className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex-shrink-0">
                 <div className="flex items-center gap-2 mb-3">
                   <Radio size={13} className="text-emerald-400" />
                   <h2 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Sensors</h2>
@@ -2369,11 +2375,11 @@ export default function Home() {
                     )}
                   </div>
                 </div>
-              </section>
+              </section>}
             </div>
 
             {/* Right column: Buttons */}
-            <section className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex flex-col overflow-hidden">
+            {adminSettings.show_buttons && <section className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex flex-col overflow-hidden">
               <div className="flex items-center justify-between mb-3 flex-shrink-0">
                 <div className="flex items-center gap-2">
                   <Pencil size={13} className="text-purple-400" />
@@ -2399,7 +2405,7 @@ export default function Home() {
               >
                 <Plus size={13} /> Add Button
               </button>
-            </section>
+            </section>}
           </div>
           </div>
         </div>
@@ -2531,6 +2537,63 @@ export default function Home() {
                   >
                     <div className={["absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform",
                       adminSettings.show_ports ? "translate-x-5" : "translate-x-1"].join(" ")} />
+                  </div>
+                </div>
+                {/* show_upload toggle */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm text-gray-200">Upload to Arduino section</span>
+                    <p className="text-xs text-gray-600">Show/hide the port select and upload controls</p>
+                  </div>
+                  <div
+                    onClick={async () => {
+                      const next = !adminSettings.show_upload;
+                      setAdminSettings((s) => ({ ...s, show_upload: next }));
+                      await updateAdminSettings({ show_upload: next });
+                    }}
+                    className={["relative w-10 h-6 rounded-full transition-colors cursor-pointer flex-shrink-0",
+                      adminSettings.show_upload ? "bg-blue-600" : "bg-gray-700"].join(" ")}
+                  >
+                    <div className={["absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform",
+                      adminSettings.show_upload ? "translate-x-5" : "translate-x-1"].join(" ")} />
+                  </div>
+                </div>
+                {/* show_sensors toggle */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm text-gray-200">Sensors section</span>
+                    <p className="text-xs text-gray-600">Show/hide IR sensors and joystick configuration</p>
+                  </div>
+                  <div
+                    onClick={async () => {
+                      const next = !adminSettings.show_sensors;
+                      setAdminSettings((s) => ({ ...s, show_sensors: next }));
+                      await updateAdminSettings({ show_sensors: next });
+                    }}
+                    className={["relative w-10 h-6 rounded-full transition-colors cursor-pointer flex-shrink-0",
+                      adminSettings.show_sensors ? "bg-blue-600" : "bg-gray-700"].join(" ")}
+                  >
+                    <div className={["absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform",
+                      adminSettings.show_sensors ? "translate-x-5" : "translate-x-1"].join(" ")} />
+                  </div>
+                </div>
+                {/* show_buttons toggle */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm text-gray-200">Configure Buttons section</span>
+                    <p className="text-xs text-gray-600">Show/hide the main button configuration panel</p>
+                  </div>
+                  <div
+                    onClick={async () => {
+                      const next = !adminSettings.show_buttons;
+                      setAdminSettings((s) => ({ ...s, show_buttons: next }));
+                      await updateAdminSettings({ show_buttons: next });
+                    }}
+                    className={["relative w-10 h-6 rounded-full transition-colors cursor-pointer flex-shrink-0",
+                      adminSettings.show_buttons ? "bg-blue-600" : "bg-gray-700"].join(" ")}
+                  >
+                    <div className={["absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform",
+                      adminSettings.show_buttons ? "translate-x-5" : "translate-x-1"].join(" ")} />
                   </div>
                 </div>
               </div>
