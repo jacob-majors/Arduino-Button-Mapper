@@ -2101,7 +2101,9 @@ export default function Home() {
                   Download{" "}
                   <a href="https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_macOS_64bit.tar.gz" className="underline hover:text-amber-100">arduino-cli (Mac)</a>
                   {" "}or{" "}
-                  <a href="https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_Windows_64bit.zip" className="underline hover:text-amber-100">arduino-cli (Windows)</a>
+                  <a href="https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_Windows_64bit.zip" className="underline hover:text-amber-100">arduino-cli (Windows 64-bit)</a>
+                  {" "}or{" "}
+                  <a href="https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_Windows_32bit.zip" className="underline hover:text-amber-100">arduino-cli (Windows 32-bit)</a>
                   .{" "}
                   <span className="text-amber-400">Windows: extract the zip and move <code className="bg-amber-950/60 px-1 rounded font-mono">arduino-cli.exe</code> to <code className="bg-amber-950/60 px-1 rounded font-mono">C:\Windows\System32\</code></span>
                   {" "}then run{" "}
