@@ -2096,20 +2096,17 @@ export default function Home() {
             <div className="flex-shrink-0 bg-amber-950/40 border-b border-amber-700/40 px-4 sm:px-6 py-2.5">
               <div className="max-w-[1400px] mx-auto flex items-center gap-3">
                 <Terminal size={13} className="text-amber-400 flex-shrink-0" />
-                <p className="text-xs text-amber-300 flex-1 min-w-0">
-                  <span className="font-semibold">One-time setup:</span>{" "}
-                  Download{" "}
-                  <a href="https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_macOS_64bit.tar.gz" className="underline hover:text-amber-100">arduino-cli (Mac)</a>
-                  {" "}or{" "}
-                  <a href="https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_Windows_64bit.zip" className="underline hover:text-amber-100">arduino-cli (Windows 64-bit)</a>
-                  {" "}or{" "}
-                  <a href="https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_Windows_32bit.zip" className="underline hover:text-amber-100">arduino-cli (Windows 32-bit)</a>
-                  .{" "}
-                  <span className="text-amber-400">Windows: extract the zip and move <code className="bg-amber-950/60 px-1 rounded font-mono">arduino-cli.exe</code> to <code className="bg-amber-950/60 px-1 rounded font-mono">C:\Windows\System32\</code></span>
-                  {" "}then run{" "}
-                  <code className="bg-amber-950/60 px-1 rounded font-mono text-green-400">arduino-cli core install arduino:avr</code>
-                  {" "}once. Then plug in and click Upload.
-                </p>
+                <div className="flex-1 min-w-0 flex flex-col gap-1">
+                  <span className="text-xs font-semibold text-amber-300">One-time setup — open a terminal and run these two commands:</span>
+                  <div className="flex flex-wrap gap-x-6 gap-y-1">
+                    <span className="text-[11px] text-amber-500">Windows (PowerShell):</span>
+                    <code className="text-[11px] bg-amber-950/60 px-1.5 rounded font-mono text-green-400 select-all">winget install ArduinoSA.ArduinoCLI</code>
+                    <span className="text-[11px] text-amber-500">Mac (Terminal):</span>
+                    <code className="text-[11px] bg-amber-950/60 px-1.5 rounded font-mono text-green-400 select-all">brew install arduino-cli</code>
+                    <span className="text-[11px] text-amber-500">Then both:</span>
+                    <code className="text-[11px] bg-amber-950/60 px-1.5 rounded font-mono text-green-400 select-all">arduino-cli core install arduino:avr</code>
+                  </div>
+                </div>
                 {cliCheckState === "idle" && (
                   <button
                     onClick={async () => {
