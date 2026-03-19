@@ -2093,80 +2093,53 @@ export default function Home() {
 
           {/* ── arduino-cli setup banner ── */}
           {showSetupBanner && (
-            <div className="flex-shrink-0 bg-amber-950/40 border-b border-amber-700/40 px-4 sm:px-6 py-3">
-              <div className="max-w-[1400px] mx-auto flex items-start gap-3">
-                <Terminal size={16} className="text-amber-400 flex-shrink-0 mt-0.5" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3 flex-wrap">
-                    <p className="text-xs font-semibold text-amber-300">One-time setup required to upload sketches to your Arduino</p>
-                    {/* Check installed button */}
-                    {cliCheckState === "idle" && (
-                      <button
-                        onClick={async () => {
-                          setCliCheckState("checking");
-                          try {
-                            const r = await fetch(`${BACKEND_URL}/api/check-cli`);
-                            const d = await r.json();
-                            setCliCheckState(d.installed ? "ok" : "missing");
-                            if (d.installed) setCliVersion(d.version);
-                          } catch {
-                            setCliCheckState("missing");
-                          }
-                        }}
-                        className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-amber-800/30 border border-amber-700/40 text-xs text-amber-300 hover:bg-amber-700/30 transition-colors"
-                      >
-                        <CheckCircle2 size={10} /> Check if installed
-                      </button>
-                    )}
-                    {cliCheckState === "checking" && (
-                      <span className="flex items-center gap-1.5 text-xs text-amber-500">
-                        <Loader2 size={10} className="animate-spin" /> Checking…
-                      </span>
-                    )}
-                    {cliCheckState === "ok" && (
-                      <span className="flex items-center gap-1.5 text-xs text-green-400 font-medium">
-                        <CheckCircle2 size={10} /> Installed{cliVersion ? ` (v${cliVersion})` : ""} — you&apos;re all set!
-                      </span>
-                    )}
-                    {cliCheckState === "missing" && (
-                      <span className="flex items-center gap-1.5 text-xs text-red-400 font-medium">
-                        <XCircle size={10} /> Not found — download below
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-amber-600/80 mt-0.5">
-                    Download <span className="text-amber-300 font-medium">arduino-cli</span>, then run{" "}
-                    <code className="bg-amber-950/60 px-1.5 py-0.5 rounded text-[11px] text-green-400 font-mono">arduino-cli core install arduino:avr</code>{" "}
-                    once in a terminal. After that, just plug in your Arduino and click Upload.
-                  </p>
-                  <div className="flex items-center gap-3 mt-2 flex-wrap">
-                    <a
-                      href="https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_macOS_64bit.tar.gz"
-                      className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-800/40 border border-amber-700/50 text-xs text-amber-200 hover:bg-amber-700/40 transition-colors"
-                    >
-                      <ExternalLink size={10} /> Download for macOS
-                    </a>
-                    <a
-                      href="https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_Windows_64bit.zip"
-                      className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-800/40 border border-amber-700/50 text-xs text-amber-200 hover:bg-amber-700/40 transition-colors"
-                    >
-                      <ExternalLink size={10} /> Download for Windows
-                    </a>
-                    <a
-                      href="https://arduino.github.io/arduino-cli/latest/installation/"
-                      target="_blank" rel="noopener noreferrer"
-                      className="text-xs text-amber-600 hover:text-amber-400 transition-colors"
-                    >
-                      Full install guide →
-                    </a>
-                  </div>
-                </div>
+            <div className="flex-shrink-0 bg-amber-950/40 border-b border-amber-700/40 px-4 sm:px-6 py-2.5">
+              <div className="max-w-[1400px] mx-auto flex items-center gap-3">
+                <Terminal size={13} className="text-amber-400 flex-shrink-0" />
+                <p className="text-xs text-amber-300 flex-1 min-w-0">
+                  <span className="font-semibold">One-time setup:</span>{" "}
+                  Download{" "}
+                  <a href="https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_macOS_64bit.tar.gz" className="underline hover:text-amber-100">arduino-cli (Mac)</a>
+                  {" "}or{" "}
+                  <a href="https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_Windows_64bit.zip" className="underline hover:text-amber-100">arduino-cli (Windows)</a>
+                  , then run{" "}
+                  <code className="bg-amber-950/60 px-1 rounded font-mono text-green-400">arduino-cli core install arduino:avr</code>
+                  {" "}once. Then just plug in and click Upload.
+                </p>
+                {cliCheckState === "idle" && (
+                  <button
+                    onClick={async () => {
+                      setCliCheckState("checking");
+                      try {
+                        const r = await fetch(`${BACKEND_URL}/api/check-cli`);
+                        const d = await r.json();
+                        setCliCheckState(d.installed ? "ok" : "missing");
+                        if (d.installed) setCliVersion(d.version);
+                      } catch { setCliCheckState("missing"); }
+                    }}
+                    className="flex-shrink-0 text-[11px] text-amber-500 hover:text-amber-300 underline transition-colors"
+                  >Check if installed</button>
+                )}
+                {cliCheckState === "checking" && <Loader2 size={12} className="animate-spin text-amber-500 flex-shrink-0" />}
+                {cliCheckState === "ok" && <span className="flex-shrink-0 flex items-center gap-1 text-[11px] text-green-400 font-medium"><CheckCircle2 size={11} /> Installed{cliVersion ? ` v${cliVersion}` : ""}</span>}
+                {cliCheckState === "missing" && <span className="flex-shrink-0 flex items-center gap-1 text-[11px] text-red-400"><XCircle size={11} /> Not found</span>}
                 <button
                   onClick={() => { setShowSetupBanner(false); localStorage.setItem("arduino_cli_dismissed", "1"); }}
-                  className="p-1 text-amber-700 hover:text-amber-400 transition-colors flex-shrink-0"
-                >
-                  <X size={14} />
-                </button>
+                  className="p-0.5 text-amber-700 hover:text-amber-400 transition-colors flex-shrink-0"
+                ><X size={13} /></button>
+              </div>
+            </div>
+          )}
+
+          {/* ── account banner ── */}
+          {!appUser && authReady && (
+            <div className="flex-shrink-0 bg-blue-950/40 border-b border-blue-700/40 px-4 sm:px-6 py-2.5">
+              <div className="max-w-[1400px] mx-auto flex items-center gap-3">
+                <span className="text-blue-400 flex-shrink-0 text-sm">👤</span>
+                <p className="text-xs text-blue-300 flex-1 min-w-0">
+                  <span className="font-semibold">Save your setup</span> — type a username in the top-right corner and click <span className="font-semibold">Login / Join</span> to create a free account. Your config auto-saves as you build.
+                </p>
+                <div className="flex-shrink-0 text-[11px] text-blue-500 hidden sm:block">↑ top right</div>
               </div>
             </div>
           )}
