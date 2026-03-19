@@ -6,7 +6,8 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 export const ADMIN_USERNAME = "jacob.majors";
-export const isAdmin = (username: string) => username === ADMIN_USERNAME;
+const ADMIN_USERNAMES = ["jacob.majors", "ramsey.musallam"];
+export const isAdmin = (username: string) => ADMIN_USERNAMES.includes(username);
 
 export type AppUser = { id: string; username: string };
 
