@@ -17,9 +17,19 @@ import SnakeGame from "@/components/SnakeGame";
 import PongGame from "@/components/PongGame";
 import DeviceMockup from "@/components/DeviceMockup";
 import { arduinoToBrowserKey } from "@/lib/keymap";
-import { supabase, loadAllSaves, upsertSave, deleteSave } from "@/lib/supabase";
-import type { SaveSlot } from "@/lib/supabase";
-import type { User } from "@supabase/supabase-js";
+import {
+  supabase,
+  loginOrCreate,
+  loadAllSaves,
+  upsertSave,
+  deleteSave,
+  getAdminSettings,
+  updateAdminSettings,
+  loadAllUsers,
+  isAdmin,
+  ADMIN_USERNAME,
+} from "@/lib/supabase";
+import type { SaveSlot, AppUser, AdminSettings } from "@/lib/supabase";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
 const ALL_PINS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
@@ -1609,7 +1619,7 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function Home() {
-  const [tab, setTab] = useState<"configure" | "test" | "info">("configure");
+  const [tab, setTab] = useState<"configure" | "test" | "info" | "admin">("configure");
   const [ports, setPorts] = useState<Port[]>([]);
   const [selectedPort, setSelectedPort] = useState("");
   const [buttons, setButtons] = useState<ButtonConfig[]>([
@@ -1632,8 +1642,15 @@ export default function Home() {
   });
   const [cliCheckState, setCliCheckState] = useState<"idle" | "checking" | "ok" | "missing">("idle");
   const [cliVersion, setCliVersion] = useState<string | null>(null);
-  const [user,      setUser]      = useState<User | null>(null);
+  const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [authReady, setAuthReady] = useState(false);
+  const [loginUsername, setLoginUsername] = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [adminSettings, setAdminSettings] = useState<AdminSettings>({ show_ports: true, show_leds: true });
+  const [allUsers, setAllUsers] = useState<AppUser[]>([]);
+  const [shadowUser, setShadowUser] = useState<AppUser | null>(null);
+  const [shadowSaves, setShadowSaves] = useState<SaveSlot[]>([]);
+  const [shadowSaveIndex, setShadowSaveIndex] = useState(0);
   const [saving,    setSaving]    = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [saves, setSaves] = useState<SaveSlot[]>([]);
@@ -1657,17 +1674,15 @@ export default function Home() {
     return () => document.removeEventListener("mousedown", h);
   }, [showSaveMenu]);
 
-  // ── Auth: listen for login/logout and load saves on sign-in ───────────────
+  // ── Auth: restore from localStorage on mount, subscribe to admin settings ──
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setAuthReady(true);
-    });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      const u = session?.user ?? null;
-      setUser(u);
-      if (u) {
-        loadAllSaves().then((allSaves) => {
+    // Restore session from localStorage
+    try {
+      const stored = localStorage.getItem("appUser");
+      if (stored) {
+        const u = JSON.parse(stored) as AppUser;
+        setAppUser(u);
+        loadAllSaves(u.id).then((allSaves) => {
           setSaves(allSaves);
           if (allSaves.length > 0) {
             const s = allSaves[0];
@@ -1678,40 +1693,93 @@ export default function Home() {
             if (cfg.portInputs) setPortInputs(cfg.portInputs as PortConfig[]);
             if (cfg.leds)       setLeds(cfg.leds as LedConfig);
             if (cfg.irSensors)  setIrSensors(cfg.irSensors as IRSensorConfig[]);
-            if (cfg.sipPuffs)   setSipPuffs(cfg.sipPuffs as SipPuffConfig[]);
             if (cfg.joysticks)  setJoysticks(cfg.joysticks as JoystickConfig[]);
           }
         });
-      } else {
-        setSaves([]);
-        setCurrentSaveId(null);
-        setCurrentSaveName("My Setup");
       }
-    });
-    return () => subscription.unsubscribe();
+    } catch { /* ignore */ }
+    setAuthReady(true);
+
+    // Load global admin settings
+    getAdminSettings().then(setAdminSettings);
+
+    // Realtime subscription: update settings instantly for all users
+    const channel = supabase
+      .channel("admin_settings_realtime")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "admin_settings" },
+        (payload) => {
+          const s = payload.new as AdminSettings;
+          setAdminSettings({ show_ports: s.show_ports, show_leds: s.show_leds });
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleLogin = async () => {
+    if (!loginUsername.trim() || loginLoading) return;
+    setLoginLoading(true);
+    const u = await loginOrCreate(loginUsername);
+    if (u) {
+      localStorage.setItem("appUser", JSON.stringify(u));
+      setAppUser(u);
+      const allSaves = await loadAllSaves(u.id);
+      setSaves(allSaves);
+      if (allSaves.length > 0) {
+        const s = allSaves[0];
+        setCurrentSaveId(s.id);
+        setCurrentSaveName(s.name);
+        const cfg = s.config;
+        if (cfg.buttons)    setButtons(cfg.buttons as ButtonConfig[]);
+        if (cfg.portInputs) setPortInputs(cfg.portInputs as PortConfig[]);
+        if (cfg.leds)       setLeds(cfg.leds as LedConfig);
+        if (cfg.irSensors)  setIrSensors(cfg.irSensors as IRSensorConfig[]);
+        if (cfg.joysticks)  setJoysticks(cfg.joysticks as JoystickConfig[]);
+      }
+      if (isAdmin(u.username)) {
+        loadAllUsers().then(setAllUsers);
+      }
+    }
+    setLoginLoading(false);
+  };
+
+  const handleSignOut = () => {
+    localStorage.removeItem("appUser");
+    setAppUser(null);
+    setSaves([]);
+    setCurrentSaveId(null);
+    setCurrentSaveName("My Setup");
+    setShadowUser(null);
+    setShadowSaves([]);
+    if (tab === "admin") setTab("configure");
+  };
 
   // ── Auto-save config 1.5 s after any change (only when logged in) ─────────
   useEffect(() => {
-    if (!user) return;
+    if (!appUser) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       setSaving(true);
-      const newId = await upsertSave(currentSaveId, currentSaveName, { buttons, portInputs, leds, irSensors, sipPuffs, joysticks });
+      const cfg = { buttons, portInputs, leds, irSensors, sipPuffs, joysticks };
+      const newId = await upsertSave(appUser.id, currentSaveId, currentSaveName, cfg);
       if (newId && newId !== currentSaveId) {
         setCurrentSaveId(newId);
         setSaves((prev) => {
           const exists = prev.find((s) => s.id === newId);
-          if (exists) return prev.map((s) => s.id === newId ? { ...s, name: currentSaveName, config: { buttons, portInputs, leds, irSensors, sipPuffs, joysticks }, updated_at: new Date().toISOString() } : s);
-          return [{ id: newId, name: currentSaveName, config: { buttons, portInputs, leds, irSensors, sipPuffs, joysticks }, updated_at: new Date().toISOString() }, ...prev];
+          if (exists) return prev.map((s) => s.id === newId ? { ...s, name: currentSaveName, config: cfg, updated_at: new Date().toISOString() } : s);
+          return [{ id: newId, name: currentSaveName, config: cfg, updated_at: new Date().toISOString() }, ...prev];
         });
       } else if (newId) {
-        setSaves((prev) => prev.map((s) => s.id === newId ? { ...s, name: currentSaveName, config: { buttons, portInputs, leds, irSensors, sipPuffs, joysticks }, updated_at: new Date().toISOString() } : s));
+        setSaves((prev) => prev.map((s) => s.id === newId ? { ...s, name: currentSaveName, config: cfg, updated_at: new Date().toISOString() } : s));
       }
       setSaving(false);
     }, 1500);
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
-  }, [user, buttons, portInputs, leds, irSensors, sipPuffs, joysticks, currentSaveId, currentSaveName]);
+  }, [appUser, buttons, portInputs, leds, irSensors, sipPuffs, joysticks, currentSaveId, currentSaveName]);
 
   const fetchPorts = async () => {
     setLoadingPorts(true);
@@ -1905,7 +1973,7 @@ export default function Home() {
           </div>
           {/* Auth + Save Switcher */}
           {authReady && (
-            user ? (
+            appUser ? (
               <div className="flex items-center gap-2 flex-shrink-0">
                 {/* Save switcher */}
                 <div className="relative" ref={saveMenuRef}>
@@ -1918,7 +1986,6 @@ export default function Home() {
                   </button>
                   {showSaveMenu && (
                     <div className="absolute right-0 top-full mt-1 w-52 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden">
-                      {/* Rename current save */}
                       <div className="px-3 py-2 border-b border-gray-800">
                         <input
                           value={currentSaveName}
@@ -1960,34 +2027,34 @@ export default function Home() {
                 <div className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-800/60 border border-gray-700 rounded-xl">
                   <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
                     <span className="text-white text-[9px] font-bold">
-                      {(user.user_metadata?.full_name ?? user.email ?? "?")[0].toUpperCase()}
+                      {appUser.username[0].toUpperCase()}
                     </span>
                   </div>
                   <span className="text-xs text-gray-300 hidden sm:block max-w-[100px] truncate">
-                    {user.user_metadata?.full_name ?? user.email}
+                    {appUser.username}
                   </span>
-                  <button
-                    onClick={() => supabase.auth.signOut()}
-                    className="text-[10px] text-gray-600 hover:text-red-400 transition-colors ml-1"
-                  >Sign out</button>
+                  <button onClick={handleSignOut} className="text-[10px] text-gray-600 hover:text-red-400 transition-colors ml-1">Sign out</button>
                 </div>
               </div>
             ) : (
-              <button
-                onClick={() => supabase.auth.signInWithOAuth({
-                  provider: "google",
-                  options: { redirectTo: window.location.origin },
-                })}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gray-800/60 border border-gray-700 hover:border-gray-500 text-xs text-gray-300 hover:text-gray-100 transition-all flex-shrink-0"
+              <form
+                onSubmit={(e) => { e.preventDefault(); handleLogin(); }}
+                className="flex items-center gap-1.5 flex-shrink-0"
               >
-                <svg width="13" height="13" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                </svg>
-                Sign in with Google
-              </button>
+                <input
+                  value={loginUsername}
+                  onChange={(e) => setLoginUsername(e.target.value)}
+                  placeholder="Enter username"
+                  className="px-2.5 py-1.5 rounded-xl bg-gray-800/60 border border-gray-700 focus:border-blue-500 focus:outline-none text-xs text-gray-200 placeholder-gray-600 w-32 sm:w-36 transition-colors"
+                />
+                <button
+                  type="submit"
+                  disabled={loginLoading || !loginUsername.trim()}
+                  className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-medium transition-colors flex-shrink-0"
+                >
+                  {loginLoading ? "…" : "Login / Join"}
+                </button>
+              </form>
             )
           )}
 
@@ -2004,6 +2071,12 @@ export default function Home() {
               className={["flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
                 tab === "info" ? "bg-gray-700 text-gray-100" : "text-gray-500 hover:text-gray-300"].join(" ")}
             ><Info size={12} /> Info</button>
+            {appUser && isAdmin(appUser.username) && (
+              <button onClick={() => { setTab("admin"); loadAllUsers().then(setAllUsers); }}
+                className={["flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
+                  tab === "admin" ? "bg-amber-700/60 text-amber-200" : "text-amber-600 hover:text-amber-400"].join(" ")}
+              ><Settings size={12} /> Admin</button>
+            )}
           </div>
         </div>
       </header>
@@ -2166,7 +2239,7 @@ export default function Home() {
               </section>
 
               {/* LED Config */}
-              <section className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex-shrink-0">
+              {adminSettings.show_leds && <section className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex-shrink-0">
                 <div className="flex items-center gap-2 mb-3">
                   <Lightbulb size={13} className="text-yellow-400" />
                   <h2 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">LED Indicators</h2>
@@ -2225,10 +2298,10 @@ export default function Home() {
                     <p className="text-xs text-gray-600 pl-1">Use the 💡 icon on a button card to assign an LED pin.</p>
                   )}
                 </div>
-              </section>
+              </section>}
 
               {/* Port Inputs */}
-              <section className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex-shrink-0">
+              {adminSettings.show_ports && <section className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex-shrink-0">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <Usb size={13} className="text-sky-400" />
@@ -2247,7 +2320,7 @@ export default function Home() {
                 >
                   <Plus size={13} /> Add Port Input
                 </button>
-              </section>
+              </section>}
 
               {/* ── Sensors ──────────────────────────────────────── */}
               <section className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex-shrink-0">
@@ -2255,7 +2328,7 @@ export default function Home() {
                   <Radio size={13} className="text-emerald-400" />
                   <h2 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Sensors</h2>
                   <span className="text-[10px] text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">
-                    {irSensors.length + sipPuffs.length + joysticks.length}
+                    {irSensors.length + joysticks.length}
                   </span>
                 </div>
 
@@ -2274,25 +2347,6 @@ export default function Home() {
                     ))}
                     {irSensors.length === 0 && (
                       <p className="text-[10px] text-gray-700 pl-1">Proximity / break-beam sensors on digital pins</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Sip & puff */}
-                <div className="border-t border-gray-800 pt-3 mb-3">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[10px] text-cyan-400/80 font-semibold uppercase tracking-wider">Sip &amp; Puff</span>
-                    <button onClick={addSipPuff} disabled={sipPuffs.length >= 4}
-                      className="flex items-center gap-1 px-2 py-0.5 rounded-lg border border-dashed border-cyan-800/60 hover:border-cyan-600/60 text-cyan-600 hover:text-cyan-400 text-[10px] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                    ><Plus size={10} /> Add Sip&amp;Puff</button>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    {sipPuffs.map((s, i) => (
-                      <SipPuffCard key={s.id} sensor={s} index={i} usedAnalogPins={usedAnalogPins}
-                        onUpdate={updateSipPuff} onRemove={removeSipPuff} />
-                    ))}
-                    {sipPuffs.length === 0 && (
-                      <p className="text-[10px] text-gray-700 pl-1">Analog pressure sensor on A0–A5</p>
                     )}
                   </div>
                 </div>
@@ -2421,6 +2475,170 @@ export default function Home() {
               <DeviceMockup buttons={buttons} leds={leds} ports={portInputs} />
             </div>
 
+          </div>
+        </div>
+      )}
+
+      {/* ══ ADMIN TAB ══════════════════════════════════════════════════════ */}
+      {tab === "admin" && appUser && isAdmin(appUser.username) && (
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 py-5 flex flex-col gap-5">
+
+            <div className="flex items-center gap-2">
+              <Settings size={16} className="text-amber-400" />
+              <h2 className="text-sm font-semibold text-gray-200">Admin Panel</h2>
+              <span className="text-xs text-gray-600">jacob.majors</span>
+            </div>
+
+            {/* Global section toggles */}
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Global Section Visibility</h3>
+              <p className="text-xs text-gray-600 mb-4">These toggles affect ALL users in real-time.</p>
+              <div className="flex flex-col gap-3">
+                {/* show_leds toggle */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm text-gray-200">LED Indicators section</span>
+                    <p className="text-xs text-gray-600">Show/hide the LED section for all users</p>
+                  </div>
+                  <div
+                    onClick={async () => {
+                      const next = !adminSettings.show_leds;
+                      setAdminSettings((s) => ({ ...s, show_leds: next }));
+                      await updateAdminSettings({ show_leds: next });
+                    }}
+                    className={["relative w-10 h-6 rounded-full transition-colors cursor-pointer flex-shrink-0",
+                      adminSettings.show_leds ? "bg-blue-600" : "bg-gray-700"].join(" ")}
+                  >
+                    <div className={["absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform",
+                      adminSettings.show_leds ? "translate-x-5" : "translate-x-1"].join(" ")} />
+                  </div>
+                </div>
+                {/* show_ports toggle */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-sm text-gray-200">Back Panel Ports section</span>
+                    <p className="text-xs text-gray-600">Show/hide the 3.5mm ports section for all users</p>
+                  </div>
+                  <div
+                    onClick={async () => {
+                      const next = !adminSettings.show_ports;
+                      setAdminSettings((s) => ({ ...s, show_ports: next }));
+                      await updateAdminSettings({ show_ports: next });
+                    }}
+                    className={["relative w-10 h-6 rounded-full transition-colors cursor-pointer flex-shrink-0",
+                      adminSettings.show_ports ? "bg-blue-600" : "bg-gray-700"].join(" ")}
+                  >
+                    <div className={["absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform",
+                      adminSettings.show_ports ? "translate-x-5" : "translate-x-1"].join(" ")} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* User list + shadow view */}
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">
+                Users ({allUsers.length})
+              </h3>
+              {allUsers.length === 0 ? (
+                <p className="text-xs text-gray-600">No users yet.</p>
+              ) : (
+                <div className="flex flex-col gap-1 mb-4">
+                  {allUsers.map((u) => (
+                    <button
+                      key={u.id}
+                      onClick={async () => {
+                        if (shadowUser?.id === u.id) { setShadowUser(null); setShadowSaves([]); return; }
+                        setShadowUser(u);
+                        const saves = await loadAllSaves(u.id);
+                        setShadowSaves(saves);
+                        setShadowSaveIndex(0);
+                      }}
+                      className={[
+                        "flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-all",
+                        shadowUser?.id === u.id
+                          ? "bg-amber-600/20 border border-amber-600/40 text-amber-300"
+                          : "hover:bg-gray-800 text-gray-300",
+                      ].join(" ")}
+                    >
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                        <span className="text-white text-[9px] font-bold">{u.username[0].toUpperCase()}</span>
+                      </div>
+                      <span className="text-xs font-medium">{u.username}</span>
+                      {u.username === ADMIN_USERNAME && (
+                        <span className="text-[10px] text-amber-500 font-semibold ml-auto">ADMIN</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Shadow view */}
+              {shadowUser && shadowSaves.length > 0 && (
+                <div className="border-t border-gray-800 pt-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-xs font-semibold text-amber-400">Viewing: {shadowUser.username}</span>
+                    {shadowSaves.length > 1 && (
+                      <select
+                        value={shadowSaveIndex}
+                        onChange={(e) => setShadowSaveIndex(parseInt(e.target.value))}
+                        className="ml-auto appearance-none bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs text-gray-300 focus:outline-none"
+                      >
+                        {shadowSaves.map((s, i) => (
+                          <option key={s.id} value={i}>{s.name}</option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                  {(() => {
+                    const save = shadowSaves[shadowSaveIndex];
+                    if (!save) return null;
+                    const cfg = save.config;
+                    const btns = (cfg.buttons ?? []) as ButtonConfig[];
+                    const ports = (cfg.portInputs ?? []) as PortConfig[];
+                    return (
+                      <div className="space-y-3">
+                        <div className="bg-gray-950 rounded-xl p-3">
+                          <p className="text-[10px] text-gray-500 uppercase font-semibold tracking-wide mb-2">Buttons ({btns.length})</p>
+                          {btns.length === 0 ? <p className="text-xs text-gray-700">None</p> : (
+                            <div className="flex flex-col gap-1">
+                              {btns.map((b) => (
+                                <div key={b.id} className="flex items-center gap-2 text-xs">
+                                  <span className="font-mono text-blue-400 w-8">D{b.pin}</span>
+                                  <span className="text-gray-300">{b.name || "(unnamed)"}</span>
+                                  <span className="text-gray-600 ml-auto">[{b.keyDisplay || b.arduinoKey || "—"}]</span>
+                                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${b.mode === "power" ? "bg-amber-900/40 text-amber-400" : "bg-gray-800 text-gray-500"}`}>{b.mode}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        {ports.length > 0 && (
+                          <div className="bg-gray-950 rounded-xl p-3">
+                            <p className="text-[10px] text-gray-500 uppercase font-semibold tracking-wide mb-2">Port Inputs ({ports.length})</p>
+                            <div className="flex flex-col gap-1">
+                              {ports.map((p) => (
+                                <div key={p.id} className="flex items-center gap-2 text-xs">
+                                  <span className="font-mono text-sky-400 w-8">D{p.pin}</span>
+                                  <span className="text-gray-300">{p.name || "(unnamed)"}</span>
+                                  <span className="text-gray-600 ml-auto">[{p.keyDisplay || p.arduinoKey || "—"}]</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
+              {shadowUser && shadowSaves.length === 0 && (
+                <div className="border-t border-gray-800 pt-4">
+                  <p className="text-xs text-gray-600">No saves for {shadowUser.username} yet.</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

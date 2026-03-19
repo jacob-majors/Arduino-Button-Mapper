@@ -5,12 +5,17 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+export const ADMIN_USERNAME = "jacob.majors";
+export const isAdmin = (username: string) => username === ADMIN_USERNAME;
+
+export type AppUser = { id: string; username: string };
+
 export type UserConfig = {
   buttons: unknown[];
   portInputs: unknown[];
   leds: unknown;
   irSensors: unknown[];
-  sipPuffs: unknown[];
+  sipPuffs?: unknown[];
   joysticks: unknown[];
 };
 
@@ -21,31 +26,81 @@ export type SaveSlot = {
   updated_at: string;
 };
 
-export async function loadAllSaves(): Promise<SaveSlot[]> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return [];
+export type AdminSettings = {
+  show_ports: boolean;
+  show_leds: boolean;
+};
+
+// ── Auth (username-only, no password) ───────────────────────────────────────
+// Required Supabase SQL (run once in Supabase SQL editor):
+//
+// CREATE TABLE public.app_users (
+//   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+//   username text UNIQUE NOT NULL,
+//   created_at timestamptz DEFAULT now()
+// );
+// ALTER TABLE public.app_users ENABLE ROW LEVEL SECURITY;
+// CREATE POLICY "public read"   ON public.app_users FOR SELECT USING (true);
+// CREATE POLICY "public insert" ON public.app_users FOR INSERT WITH CHECK (true);
+//
+// CREATE TABLE public.admin_settings (
+//   id int DEFAULT 1 PRIMARY KEY CHECK (id = 1),
+//   show_ports boolean DEFAULT true,
+//   show_leds  boolean DEFAULT true,
+//   updated_at timestamptz DEFAULT now()
+// );
+// INSERT INTO public.admin_settings VALUES (1, true, true, now()) ON CONFLICT DO NOTHING;
+// ALTER TABLE public.admin_settings ENABLE ROW LEVEL SECURITY;
+// CREATE POLICY "public read"   ON public.admin_settings FOR SELECT USING (true);
+// CREATE POLICY "public update" ON public.admin_settings FOR UPDATE USING (true);
+//
+// ALTER TABLE public.user_configs DISABLE ROW LEVEL SECURITY;
+
+export async function loginOrCreate(username: string): Promise<AppUser | null> {
+  const trimmed = username.trim().toLowerCase();
+  if (!trimmed) return null;
+  const { data: existing } = await supabase
+    .from("app_users")
+    .select("id, username")
+    .eq("username", trimmed)
+    .maybeSingle();
+  if (existing) return existing as AppUser;
+  const { data: created } = await supabase
+    .from("app_users")
+    .insert({ username: trimmed })
+    .select("id, username")
+    .single();
+  return (created as AppUser) ?? null;
+}
+
+// ── Saves ───────────────────────────────────────────────────────────────────
+
+export async function loadAllSaves(userId: string): Promise<SaveSlot[]> {
   const { data } = await supabase
     .from("user_configs")
     .select("id, name, config, updated_at")
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .order("updated_at", { ascending: false });
   return (data as SaveSlot[]) ?? [];
 }
 
-export async function upsertSave(id: string | null, name: string, config: UserConfig): Promise<string> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return "";
+export async function upsertSave(
+  userId: string,
+  id: string | null,
+  name: string,
+  config: UserConfig
+): Promise<string> {
   if (id) {
     await supabase
       .from("user_configs")
       .update({ name, config, updated_at: new Date().toISOString() })
       .eq("id", id)
-      .eq("user_id", user.id);
+      .eq("user_id", userId);
     return id;
   }
   const { data } = await supabase
     .from("user_configs")
-    .insert({ user_id: user.id, name, config })
+    .insert({ user_id: userId, name, config })
     .select("id")
     .single();
   return data?.id ?? "";
@@ -53,4 +108,30 @@ export async function upsertSave(id: string | null, name: string, config: UserCo
 
 export async function deleteSave(id: string): Promise<void> {
   await supabase.from("user_configs").delete().eq("id", id);
+}
+
+// ── Admin ───────────────────────────────────────────────────────────────────
+
+export async function getAdminSettings(): Promise<AdminSettings> {
+  const { data } = await supabase
+    .from("admin_settings")
+    .select("show_ports, show_leds")
+    .eq("id", 1)
+    .single();
+  return (data as AdminSettings) ?? { show_ports: true, show_leds: true };
+}
+
+export async function updateAdminSettings(settings: Partial<AdminSettings>): Promise<void> {
+  await supabase
+    .from("admin_settings")
+    .update({ ...settings, updated_at: new Date().toISOString() })
+    .eq("id", 1);
+}
+
+export async function loadAllUsers(): Promise<AppUser[]> {
+  const { data } = await supabase
+    .from("app_users")
+    .select("id, username")
+    .order("username");
+  return (data as AppUser[]) ?? [];
 }

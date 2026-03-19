@@ -128,9 +128,7 @@ export default function DeviceMockup({ buttons, leds, ports }: Props) {
             background: "#0c4a6e",
             border: "1.5px solid #075985",
             boxShadow: "inset 0 1px 3px rgba(0,0,0,0.6)",
-            display: "flex", alignItems: "center", justifyContent: "center",
           }}>
-            <div style={{ width: 6, height: 1.5, background: "#0369a1", borderRadius: 1 }} />
           </div>
           {leftBtn?.name && (
             <span style={{
@@ -270,8 +268,8 @@ export default function DeviceMockup({ buttons, leds, ports }: Props) {
       {/* ── Back panel (4× 3.5mm ports) ──────────────────────────── */}
       <div style={{
         width: 680, maxWidth: "100%",
-        background: "linear-gradient(180deg, #0d1117 0%, #080c10 100%)",
-        border: "1.5px solid rgba(56,189,248,0.1)",
+        background: "linear-gradient(160deg, #0f172a 0%, #1e293b 60%, #0f172a 100%)",
+        border: "1.5px solid rgba(56,189,248,0.18)",
         borderTop: "none",
         borderRadius: "0 0 22px 22px",
         padding: "10px 28px",
