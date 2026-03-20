@@ -1810,8 +1810,13 @@ export default function Home() {
     try {
       const res = await fetch(`${BACKEND_URL}/api/ports`);
       const data = await res.json();
-      setPorts(data.ports || []);
-      if (data.ports?.length > 0 && !selectedPort) setSelectedPort(data.ports[0].path);
+      const portList = data.ports || [];
+      setPorts(portList);
+      if (portList.length > 0 && !selectedPort) {
+        // Prefer Arduino-labeled or usbmodem ports over generic ones
+        const best = portList.find((p: Port) => p.description?.toLowerCase().includes('arduino') || p.path?.includes('usbmodem')) ?? portList[0];
+        setSelectedPort(best.path);
+      }
     } catch { setPorts([]); }
     finally { setLoadingPorts(false); }
   };

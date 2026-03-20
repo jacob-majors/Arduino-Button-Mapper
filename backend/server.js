@@ -38,7 +38,8 @@ function getFallbackPorts() {
     let cmd;
 
     if (platform === 'darwin') {
-      cmd = 'ls /dev/cu.* 2>/dev/null';
+      // Only USB serial ports — filters out Bluetooth, modems, etc.
+      cmd = 'ls /dev/cu.usbmodem* /dev/cu.usbserial* 2>/dev/null';
     } else if (platform === 'linux') {
       cmd = 'ls /dev/ttyUSB* /dev/ttyACM* 2>/dev/null';
     } else if (platform === 'win32') {
@@ -64,8 +65,12 @@ function getFallbackPorts() {
         const lines = stdout.trim().split('\n');
         for (const line of lines) {
           const p = line.trim();
-          if (p) ports.push({ path: p, description: 'Serial Port' });
+          if (!p) continue;
+          const desc = p.includes('usbmodem') ? 'Arduino (USB)' : 'USB Serial';
+          ports.push({ path: p, description: desc });
         }
+        // Sort Arduino-likely ports first
+        ports.sort((a, b) => (b.description === 'Arduino (USB)' ? 1 : 0) - (a.description === 'Arduino (USB)' ? 1 : 0));
       }
       resolve(ports);
     });
