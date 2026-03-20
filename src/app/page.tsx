@@ -5,7 +5,7 @@ import {
   Zap, RefreshCw, Plus, Trash2, X, Upload, ChevronDown,
   Loader2, CheckCircle2, XCircle, Terminal, Usb, Keyboard,
   RotateCcw, Pencil, Gamepad2, Settings, Lightbulb, Power, Code,
-  Info, ExternalLink, Radio, Wind, Joystick, Minimize2, Maximize2,
+  Info, ExternalLink, Radio, Wind, Joystick, Minimize2, Maximize2, Download,
 } from "lucide-react";
 import {
   ButtonConfig, ButtonMode, LedConfig, PortConfig,
@@ -1939,6 +1939,38 @@ export default function Home() {
     }
   };
 
+  const downloadSetup = () => {
+    const cfg = { buttons, portInputs, leds, irSensors, sipPuffs, joysticks };
+    const blob = new Blob([JSON.stringify({ name: currentSaveName, config: cfg }, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${currentSaveName.replace(/[^a-z0-9]/gi, "_")}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importSetup = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const parsed = JSON.parse(ev.target?.result as string);
+        const cfg = parsed.config ?? parsed;
+        if (cfg.buttons)    setButtons(cfg.buttons as ButtonConfig[]);
+        if (cfg.portInputs) setPortInputs(cfg.portInputs as PortConfig[]);
+        if (cfg.leds)       setLeds(cfg.leds as LedConfig);
+        if (cfg.irSensors)  setIrSensors(cfg.irSensors as IRSensorConfig[]);
+        if (cfg.sipPuffs)   setSipPuffs(cfg.sipPuffs as SipPuffConfig[]);
+        if (cfg.joysticks)  setJoysticks(cfg.joysticks as JoystickConfig[]);
+        if (parsed.name)    setCurrentSaveName(parsed.name);
+      } catch { /* ignore bad files */ }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
   const openSketch = async () => {
     setLoadingSketch(true);
     try {
@@ -2053,6 +2085,14 @@ export default function Home() {
                 </div>
                 {saving && <span className="text-[10px] text-gray-600 hidden sm:block">saving…</span>}
                 {!saving && <span className="text-[10px] text-green-600 hidden sm:block">saved</span>}
+                {/* Download / Import */}
+                <button onClick={downloadSetup} title="Download setup as file"
+                  className="p-1.5 rounded-lg border border-gray-700 bg-gray-800/60 hover:bg-gray-700 text-gray-400 hover:text-gray-100 transition-all"
+                ><Download size={13} /></button>
+                <label title="Import setup from file" className="p-1.5 rounded-lg border border-gray-700 bg-gray-800/60 hover:bg-gray-700 text-gray-400 hover:text-gray-100 transition-all cursor-pointer">
+                  <Upload size={13} />
+                  <input type="file" accept=".json" className="hidden" onChange={importSetup} />
+                </label>
                 <div className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-800/60 border border-gray-700 rounded-xl">
                   <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
                     <span className="text-white text-[9px] font-bold">
