@@ -42,7 +42,8 @@ function getFallbackPorts() {
     } else if (platform === 'linux') {
       cmd = 'ls /dev/ttyUSB* /dev/ttyACM* 2>/dev/null';
     } else if (platform === 'win32') {
-      cmd = 'wmic path Win32_SerialPort get DeviceID,Description /format:csv 2>nul';
+      // Use PowerShell — wmic is deprecated on Windows 11
+      cmd = 'powershell -NoProfile -Command "Get-WMIObject Win32_SerialPort | ForEach-Object { $_.DeviceID + \',\' + $_.Description }" 2>nul';
     } else {
       return resolve([]);
     }
@@ -52,11 +53,11 @@ function getFallbackPorts() {
       const ports = [];
 
       if (platform === 'win32') {
-        const lines = stdout.trim().split('\n').slice(1);
+        const lines = stdout.trim().split('\n');
         for (const line of lines) {
-          const parts = line.split(',');
-          if (parts.length >= 3 && parts[2]) {
-            ports.push({ path: parts[2].trim(), description: parts[1] ? parts[1].trim() : 'Serial Port' });
+          const parts = line.trim().split(',');
+          if (parts.length >= 1 && parts[0] && parts[0].toUpperCase().startsWith('COM')) {
+            ports.push({ path: parts[0].trim(), description: parts[1] ? parts[1].trim() : 'Serial Port' });
           }
         }
       } else {
