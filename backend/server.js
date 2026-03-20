@@ -95,13 +95,27 @@ app.get('/api/ports', (req, res) => {
 // ─── CLI Check ────────────────────────────────────────────────────────────────
 
 app.get('/api/check-cli', (req, res) => {
-  exec('arduino-cli version 2>&1', (err, stdout) => {
-    if (err || !stdout.toLowerCase().includes('arduino-cli')) {
-      return res.json({ installed: false, version: null });
-    }
-    const match = stdout.match(/arduino-cli\s+([\d.]+)/i);
-    res.json({ installed: true, version: match ? match[1] : stdout.trim().slice(0, 40) });
-  });
+  // Node exec uses a minimal PATH — probe common install locations explicitly
+  const candidates = [
+    'arduino-cli',
+    '/opt/homebrew/bin/arduino-cli',  // Apple Silicon Mac
+    '/usr/local/bin/arduino-cli',     // Intel Mac
+    'C:\\Windows\\System32\\arduino-cli.exe',
+  ];
+
+  const tryNext = (i) => {
+    if (i >= candidates.length) return res.json({ installed: false, version: null });
+    exec(`"${candidates[i]}" version 2>&1`, (err, stdout) => {
+      if (err || !stdout) return tryNext(i + 1);
+      // Output: "arduino-cli  Version: 1.4.1 Commit: ..."
+      const match = stdout.match(/Version:\s*([\d.]+)/i) || stdout.match(/([\d]+\.[\d]+\.[\d]+)/);
+      if (match) return res.json({ installed: true, version: match[1] });
+      if (stdout.toLowerCase().includes('arduino-cli')) return res.json({ installed: true, version: null });
+      tryNext(i + 1);
+    });
+  };
+
+  tryNext(0);
 });
 
 // ─── Sketch Generation ────────────────────────────────────────────────────────
