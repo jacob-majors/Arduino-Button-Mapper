@@ -2119,7 +2119,7 @@ export default function Home() {
                   <div className="flex flex-wrap gap-x-8 gap-y-1 text-[11px]">
                     <span className="text-amber-400 font-semibold">Step 1 — install arduino-cli</span>
                     <span className="text-amber-500">Windows: open PowerShell, paste →</span>
-                    <code className="bg-amber-950/60 px-1.5 rounded font-mono text-green-400 select-all">winget install ArduinoSA.ArduinoCLI</code>
+                    <code className="bg-amber-950/60 px-1.5 rounded font-mono text-green-400 select-all break-all">$d="$env:LOCALAPPDATA\arduino-cli"; New-Item -Force -ItemType Directory $d | Out-Null; Invoke-WebRequest "https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_Windows_64bit.zip" -OutFile "$env:TEMP\acli.zip"; Expand-Archive -Force "$env:TEMP\acli.zip" $d; $p=[Environment]::GetEnvironmentVariable("Path","User"); if($p -notlike "*arduino-cli*"){[Environment]::SetEnvironmentVariable("Path","$p;$d","User")}; Write-Host "Done - restart PowerShell"</code>
                     <span className="text-amber-500">Mac: open Terminal, paste →</span>
                     <code className="bg-amber-950/60 px-1.5 rounded font-mono text-green-400 select-all">brew install arduino-cli</code>
                     <span className="text-amber-600 italic">(Mac only: if brew is not found, first run →</span>
