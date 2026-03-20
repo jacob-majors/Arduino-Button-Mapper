@@ -2115,20 +2115,23 @@ export default function Home() {
               <div className="max-w-[1400px] mx-auto flex items-center gap-3">
                 <Terminal size={13} className="text-amber-400 flex-shrink-0" />
                 <div className="flex-1 min-w-0 flex flex-col gap-1.5">
-                  <span className="text-xs font-semibold text-amber-300">One-time setup to enable Upload — two steps, takes ~1 minute:</span>
-                  <div className="flex flex-wrap gap-x-8 gap-y-1 text-[11px]">
-                    <span className="text-amber-400 font-semibold">Step 1 — install arduino-cli</span>
-                    <span className="text-amber-500">Windows: open PowerShell, paste →</span>
-                    <code className="bg-amber-950/60 px-1.5 rounded font-mono text-green-400 select-all break-all">$d="$env:LOCALAPPDATA\arduino-cli"; New-Item -Force -ItemType Directory $d | Out-Null; Invoke-WebRequest "https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_Windows_64bit.zip" -OutFile "$env:TEMP\acli.zip"; Expand-Archive -Force "$env:TEMP\acli.zip" $d; $p=[Environment]::GetEnvironmentVariable("Path","User"); if($p -notlike "*arduino-cli*"){[Environment]::SetEnvironmentVariable("Path","$p;$d","User")}; Write-Host "Done - restart PowerShell"</code>
-                    <span className="text-amber-500">Mac: open Terminal, paste →</span>
-                    <code className="bg-amber-950/60 px-1.5 rounded font-mono text-green-400 select-all">brew install arduino-cli</code>
-                    <span className="text-amber-600 italic">(Mac only: if brew is not found, first run →</span>
-                    <code className="bg-amber-950/60 px-1.5 rounded font-mono text-green-400 select-all">/bin/bash -c &quot;$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)&quot;</code>
-                    <span className="text-amber-600 italic">then repeat Step 1)</span>
-                  </div>
-                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] items-center">
-                    <span className="text-amber-400 font-semibold">Step 2 — install Arduino board (same terminal, either OS) →</span>
-                    <code className="bg-amber-950/60 px-1.5 rounded font-mono text-green-400 select-all">arduino-cli core install arduino:avr</code>
+                  <span className="text-xs font-semibold text-amber-300">One-time setup — 2 steps, ~1 min. Open a terminal and paste the commands below:</span>
+                  <div className="grid grid-cols-1 gap-1 text-[11px]">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                      <span className="text-amber-400 font-semibold whitespace-nowrap">Step 1 (Windows — PowerShell):</span>
+                      <code className="bg-amber-950/60 px-1.5 py-0.5 rounded font-mono text-green-400 select-all break-all leading-relaxed">{"$d=\"$env:LOCALAPPDATA\\arduino-cli\"; New-Item -Force -ItemType Directory $d | Out-Null; Invoke-WebRequest \"https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_Windows_64bit.zip\" -OutFile \"$env:TEMP\\acli.zip\"; Expand-Archive -Force \"$env:TEMP\\acli.zip\" $d; $p=[Environment]::GetEnvironmentVariable(\"Path\",\"User\"); if($p -notlike \"*arduino-cli*\"){[Environment]::SetEnvironmentVariable(\"Path\",\"$p;$d\",\"User\")}; Write-Host \"Done! Close and reopen PowerShell, then run Step 2\""}</code>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                      <span className="text-amber-400 font-semibold whitespace-nowrap">Step 1 (Mac — Terminal):</span>
+                      <code className="bg-amber-950/60 px-1.5 py-0.5 rounded font-mono text-green-400 select-all">brew install arduino-cli</code>
+                      <span className="text-amber-600 italic">(no brew? first run →</span>
+                      <code className="bg-amber-950/60 px-1.5 py-0.5 rounded font-mono text-green-400 select-all">/bin/bash -c &quot;$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)&quot;</code>
+                      <span className="text-amber-600 italic">then repeat)</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                      <span className="text-amber-400 font-semibold whitespace-nowrap">Step 2 (both OS — same terminal):</span>
+                      <code className="bg-amber-950/60 px-1.5 py-0.5 rounded font-mono text-green-400 select-all">arduino-cli core install arduino:avr</code>
+                    </div>
                   </div>
                 </div>
                 {cliCheckState === "idle" && (
