@@ -1700,8 +1700,15 @@ export default function Home() {
     } catch { /* ignore */ }
     setAuthReady(true);
 
-    // Load global admin settings
-    getAdminSettings().then(setAdminSettings);
+    // Load admin settings — localStorage first (instant), then Supabase (source of truth)
+    try {
+      const cached = localStorage.getItem("adminSettings");
+      if (cached) setAdminSettings(JSON.parse(cached) as AdminSettings);
+    } catch { /* ignore */ }
+    getAdminSettings().then((s) => {
+      setAdminSettings(s);
+      localStorage.setItem("adminSettings", JSON.stringify(s));
+    });
 
     // Realtime subscription: update settings instantly for all users
     const channel = supabase
@@ -1711,13 +1718,15 @@ export default function Home() {
         { event: "UPDATE", schema: "public", table: "admin_settings" },
         (payload) => {
           const s = payload.new as AdminSettings;
-          setAdminSettings({
+          const next = {
             show_ports: s.show_ports,
             show_leds: s.show_leds,
             show_upload: s.show_upload ?? true,
             show_sensors: s.show_sensors ?? true,
             show_buttons: s.show_buttons ?? true,
-          });
+          };
+          setAdminSettings(next);
+          localStorage.setItem("adminSettings", JSON.stringify(next));
         }
       )
       .subscribe();
@@ -2096,15 +2105,18 @@ export default function Home() {
             <div className="flex-shrink-0 bg-amber-950/40 border-b border-amber-700/40 px-4 sm:px-6 py-2.5">
               <div className="max-w-[1400px] mx-auto flex items-center gap-3">
                 <Terminal size={13} className="text-amber-400 flex-shrink-0" />
-                <div className="flex-1 min-w-0 flex flex-col gap-1">
-                  <span className="text-xs font-semibold text-amber-300">One-time setup — open a terminal and run these two commands:</span>
-                  <div className="flex flex-wrap gap-x-6 gap-y-1">
-                    <span className="text-[11px] text-amber-500">Windows (PowerShell):</span>
-                    <code className="text-[11px] bg-amber-950/60 px-1.5 rounded font-mono text-green-400 select-all">winget install ArduinoSA.ArduinoCLI</code>
-                    <span className="text-[11px] text-amber-500">Mac (Terminal):</span>
-                    <code className="text-[11px] bg-amber-950/60 px-1.5 rounded font-mono text-green-400 select-all">brew install arduino-cli</code>
-                    <span className="text-[11px] text-amber-500">Then both:</span>
-                    <code className="text-[11px] bg-amber-950/60 px-1.5 rounded font-mono text-green-400 select-all">arduino-cli core install arduino:avr</code>
+                <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+                  <span className="text-xs font-semibold text-amber-300">One-time setup to enable Upload — two steps, takes ~1 minute:</span>
+                  <div className="flex flex-wrap gap-x-8 gap-y-1 text-[11px]">
+                    <span className="text-amber-400 font-semibold">Step 1 — install arduino-cli</span>
+                    <span className="text-amber-500">Windows: open PowerShell, paste →</span>
+                    <code className="bg-amber-950/60 px-1.5 rounded font-mono text-green-400 select-all">winget install ArduinoSA.ArduinoCLI</code>
+                    <span className="text-amber-500">Mac: open Terminal, paste →</span>
+                    <code className="bg-amber-950/60 px-1.5 rounded font-mono text-green-400 select-all">brew install arduino-cli</code>
+                  </div>
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] items-center">
+                    <span className="text-amber-400 font-semibold">Step 2 — install Arduino board (same terminal, either OS) →</span>
+                    <code className="bg-amber-950/60 px-1.5 rounded font-mono text-green-400 select-all">arduino-cli core install arduino:avr</code>
                   </div>
                 </div>
                 {cliCheckState === "idle" && (
@@ -2484,7 +2496,7 @@ export default function Home() {
                   <div
                     onClick={async () => {
                       const next = !adminSettings.show_leds;
-                      setAdminSettings((s) => ({ ...s, show_leds: next }));
+                      setAdminSettings((s) => { const n = { ...s, show_leds: next }; localStorage.setItem("adminSettings", JSON.stringify(n)); return n; });
                       await updateAdminSettings({ show_leds: next });
                     }}
                     className={["relative w-10 h-6 rounded-full transition-colors cursor-pointer flex-shrink-0",
@@ -2503,7 +2515,7 @@ export default function Home() {
                   <div
                     onClick={async () => {
                       const next = !adminSettings.show_ports;
-                      setAdminSettings((s) => ({ ...s, show_ports: next }));
+                      setAdminSettings((s) => { const n = { ...s, show_ports: next }; localStorage.setItem("adminSettings", JSON.stringify(n)); return n; });
                       await updateAdminSettings({ show_ports: next });
                     }}
                     className={["relative w-10 h-6 rounded-full transition-colors cursor-pointer flex-shrink-0",
@@ -2522,7 +2534,7 @@ export default function Home() {
                   <div
                     onClick={async () => {
                       const next = !adminSettings.show_upload;
-                      setAdminSettings((s) => ({ ...s, show_upload: next }));
+                      setAdminSettings((s) => { const n = { ...s, show_upload: next }; localStorage.setItem("adminSettings", JSON.stringify(n)); return n; });
                       await updateAdminSettings({ show_upload: next });
                     }}
                     className={["relative w-10 h-6 rounded-full transition-colors cursor-pointer flex-shrink-0",
@@ -2541,7 +2553,7 @@ export default function Home() {
                   <div
                     onClick={async () => {
                       const next = !adminSettings.show_sensors;
-                      setAdminSettings((s) => ({ ...s, show_sensors: next }));
+                      setAdminSettings((s) => { const n = { ...s, show_sensors: next }; localStorage.setItem("adminSettings", JSON.stringify(n)); return n; });
                       await updateAdminSettings({ show_sensors: next });
                     }}
                     className={["relative w-10 h-6 rounded-full transition-colors cursor-pointer flex-shrink-0",
@@ -2560,7 +2572,7 @@ export default function Home() {
                   <div
                     onClick={async () => {
                       const next = !adminSettings.show_buttons;
-                      setAdminSettings((s) => ({ ...s, show_buttons: next }));
+                      setAdminSettings((s) => { const n = { ...s, show_buttons: next }; localStorage.setItem("adminSettings", JSON.stringify(n)); return n; });
                       await updateAdminSettings({ show_buttons: next });
                     }}
                     className={["relative w-10 h-6 rounded-full transition-colors cursor-pointer flex-shrink-0",
