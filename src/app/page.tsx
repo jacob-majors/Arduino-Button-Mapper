@@ -1700,14 +1700,23 @@ export default function Home() {
     } catch { /* ignore */ }
     setAuthReady(true);
 
-    // Load admin settings — localStorage first (instant), then Supabase (source of truth)
+    // Load admin settings — localStorage first (instant), then merge with Supabase
+    // We merge so that missing Supabase columns (not yet added via SQL) don't wipe localStorage values
+    let cached: AdminSettings | null = null;
     try {
-      const cached = localStorage.getItem("adminSettings");
-      if (cached) setAdminSettings(JSON.parse(cached) as AdminSettings);
+      const raw = localStorage.getItem("adminSettings");
+      if (raw) { cached = JSON.parse(raw) as AdminSettings; setAdminSettings(cached); }
     } catch { /* ignore */ }
     getAdminSettings().then((s) => {
-      setAdminSettings(s);
-      localStorage.setItem("adminSettings", JSON.stringify(s));
+      const merged: AdminSettings = {
+        show_ports:   s.show_ports   ?? cached?.show_ports   ?? true,
+        show_leds:    s.show_leds    ?? cached?.show_leds    ?? true,
+        show_upload:  s.show_upload  ?? cached?.show_upload  ?? true,
+        show_sensors: s.show_sensors ?? cached?.show_sensors ?? true,
+        show_buttons: s.show_buttons ?? cached?.show_buttons ?? true,
+      };
+      setAdminSettings(merged);
+      localStorage.setItem("adminSettings", JSON.stringify(merged));
     });
 
     // Realtime subscription: update settings instantly for all users
