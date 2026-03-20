@@ -234,11 +234,19 @@ function ButtonCard({ button, index, usedPins, onUpdate, onRemove, isPort = fals
 // ─── Sketch Modal ─────────────────────────────────────────────────────────────
 
 function SketchModal({ code, onClose }: { code: string; onClose: () => void }) {
+  const [copied, setCopied] = useState(false);
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, [onClose]);
+
+  const copy = () => {
+    navigator.clipboard.writeText(code).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -250,13 +258,29 @@ function SketchModal({ code, onClose }: { code: string; onClose: () => void }) {
           <div className="flex items-center gap-2">
             <Terminal size={14} className="text-green-400" />
             <span className="text-sm font-semibold text-gray-200">Arduino Sketch</span>
+            <span className="text-xs text-gray-500">— paste this into Arduino IDE</span>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-gray-500 hover:text-gray-200 hover:bg-gray-800 transition-colors">
-            <X size={15} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={copy}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${copied ? "bg-green-600 text-white" : "bg-blue-600 hover:bg-blue-500 text-white"}`}
+            >
+              {copied ? <><CheckCircle2 size={12} /> Copied!</> : <><Download size={12} /> Copy Code</>}
+            </button>
+            <button onClick={onClose} className="p-1.5 rounded-lg text-gray-500 hover:text-gray-200 hover:bg-gray-800 transition-colors">
+              <X size={15} />
+            </button>
+          </div>
         </div>
         <div className="flex-1 overflow-auto p-4">
           <pre className="text-xs font-mono text-gray-300 leading-relaxed whitespace-pre">{code}</pre>
+        </div>
+        <div className="px-5 py-3 border-t border-gray-800 flex items-center justify-between">
+          <p className="text-xs text-gray-500">1. Copy Code → 2. Open Arduino IDE → 3. Paste → 4. Upload</p>
+          <button onClick={copy}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${copied ? "bg-green-600 text-white" : "bg-blue-600 hover:bg-blue-500 text-white"}`}
+          >
+            {copied ? <><CheckCircle2 size={13} /> Copied!</> : <><Download size={13} /> Copy Code</>}
+          </button>
         </div>
       </div>
     </div>
@@ -2154,48 +2178,17 @@ export default function Home() {
       {tab === "configure" && (
         <div className="flex-1 overflow-hidden flex flex-col">
 
-          {/* ── arduino-cli setup banner ── */}
+          {/* ── setup banner ── */}
           {showSetupBanner && (
-            <div className="flex-shrink-0 bg-amber-950/40 border-b border-amber-700/40 px-4 sm:px-6 py-2.5">
+            <div className="flex-shrink-0 bg-amber-950/40 border-b border-amber-700/40 px-4 sm:px-6 py-2">
               <div className="max-w-[1400px] mx-auto flex items-center gap-3">
                 <Terminal size={13} className="text-amber-400 flex-shrink-0" />
-                <div className="flex-1 min-w-0 flex flex-col gap-1.5">
-                  <span className="text-xs font-semibold text-amber-300">One-time setup — 2 steps, ~1 min. Open a terminal and paste the commands below:</span>
-                  <div className="grid grid-cols-1 gap-1 text-[11px]">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                      <span className="text-amber-400 font-semibold whitespace-nowrap">Step 1 (Windows — PowerShell):</span>
-                      <code className="bg-amber-950/60 px-1.5 py-0.5 rounded font-mono text-green-400 select-all break-all leading-relaxed">{"$d=\"$env:LOCALAPPDATA\\arduino-cli\"; New-Item -Force -ItemType Directory $d | Out-Null; Invoke-WebRequest \"https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_Windows_64bit.zip\" -OutFile \"$env:TEMP\\acli.zip\"; Expand-Archive -Force \"$env:TEMP\\acli.zip\" $d; $p=[Environment]::GetEnvironmentVariable(\"Path\",\"User\"); if($p -notlike \"*arduino-cli*\"){[Environment]::SetEnvironmentVariable(\"Path\",\"$p;$d\",\"User\")}; Write-Host \"Done! Close and reopen PowerShell, then run Step 2\""}</code>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                      <span className="text-amber-400 font-semibold whitespace-nowrap">Step 1 (Mac — Terminal):</span>
-                      <code className="bg-amber-950/60 px-1.5 py-0.5 rounded font-mono text-green-400 select-all">brew install arduino-cli</code>
-                      <span className="text-amber-600 italic">(no brew? first run →</span>
-                      <code className="bg-amber-950/60 px-1.5 py-0.5 rounded font-mono text-green-400 select-all">/bin/bash -c &quot;$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)&quot;</code>
-                      <span className="text-amber-600 italic">then repeat)</span>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                      <span className="text-amber-400 font-semibold whitespace-nowrap">Step 2 (both OS — same terminal):</span>
-                      <code className="bg-amber-950/60 px-1.5 py-0.5 rounded font-mono text-green-400 select-all">arduino-cli core install arduino:avr</code>
-                    </div>
-                  </div>
-                </div>
-                {cliCheckState === "idle" && (
-                  <button
-                    onClick={async () => {
-                      setCliCheckState("checking");
-                      try {
-                        const r = await fetch(`${BACKEND_URL}/api/check-cli`);
-                        const d = await r.json();
-                        setCliCheckState(d.installed ? "ok" : "missing");
-                        if (d.installed) setCliVersion(d.version);
-                      } catch { setCliCheckState("missing"); }
-                    }}
-                    className="flex-shrink-0 text-[11px] text-amber-500 hover:text-amber-300 underline transition-colors"
-                  >Check if installed</button>
-                )}
-                {cliCheckState === "checking" && <Loader2 size={12} className="animate-spin text-amber-500 flex-shrink-0" />}
-                {cliCheckState === "ok" && <span className="flex-shrink-0 flex items-center gap-1 text-[11px] text-green-400 font-medium"><CheckCircle2 size={11} /> Installed{cliVersion ? ` v${cliVersion}` : ""}</span>}
-                {cliCheckState === "missing" && <span className="flex-shrink-0 flex items-center gap-1 text-[11px] text-red-400"><XCircle size={11} /> Not found</span>}
+                <p className="text-xs text-amber-300 flex-1 min-w-0">
+                  <span className="font-semibold">Need Arduino IDE?</span>
+                  {" "}Download it free at{" "}
+                  <a href="https://www.arduino.cc/en/software" target="_blank" rel="noreferrer" className="underline text-amber-200 hover:text-white">arduino.cc/en/software</a>
+                  {" "}— use it to paste and upload the code this app generates.
+                </p>
                 <button
                   onClick={() => { setShowSetupBanner(false); localStorage.setItem("arduino_cli_dismissed", "1"); }}
                   className="p-0.5 text-amber-700 hover:text-amber-400 transition-colors flex-shrink-0"
@@ -2223,71 +2216,25 @@ export default function Home() {
             {/* Left column: Port + LEDs + Upload */}
             <div className="flex flex-col gap-3 overflow-y-auto pr-1">
 
-              {/* Upload (top) */}
+              {/* Get Code */}
               {adminSettings.show_upload && <section className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex-shrink-0">
                 <div className="flex items-center gap-2 mb-3">
-                  <Upload size={13} className="text-green-400" />
-                  <h2 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Upload to Arduino</h2>
+                  <Code size={13} className="text-green-400" />
+                  <h2 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Get Code</h2>
                 </div>
-
-                {/* Port + Upload row */}
-                <div className="flex gap-2 mb-2">
-                  <div className="relative flex-1">
-                    <select value={selectedPort} onChange={(e) => setSelectedPort(e.target.value)} disabled={loadingPorts}
-                      className="w-full appearance-none bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200 focus:outline-none focus:border-blue-500 transition-colors disabled:opacity-50 pr-8 cursor-pointer"
-                    >
-                      {loadingPorts ? <option>Scanning...</option>
-                        : ports.length === 0 ? <option value="">No ports found</option>
-                        : ports.map((p) => (
-                          <option key={p.path} value={p.path}>
-                            {p.path}{p.description && p.description !== "Unknown" ? ` — ${p.description}` : ""}
-                          </option>
-                        ))}
-                    </select>
-                    <ChevronDown size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
-                  </div>
-                  <button onClick={fetchPorts} disabled={loadingPorts}
-                    className="px-2.5 py-2 rounded-xl border border-gray-700 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 transition-all disabled:opacity-50"
-                    title="Refresh ports"
-                  ><RefreshCw size={14} className={loadingPorts ? "animate-spin" : ""} /></button>
-                  <button onClick={openSketch} disabled={loadingSketch}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-700 bg-gray-800 hover:bg-gray-700 text-xs text-gray-300 hover:text-gray-100 transition-all"
+                <p className="text-xs text-gray-500 mb-3">Generate your Arduino sketch, then paste it into Arduino IDE to upload.</p>
+                <div className="flex gap-2">
+                  <button onClick={openSketch}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-semibold text-sm transition-all shadow-lg shadow-blue-900/30"
                   >
-                    {loadingSketch ? <Loader2 size={13} className="animate-spin" /> : <Code size={13} />}
-                    Sketch
+                    <Code size={14} /> View &amp; Copy Sketch
                   </button>
                   <button onClick={() => setShowWiring(true)}
                     className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-yellow-700/50 bg-yellow-950/30 hover:bg-yellow-900/30 text-xs text-yellow-300 hover:text-yellow-100 transition-all"
                   >
-                    <Zap size={13} />
-                    Wiring
-                  </button>
-                  <button onClick={startUpload} disabled={!selectedPort || uploading}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-semibold text-sm transition-all shadow-lg shadow-blue-900/30 disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none flex-shrink-0"
-                  >
-                    {uploading ? <><Loader2 size={14} className="animate-spin" /> Uploading...</> : <><Upload size={14} /> Upload</>}
+                    <Zap size={13} /> Wiring Diagram
                   </button>
                 </div>
-
-                {/* Result */}
-                {uploadDone !== null && !uploading && (
-                  <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-medium mb-2 ${
-                    uploadDone ? "bg-green-500/10 border-green-500/30 text-green-400" : "bg-red-500/10 border-red-500/30 text-red-400"
-                  }`}>
-                    {uploadDone ? <CheckCircle2 size={13} /> : <XCircle size={13} />}
-                    {uploadDone ? "Upload successful!" : "Upload failed — see log"}
-                  </div>
-                )}
-
-                {/* Log */}
-                {uploadLog.length > 0 && (
-                  <div className="bg-gray-950 border border-gray-800 rounded-xl overflow-hidden">
-                    <div className="max-h-32 overflow-y-auto p-2.5 space-y-0.5">
-                      {uploadLog.map((line, i) => <LogLineView key={i} line={line} />)}
-                      <div ref={logEndRef} />
-                    </div>
-                  </div>
-                )}
               </section>}
 
               {/* LED Config */}
