@@ -2000,7 +2000,7 @@ export default function Home() {
                     <ChevronDown size={10} className="flex-shrink-0 text-gray-500" />
                   </button>
                   {showSaveMenu && (
-                    <div className="absolute right-0 top-full mt-1 w-52 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-50 overflow-hidden">
+                    <div className="absolute right-0 top-full mt-1 w-52 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-[200] overflow-hidden">
                       <div className="px-3 py-2 border-b border-gray-800">
                         <input
                           value={currentSaveName}

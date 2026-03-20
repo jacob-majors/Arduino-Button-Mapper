@@ -16,6 +16,7 @@ interface Props {
 }
 
 export default function DeviceMockup({ buttons, leds, ports }: Props) {
+  const [view, setView] = useState<"mockup" | "inputs">("mockup");
   const [pressedKeys, setPressedKeys] = useState<Set<string>>(new Set());
   const [systemOn, setSystemOn] = useState(true);
   const prevPowerRef = useRef(false);
@@ -73,8 +74,94 @@ export default function DeviceMockup({ buttons, leds, ports }: Props) {
   const leftOn = leftActive || simLeft;
   const rightOn = rightActive || simRight;
 
+  const modeColors: Record<string, string> = {
+    momentary: "bg-blue-900/40 text-blue-300 border-blue-700/50",
+    toggle: "bg-violet-900/40 text-violet-300 border-violet-700/50",
+    power: "bg-amber-900/40 text-amber-300 border-amber-700/50",
+  };
+
   return (
-    <div className="flex flex-col items-center gap-5">
+    <div className="flex flex-col items-center gap-4">
+      {/* View switcher */}
+      <div className="flex bg-gray-800/60 border border-gray-700 rounded-xl p-0.5 gap-0.5 self-end">
+        <button
+          onClick={() => setView("mockup")}
+          className={["px-3 py-1 rounded-lg text-xs font-medium transition-all",
+            view === "mockup" ? "bg-gray-700 text-gray-100" : "text-gray-500 hover:text-gray-300"].join(" ")}
+        >Mockup</button>
+        <button
+          onClick={() => setView("inputs")}
+          className={["px-3 py-1 rounded-lg text-xs font-medium transition-all",
+            view === "inputs" ? "bg-gray-700 text-gray-100" : "text-gray-500 hover:text-gray-300"].join(" ")}
+        >All Inputs</button>
+      </div>
+
+      {view === "inputs" && (
+        <div className="w-full max-w-2xl">
+          {buttons.length === 0 && ports.length === 0 ? (
+            <p className="text-xs text-gray-600 text-center py-6">No inputs configured yet</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {buttons.length > 0 && (
+                <>
+                  <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider px-1">Buttons</p>
+                  {buttons.map((b, i) => {
+                    const browserKey = arduinoToBrowserKey[b.arduinoKey] ?? b.arduinoKey;
+                    const active = systemOn && pressedKeys.has(browserKey);
+                    return (
+                      <div key={b.id} className={[
+                        "flex items-center gap-3 px-3 py-2 rounded-xl border transition-all",
+                        active ? "bg-blue-500/15 border-blue-500/40" : "bg-gray-900 border-gray-800",
+                      ].join(" ")}>
+                        <span className="text-[10px] font-mono text-gray-600 w-5 text-right">{i + 1}</span>
+                        <div className={["w-2 h-2 rounded-full flex-shrink-0 transition-all",
+                          active ? "bg-blue-400 shadow-[0_0_6px_rgba(96,165,250,0.8)]" : "bg-gray-700"].join(" ")} />
+                        <span className="text-sm text-gray-200 flex-1 font-medium">{b.name || `Button ${i + 1}`}</span>
+                        <span className="font-mono text-xs text-gray-500">D{b.pin}</span>
+                        <span className={["text-[10px] px-1.5 py-0.5 rounded border font-medium", modeColors[b.mode] ?? modeColors.momentary].join(" ")}>{b.mode}</span>
+                        {b.keyDisplay && (
+                          <span className="font-mono text-xs bg-gray-800 border border-gray-700 px-2 py-0.5 rounded text-gray-300">{b.keyDisplay}</span>
+                        )}
+                        {(b.ledPin ?? -1) >= 0 && (
+                          <span className="text-[10px] text-yellow-500 font-mono">💡D{b.ledPin}</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+              {ports.length > 0 && (
+                <>
+                  <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider px-1 mt-2">Port Inputs</p>
+                  {ports.map((p, i) => {
+                    const browserKey = arduinoToBrowserKey[p.arduinoKey] ?? p.arduinoKey;
+                    const active = systemOn && pressedKeys.has(browserKey);
+                    return (
+                      <div key={p.id} className={[
+                        "flex items-center gap-3 px-3 py-2 rounded-xl border transition-all",
+                        active ? "bg-sky-500/15 border-sky-500/40" : "bg-gray-900 border-gray-800",
+                      ].join(" ")}>
+                        <span className="text-[10px] font-mono text-gray-600 w-5 text-right">⊙</span>
+                        <div className={["w-2 h-2 rounded-full flex-shrink-0 transition-all",
+                          active ? "bg-sky-400 shadow-[0_0_6px_rgba(56,189,248,0.8)]" : "bg-gray-700"].join(" ")} />
+                        <span className="text-sm text-gray-200 flex-1 font-medium">{p.name || `Port ${i + 1}`}</span>
+                        <span className="font-mono text-xs text-gray-500">D{p.pin}</span>
+                        <span className={["text-[10px] px-1.5 py-0.5 rounded border font-medium", modeColors[p.mode] ?? modeColors.momentary].join(" ")}>{p.mode}</span>
+                        {p.keyDisplay && (
+                          <span className="font-mono text-xs bg-gray-800 border border-gray-700 px-2 py-0.5 rounded text-gray-300">{p.keyDisplay}</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+            </div>
+          )}
+          <p className="text-[11px] text-gray-600 text-center mt-4">Press mapped keys to see inputs light up</p>
+        </div>
+      )}
+
+      {view === "mockup" && <div className="flex flex-col items-center gap-5 w-full">
       {/* ── Device body ──────────────────────────────────────────── */}
       <div
         style={{
@@ -363,6 +450,7 @@ export default function DeviceMockup({ buttons, leds, ports }: Props) {
       <p className="text-[11px] text-gray-600">
         Click the buttons or press mapped keys to test · Power button toggles the system
       </p>
+    </div>}
     </div>
   );
 }
