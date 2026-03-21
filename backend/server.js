@@ -142,6 +142,42 @@ app.get('/api/check-cli', async (req, res) => {
   });
 });
 
+// ─── Compile → return .hex ────────────────────────────────────────────────────
+
+app.post('/api/compile', async (req, res) => {
+  const { sketch, fqbn = 'arduino:avr:leonardo' } = req.body;
+  if (!sketch || typeof sketch !== 'string' || !sketch.trim())
+    return res.status(400).json({ error: 'No sketch provided' });
+
+  const cli = await findCli();
+  if (!cli) return res.status(500).json({ error: 'arduino-cli not found. Please install it and restart the backend.' });
+
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'arduino-sketch-'));
+  const sketchName = path.basename(tmpDir);
+  const sketchDir = path.join(tmpDir, sketchName);
+  fs.mkdirSync(sketchDir);
+  fs.writeFileSync(path.join(sketchDir, `${sketchName}.ino`), sketch, 'utf8');
+
+  const outDir = path.join(tmpDir, 'out');
+  fs.mkdirSync(outDir);
+
+  exec(`"${cli}" compile --fqbn ${fqbn} --output-dir "${outDir}" "${sketchDir}" 2>&1`, (err, stdout) => {
+    if (err) {
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+      return res.status(400).json({ error: 'Compilation failed', log: stdout });
+    }
+    // arduino-cli outputs <name>.ino.hex
+    const hexFile = path.join(outDir, `${sketchName}.ino.hex`);
+    if (!fs.existsSync(hexFile)) {
+      try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+      return res.status(500).json({ error: 'No .hex file produced', log: stdout });
+    }
+    const hex = fs.readFileSync(hexFile, 'utf8');
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+    res.json({ hex });
+  });
+});
+
 // ─── Upload via SSE ───────────────────────────────────────────────────────────
 
 app.post('/api/upload', async (req, res) => {

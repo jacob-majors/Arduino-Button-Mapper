@@ -12,6 +12,7 @@ import {
   IRSensorConfig, SipPuffConfig, JoystickConfig,
   resolveKey, generateSketch,
 } from "@/lib/keymap";
+import { compileAndUpload } from "@/lib/avr-upload";
 import DinoGame from "@/components/DinoGame";
 import SnakeGame from "@/components/SnakeGame";
 import PongGame from "@/components/PongGame";
@@ -96,37 +97,28 @@ function KeyCaptureInput({ value, display, onChange, onClear }: {
 
 // ─── Button / Port Card ───────────────────────────────────────────────────────
 
-function ButtonCard({ button, index, usedPins, onUpdate, onRemove, isPort = false }: {
+function ButtonCard({ button, index, usedPins, onUpdate, onRemove, typeLabel }: {
   button: ButtonConfig; index: number; usedPins: number[];
   onUpdate: (id: string, updates: Partial<ButtonConfig>) => void;
   onRemove: (id: string) => void;
-  isPort?: boolean;
+  typeLabel?: string;
 }) {
   const availablePins = ALL_PINS.filter((p) => p === button.pin || !usedPins.includes(p));
-  const isPower = button.mode === "power";
+  const isPort = typeLabel === "Port";
 
   return (
-    <div className={[
-      "border rounded-xl p-3 flex flex-col gap-2 transition-colors group",
-      isPower ? "bg-amber-950/30 border-amber-700/50 hover:border-amber-600/60"
-        : isPort ? "bg-sky-950/30 border-sky-800/50 hover:border-sky-700/60"
-        : "bg-gray-800/50 border-gray-700/80 hover:border-gray-600/80",
-    ].join(" ")}>
+    <div className="border rounded-xl p-3 flex flex-col gap-2 transition-colors group bg-gray-800/50 border-gray-700/80 hover:border-gray-600/80">
       {/* Header */}
       <div className="flex items-center gap-2">
-        <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 border ${
-          isPower ? "bg-amber-500/20 border-amber-500/40"
-            : isPort ? "bg-sky-500/20 border-sky-500/40"
-            : "bg-blue-500/20 border-blue-500/40"
-        }`}>
-          {isPower ? <Power size={9} className="text-amber-400" />
-            : isPort ? <span className="text-sky-400 text-[9px] font-bold">P{index + 1}</span>
-            : <span className="text-blue-400 text-[10px] font-bold">{index + 1}</span>}
-        </div>
+        {typeLabel && (
+          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${
+            isPort ? "bg-sky-900/60 text-sky-400 border border-sky-800/60" : "bg-blue-900/60 text-blue-400 border border-blue-800/60"
+          }`}>{typeLabel}</span>
+        )}
         <input
           type="text" value={button.name}
           onChange={(e) => onUpdate(button.id, { name: e.target.value })}
-          placeholder={isPower ? "Power Button" : isPort ? `Port ${index + 1}` : `Button ${index + 1}`}
+          placeholder={isPort ? `Port ${index + 1}` : `Input ${index + 1}`}
           className="flex-1 bg-transparent text-sm font-semibold text-gray-200 placeholder:text-gray-600 outline-none border-b border-transparent focus:border-gray-600 transition-colors min-w-0"
         />
         <button onClick={() => onRemove(button.id)}
@@ -146,62 +138,40 @@ function ButtonCard({ button, index, usedPins, onUpdate, onRemove, isPort = fals
           </select>
           <ChevronDown size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
         </div>
-        {/* Mode tabs — ports and non-power buttons only */}
-        {!isPort && (
-          <div className="flex rounded-lg overflow-hidden border border-gray-700 flex-1">
-            {(["momentary", "toggle", "power"] as ButtonMode[]).map((m) => (
-              <button key={m}
-                onClick={() => onUpdate(button.id, { mode: m })}
-                className={[
-                  "flex-1 py-1.5 text-[10px] font-medium transition-colors capitalize",
-                  button.mode === m
-                    ? m === "power" ? "bg-amber-600 text-white" : "bg-blue-600 text-white"
-                    : "bg-gray-900 text-gray-500 hover:text-gray-300",
-                ].join(" ")}
-              >
-                {m === "momentary" ? "Hold" : m === "toggle" ? "Toggle" : "Power"}
-              </button>
-            ))}
-          </div>
-        )}
-        {isPort && (
-          <div className="flex rounded-lg overflow-hidden border border-gray-700 flex-1">
-            {(["momentary", "toggle"] as ButtonMode[]).map((m) => (
-              <button key={m}
-                onClick={() => onUpdate(button.id, { mode: m })}
-                className={[
-                  "flex-1 py-1.5 text-[10px] font-medium transition-colors capitalize",
-                  button.mode === m ? "bg-sky-700 text-white" : "bg-gray-900 text-gray-500 hover:text-gray-300",
-                ].join(" ")}
-              >
-                {m === "momentary" ? "Hold" : "Toggle"}
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="flex rounded-lg overflow-hidden border border-gray-700 flex-1">
+          {(["momentary", "toggle"] as ButtonMode[]).map((m) => (
+            <button key={m}
+              onClick={() => onUpdate(button.id, { mode: m })}
+              className={[
+                "flex-1 py-1.5 text-[10px] font-medium transition-colors",
+                button.mode === m
+                  ? isPort ? "bg-sky-700 text-white" : "bg-blue-600 text-white"
+                  : "bg-gray-900 text-gray-500 hover:text-gray-300",
+              ].join(" ")}
+            >
+              {m === "momentary" ? "Hold" : "Toggle"}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Key */}
-      {!isPower && (
-        <div className="flex gap-2 items-center">
-          <label className="text-[10px] text-gray-500 uppercase tracking-wider w-6 flex-shrink-0">Key</label>
-          <div className="flex-1">
-            <KeyCaptureInput
-              value={button.arduinoKey} display={button.keyDisplay}
-              onChange={(arduinoKey, keyDisplay) => onUpdate(button.id, { arduinoKey, keyDisplay })}
-              onClear={() => onUpdate(button.id, { arduinoKey: "", keyDisplay: "" })}
-            />
-          </div>
+      <div className="flex gap-2 items-center">
+        <label className="text-[10px] text-gray-500 uppercase tracking-wider w-6 flex-shrink-0">Key</label>
+        <div className="flex-1">
+          <KeyCaptureInput
+            value={button.arduinoKey} display={button.keyDisplay}
+            onChange={(arduinoKey, keyDisplay) => onUpdate(button.id, { arduinoKey, keyDisplay })}
+            onClear={() => onUpdate(button.id, { arduinoKey: "", keyDisplay: "" })}
+          />
         </div>
-      )}
-      {isPower && (
-        <p className="text-[10px] text-amber-500/70 pl-8">Toggles all buttons on/off</p>
-      )}
+      </div>
 
       {/* LED pin */}
       <div className="flex gap-2 items-center">
-        <label className="text-[10px] text-gray-500 uppercase tracking-wider w-6 flex-shrink-0 flex items-center gap-1">
+        <label className="text-[10px] text-gray-500 uppercase tracking-wider flex-shrink-0 flex items-center gap-1">
           <Lightbulb size={9} className={(button.ledPin ?? -1) >= 0 ? "text-yellow-400" : "text-gray-600"} />
+          <span className={(button.ledPin ?? -1) >= 0 ? "text-yellow-500" : ""}>LED</span>
         </label>
         <div className="relative" style={{ width: 68 }}>
           <select
@@ -214,7 +184,7 @@ function ButtonCard({ button, index, usedPins, onUpdate, onRemove, isPort = fals
                 : "bg-gray-900 border-gray-700 text-gray-500",
             ].join(" ")}
           >
-            <option value={-1}>No LED</option>
+            <option value={-1}>None</option>
             {ALL_PINS.filter((p) => p === button.ledPin || !usedPins.includes(p)).map((p) => (
               <option key={p} value={p}>D{p}</option>
             ))}
@@ -222,9 +192,7 @@ function ButtonCard({ button, index, usedPins, onUpdate, onRemove, isPort = fals
           <ChevronDown size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
         </div>
         {(button.ledPin ?? -1) >= 0 && (
-          <span className="text-[10px] text-yellow-600/70">
-            {isPower ? "on = system active" : button.mode === "toggle" ? "on = toggled on" : "on = held"}
-          </span>
+          <span className="text-[10px] text-yellow-700">{button.mode === "toggle" ? "on = toggled" : "on = held"}</span>
         )}
       </div>
     </div>
@@ -1685,6 +1653,11 @@ export default function Home() {
   const [irSensors, setIrSensors] = useState<IRSensorConfig[]>([]);
   const [sipPuffs, setSipPuffs] = useState<SipPuffConfig[]>([]);
   const [joysticks, setJoysticks] = useState<JoystickConfig[]>([]);
+  const [addLedBtnId, setAddLedBtnId] = useState("");
+  const [addLedPin, setAddLedPin] = useState(-1);
+  const [addInputType, setAddInputType] = useState("micro-switch");
+  const [wsLog, setWsLog] = useState<string[]>([]);
+  const [wsUploading, setWsUploading] = useState(false);
 
   const logEndRef = useRef<HTMLDivElement>(null);
   const saveMenuRef = useRef<HTMLDivElement>(null);
@@ -1915,6 +1888,32 @@ export default function Home() {
   const updateJoystick = (id: string, u: Partial<JoystickConfig>) =>
     setJoysticks((prev) => prev.map((j) => (j.id === id ? { ...j, ...u } : j)));
   const removeJoystick = (id: string) => setJoysticks((prev) => prev.filter((j) => j.id !== id));
+
+  const addInput = () => {
+    if (addInputType === "micro-switch") addButton();
+    else if (addInputType === "toggle-switch") {
+      const next = ALL_PINS.find((p) => !usedPins.includes(p)) ?? 2;
+      setButtons((prev) => [...prev, { id: generateId(), name: "", pin: next, keyDisplay: "", arduinoKey: "", mode: "toggle", ledPin: -1 }]);
+    }
+    else if (addInputType === "sip-puff") addSipPuff();
+    else if (addInputType === "ir-sensor") addIR();
+    else if (addInputType === "joystick") addJoystick();
+    else if (addInputType === "port") addPort();
+  };
+
+  const handleWebSerialUpload = async () => {
+    setWsUploading(true);
+    setWsLog([]);
+    const log = (msg: string) => setWsLog((p) => [...p, msg]);
+    try {
+      const sketch = generateSketch(buttons, leds, portInputs, irSensors, sipPuffs, joysticks);
+      await compileAndUpload(BACKEND_URL, sketch, log);
+    } catch (e) {
+      log(`Error: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setWsUploading(false);
+    }
+  };
 
   const jumpKeys = useMemo(
     () => [...buttons, ...portInputs].filter((b) => b.arduinoKey).map((b) => b.arduinoKey),
@@ -2222,8 +2221,7 @@ export default function Home() {
                   <Code size={13} className="text-green-400" />
                   <h2 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Get Code</h2>
                 </div>
-                <p className="text-xs text-gray-500 mb-3">Generate your Arduino sketch, then paste it into Arduino IDE to upload.</p>
-                <div className="flex gap-2">
+                <div className="flex gap-2 mb-3">
                   <button onClick={openSketch}
                     className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-semibold text-sm transition-all shadow-lg shadow-blue-900/30"
                   >
@@ -2232,14 +2230,33 @@ export default function Home() {
                   <button onClick={() => setShowWiring(true)}
                     className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-yellow-700/50 bg-yellow-950/30 hover:bg-yellow-900/30 text-xs text-yellow-300 hover:text-yellow-100 transition-all"
                   >
-                    <Zap size={13} /> Wiring Diagram
+                    <Zap size={13} /> Wiring
                   </button>
+                </div>
+                {/* Web Serial compile & upload */}
+                <div className="border-t border-gray-800 pt-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-semibold text-gray-300">Compile &amp; Upload</span>
+                    <span className="text-[10px] text-gray-600">Chrome / Edge only · requires local backend</span>
+                  </div>
+                  <button onClick={handleWebSerialUpload} disabled={wsUploading}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-green-700 to-teal-700 hover:from-green-600 hover:to-teal-600 disabled:opacity-50 text-white font-semibold text-sm transition-all w-full justify-center"
+                  >
+                    {wsUploading ? <><Loader2 size={14} className="animate-spin" /> Uploading…</> : <><Upload size={14} /> Compile &amp; Upload via USB</>}
+                  </button>
+                  {wsLog.length > 0 && (
+                    <div className="mt-2 bg-gray-950 border border-gray-800 rounded-xl p-2.5 max-h-28 overflow-y-auto">
+                      {wsLog.map((line, i) => (
+                        <p key={i} className={`text-[11px] font-mono ${line.startsWith("Error") || line.startsWith("✗") ? "text-red-400" : line.startsWith("✓") ? "text-green-400" : "text-gray-400"}`}>{line}</p>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </section>}
 
-              {/* LED Config */}
-              {adminSettings.show_leds && <section className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex-shrink-0">
-                <div className="flex items-center gap-2 mb-3">
+              {/* LED Config — hidden per user request, state kept for sketch generation */}
+              {false && adminSettings.show_leds && <section className="bg-gray-900 border border-gray-800 border-l-2 border-l-yellow-800 rounded-2xl p-4 flex-shrink-0">
+                <div className="flex items-center gap-2 mb-4">
                   <Lightbulb size={13} className="text-yellow-400" />
                   <h2 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">LED Indicators</h2>
                   <button onClick={() => setShowLedInfo(true)}
@@ -2248,156 +2265,166 @@ export default function Home() {
                   ><Info size={13} /></button>
                 </div>
 
-                {/* Power Button Status LEDs */}
-                <div className="mb-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[11px] text-gray-500 font-medium uppercase tracking-wide">Power Button</span>
+                {/* Status LED */}
+                <div className="mb-4">
+                  <div className="flex items-center justify-between mb-1">
+                    <div>
+                      <span className="text-xs font-semibold text-gray-300">Status LED</span>
+                      <p className="text-[11px] text-gray-600">Lights up when Arduino is connected &amp; active</p>
+                    </div>
                     <div onClick={() => setLeds((l) => ({ ...l, enabled: !l.enabled }))}
                       className={["relative w-9 h-5 rounded-full transition-colors cursor-pointer flex-shrink-0",
-                        leds.enabled ? "bg-blue-600" : "bg-gray-700"].join(" ")}
+                        leds.enabled ? "bg-yellow-500" : "bg-gray-700"].join(" ")}
                     >
                       <div className={["absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform",
                         leds.enabled ? "translate-x-4" : "translate-x-0.5"].join(" ")} />
                     </div>
                   </div>
-                  {leds.enabled ? (
-                    <div className="flex flex-col gap-2 pl-1">
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.8)] flex-shrink-0" />
-                        <PinSelect label="Power On" value={leds.onPin}
+                  {leds.enabled && (
+                    <div className="flex flex-col gap-2 mt-2 bg-gray-800/50 rounded-xl p-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-2.5 h-2.5 rounded-full bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.8)] flex-shrink-0" />
+                        <span className="text-[11px] text-gray-400 w-16 flex-shrink-0">Active</span>
+                        <PinSelect label="" value={leds.onPin}
                           onChange={(v) => setLeds((l) => ({ ...l, onPin: v }))}
                           excludePins={usedPins.filter((p) => p !== leds.onPin)} />
+                        <span className="text-[10px] text-green-700 bg-green-950/50 px-1.5 py-0.5 rounded-full">on = active</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full bg-red-400 shadow-[0_0_6px_rgba(248,113,113,0.8)] flex-shrink-0" />
-                        <PinSelect label="Power Off" value={leds.offPin}
+                      <div className="flex items-center gap-3">
+                        <div className="w-2.5 h-2.5 rounded-full bg-red-400 shadow-[0_0_6px_rgba(248,113,113,0.8)] flex-shrink-0" />
+                        <span className="text-[11px] text-gray-400 w-16 flex-shrink-0">Inactive</span>
+                        <PinSelect label="" value={leds.offPin}
                           onChange={(v) => setLeds((l) => ({ ...l, offPin: v }))}
                           excludePins={usedPins.filter((p) => p !== leds.offPin)} />
+                        <span className="text-[10px] text-red-900 bg-red-950/50 px-1.5 py-0.5 rounded-full">on = inactive</span>
                       </div>
                     </div>
-                  ) : (
-                    <p className="text-xs text-gray-600 pl-1">Toggle on to add status LEDs linked to the power button.</p>
                   )}
                 </div>
 
-                {/* Per-button LEDs */}
-                <div className="border-t border-gray-800 pt-3">
-                  <span className="text-[11px] text-gray-500 font-medium uppercase tracking-wide block mb-2">Button LEDs</span>
-                  {buttons.filter((b) => (b.ledPin ?? -1) >= 0).length > 0 ? (
-                    <div className="flex flex-col gap-1.5">
+                {/* Press LEDs */}
+                <div className="border-t border-gray-800 pt-4">
+                  <div className="mb-3">
+                    <span className="text-xs font-semibold text-gray-300">Press LEDs</span>
+                    <p className="text-[11px] text-gray-600">Light up while a button is held or toggled on</p>
+                  </div>
+
+                  {/* Existing button LEDs */}
+                  {buttons.filter((b) => (b.ledPin ?? -1) >= 0).length > 0 && (
+                    <div className="flex flex-col gap-1.5 mb-3">
                       {buttons.filter((b) => (b.ledPin ?? -1) >= 0).map((b) => (
-                        <div key={b.id} className="flex items-center gap-2 pl-1">
-                          <div className="w-3 h-3 rounded-full bg-yellow-400 shadow-[0_0_5px_rgba(251,191,36,0.7)] flex-shrink-0" />
+                        <div key={b.id} className="flex items-center gap-2 bg-gray-800/50 rounded-lg px-2.5 py-1.5">
+                          <div className="w-2.5 h-2.5 rounded-full bg-yellow-400 shadow-[0_0_5px_rgba(251,191,36,0.7)] flex-shrink-0" />
                           <span className="text-xs text-gray-300 flex-1 truncate">{b.name || "Button"}</span>
-                          <span className="text-[10px] text-gray-500 font-mono bg-gray-800 px-1.5 py-0.5 rounded">D{b.ledPin}</span>
+                          <span className="text-[10px] font-mono text-gray-400 bg-gray-700 px-1.5 py-0.5 rounded">D{b.ledPin}</span>
+                          <span className="text-[10px] text-yellow-800 bg-yellow-950/50 px-1.5 py-0.5 rounded-full">
+                            {b.mode === "toggle" ? "on = toggled" : "on = held"}
+                          </span>
+                          <button onClick={() => updateButton(b.id, { ledPin: -1 })}
+                            className="text-gray-700 hover:text-red-400 transition-colors ml-1"
+                          ><X size={11} /></button>
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <p className="text-xs text-gray-600 pl-1">Use the 💡 icon on a button card to assign an LED pin.</p>
+                  )}
+
+                  {/* Add LED to a button */}
+                  {buttons.filter((b) => (b.ledPin ?? -1) < 0).length > 0 && (
+                    <div className="flex gap-2 items-center">
+                      <select value={addLedBtnId} onChange={(e) => setAddLedBtnId(e.target.value)}
+                        className="flex-1 appearance-none bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-xs text-gray-300 focus:outline-none cursor-pointer"
+                      >
+                        <option value="">Add LED to button…</option>
+                        {buttons.filter((b) => (b.ledPin ?? -1) < 0).map((b) => <option key={b.id} value={b.id}>{b.name || "Button"}</option>)}
+                      </select>
+                      {addLedBtnId && (
+                        <>
+                          <div className="relative" style={{ width: 72 }}>
+                            <select value={addLedPin} onChange={(e) => setAddLedPin(parseInt(e.target.value))}
+                              className="w-full appearance-none bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-xs text-gray-300 focus:outline-none cursor-pointer pr-5"
+                            >
+                              <option value={-1}>Pin…</option>
+                              {ALL_PINS.filter((p) => !usedPins.includes(p)).map((p) => <option key={p} value={p}>D{p}</option>)}
+                            </select>
+                            <ChevronDown size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                          </div>
+                          <button
+                            disabled={addLedPin < 0}
+                            onClick={() => { updateButton(addLedBtnId, { ledPin: addLedPin }); setAddLedBtnId(""); setAddLedPin(-1); }}
+                            className="px-3 py-1.5 rounded-lg bg-yellow-600 hover:bg-yellow-500 disabled:opacity-40 text-white text-xs font-medium transition-colors flex-shrink-0"
+                          >Add</button>
+                        </>
+                      )}
+                    </div>
                   )}
                 </div>
               </section>}
 
-              {/* Port Inputs */}
-              {adminSettings.show_ports && <section className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex-shrink-0">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <Usb size={13} className="text-sky-400" />
-                    <h2 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Back Panel Ports</h2>
-                  </div>
-                  <span className="text-[10px] text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">{portInputs.length}/4</span>
-                </div>
-                <div className="flex flex-col gap-2 mb-2">
-                  {portInputs.map((p, i) => (
-                    <ButtonCard key={p.id} button={p} index={i} usedPins={usedPins}
-                      onUpdate={updatePort} onRemove={removePort} isPort />
-                  ))}
-                </div>
-                <button onClick={addPort} disabled={portInputs.length >= 4}
-                  className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-dashed border-gray-700 hover:border-sky-500/50 hover:bg-sky-500/5 text-gray-500 hover:text-sky-400 text-xs transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  <Plus size={13} /> Add Port Input
-                </button>
-              </section>}
-
-              {/* ── Sensors ──────────────────────────────────────── */}
-              {adminSettings.show_sensors && <section className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex-shrink-0">
-                <div className="flex items-center gap-2 mb-3">
-                  <Radio size={13} className="text-emerald-400" />
-                  <h2 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Sensors</h2>
-                  <span className="text-[10px] text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">
-                    {irSensors.length + joysticks.length}
-                  </span>
-                </div>
-
-                {/* IR sensors */}
-                <div className="mb-3">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[10px] text-emerald-400/80 font-semibold uppercase tracking-wider">IR Sensors</span>
-                    <button onClick={addIR} disabled={irSensors.length >= 4}
-                      className="flex items-center gap-1 px-2 py-0.5 rounded-lg border border-dashed border-emerald-800/60 hover:border-emerald-600/60 text-emerald-600 hover:text-emerald-400 text-[10px] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                    ><Plus size={10} /> Add IR</button>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    {irSensors.map((s, i) => (
-                      <IRSensorCard key={s.id} sensor={s} index={i} usedPins={usedPins}
-                        onUpdate={updateIR} onRemove={removeIR} />
-                    ))}
-                    {irSensors.length === 0 && (
-                      <p className="text-[10px] text-gray-700 pl-1">Proximity / break-beam sensors on digital pins</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Joysticks */}
-                <div className="border-t border-gray-800 pt-3">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[10px] text-violet-400/80 font-semibold uppercase tracking-wider">Joysticks</span>
-                    <button onClick={addJoystick} disabled={joysticks.length >= 2}
-                      className="flex items-center gap-1 px-2 py-0.5 rounded-lg border border-dashed border-violet-800/60 hover:border-violet-600/60 text-violet-600 hover:text-violet-400 text-[10px] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                    ><Plus size={10} /> Add Joystick</button>
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    {joysticks.map((j, i) => (
-                      <JoystickCard key={j.id} joy={j} index={i} usedPins={usedPins} usedAnalogPins={usedAnalogPins}
-                        onUpdate={updateJoystick} onRemove={removeJoystick} />
-                    ))}
-                    {joysticks.length === 0 && (
-                      <p className="text-[10px] text-gray-700 pl-1">Analog X/Y joystick with optional click button</p>
-                    )}
-                  </div>
-                </div>
-              </section>}
             </div>
 
-            {/* Right column: Buttons */}
+            {/* Right column: All Inputs */}
             {adminSettings.show_buttons && <section className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex flex-col overflow-hidden">
               <div className="flex items-center justify-between mb-3 flex-shrink-0">
                 <div className="flex items-center gap-2">
                   <Pencil size={13} className="text-purple-400" />
-                  <h2 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Configure Buttons</h2>
+                  <h2 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Inputs</h2>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">{buttons.length}/12</span>
-                </div>
+                <span className="text-[10px] text-gray-600 bg-gray-800 px-2 py-0.5 rounded-full border border-gray-700">
+                  {buttons.length + portInputs.length + irSensors.length + sipPuffs.length + joysticks.length}
+                </span>
               </div>
-              <div className="text-[10px] text-gray-600 mb-3 flex gap-3 flex-shrink-0 flex-wrap">
-                <span><span className="text-blue-400">Hold</span> = key held while pressed</span>
-                <span><span className="text-blue-400">Toggle</span> = alternates on/off</span>
-                <span><span className="text-amber-400">Power</span> = enables/disables all</span>
-              </div>
-              <div className="flex-1 overflow-y-auto flex flex-col gap-2">
+
+              {/* Unified input list */}
+              <div className="flex-1 overflow-y-auto flex flex-col gap-2 min-h-0">
                 {buttons.map((btn, i) => (
                   <ButtonCard key={btn.id} button={btn} index={i} usedPins={usedPins}
-                    onUpdate={updateButton} onRemove={removeButton} />
+                    onUpdate={updateButton} onRemove={removeButton} typeLabel="Switch" />
                 ))}
+                {portInputs.map((p, i) => (
+                  <ButtonCard key={p.id} button={p} index={i} usedPins={usedPins}
+                    onUpdate={updatePort} onRemove={removePort} typeLabel="Port" />
+                ))}
+                {irSensors.map((s, i) => (
+                  <IRSensorCard key={s.id} sensor={s} index={i} usedPins={usedPins}
+                    onUpdate={updateIR} onRemove={removeIR} />
+                ))}
+                {sipPuffs.map((s, i) => (
+                  <SipPuffCard key={s.id} sensor={s} index={i} usedAnalogPins={usedAnalogPins}
+                    onUpdate={updateSipPuff} onRemove={removeSipPuff} />
+                ))}
+                {joysticks.map((j, i) => (
+                  <JoystickCard key={j.id} joy={j} index={i} usedPins={usedPins} usedAnalogPins={usedAnalogPins}
+                    onUpdate={updateJoystick} onRemove={removeJoystick} />
+                ))}
+                {buttons.length + portInputs.length + irSensors.length + sipPuffs.length + joysticks.length === 0 && (
+                  <div className="flex flex-col items-center justify-center py-10 text-gray-700">
+                    <Plus size={24} className="mb-2 opacity-30" />
+                    <p className="text-xs">No inputs yet — add one below</p>
+                  </div>
+                )}
               </div>
-              <button onClick={addButton} disabled={buttons.length >= 12}
-                className="mt-3 w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-dashed border-gray-700 hover:border-blue-500/50 hover:bg-blue-500/5 text-gray-500 hover:text-blue-400 text-xs transition-all disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
-              >
-                <Plus size={13} /> Add Button
-              </button>
+
+              {/* Add input row */}
+              <div className="mt-3 flex gap-2 flex-shrink-0">
+                <div className="relative flex-1">
+                  <select value={addInputType} onChange={(e) => setAddInputType(e.target.value)}
+                    className="w-full appearance-none bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-xs text-gray-300 focus:outline-none cursor-pointer pr-6"
+                  >
+                    <option value="micro-switch">Micro Switch</option>
+                    <option value="toggle-switch">Toggle Switch</option>
+                    <option value="sip-puff">Sip &amp; Puff</option>
+                    <option value="ir-sensor">IR Sensor</option>
+                    <option value="joystick">Joystick</option>
+                    <option value="port">Back Panel Port</option>
+                  </select>
+                  <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+                </div>
+                <button onClick={addInput}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-all flex-shrink-0"
+                >
+                  <Plus size={13} /> Add
+                </button>
+              </div>
             </section>}
           </div>
           </div>

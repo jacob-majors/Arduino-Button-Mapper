@@ -133,6 +133,23 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* About */}
+      <section className="px-6 py-12 max-w-6xl mx-auto w-full">
+        <div className="bg-gray-900/60 border border-gray-800 rounded-2xl p-8 flex flex-col sm:flex-row items-center gap-6 text-center sm:text-left">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0 text-white text-xl font-black shadow-lg shadow-blue-900/30">
+            JM
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">Built by</p>
+            <h3 className="text-lg font-bold text-white mb-2">Jacob Majors</h3>
+            <p className="text-sm text-gray-400 leading-relaxed max-w-lg">
+              A tool built for creating custom Arduino-based accessibility controllers and gaming peripherals.
+              Designed to make it easy for anyone to map buttons, generate clean code, and get their hardware working — no programming knowledge required.
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* Footer */}
       <footer className="border-t border-gray-800/60 px-6 py-6 text-center text-xs text-gray-700">
         Arduino Button Mapper · Works with Arduino Leonardo and ATmega32U4-based boards
