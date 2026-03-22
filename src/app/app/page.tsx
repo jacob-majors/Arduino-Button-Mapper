@@ -1829,13 +1829,14 @@ export default function Home() {
   const [currentSaveId, setCurrentSaveId] = useState<string | null>(null);
   const [currentSaveName, setCurrentSaveName] = useState("My Setup");
   const [showSaveMenu, setShowSaveMenu] = useState(false);
-  const [showExportMenu, setShowExportMenu] = useState(false);
   const [sharingLink, setSharingLink] = useState(false);
+  const [saveContextMenu, setSaveContextMenu] = useState<{ x: number; y: number; id: string } | null>(null);
+  const [deleteConfirmSaveId, setDeleteConfirmSaveId] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [selectedGame, setSelectedGame] = useState<"dino" | "snake" | "pong">("dino");
   const [dinoLeaderboard, setDinoLeaderboard] = useState<DinoScore[]>([]);
-  const [deviceView, setDeviceView] = useState<"mockup" | "inputs" | "controller">("mockup");
+  const [deviceView, setDeviceView] = useState<"mockup" | "inputs" | "controller">("inputs");
   const [irSensors, setIrSensors] = useState<IRSensorConfig[]>([]);
   const [sipPuffs, setSipPuffs] = useState<SipPuffConfig[]>([]);
   const [joysticks, setJoysticks] = useState<JoystickConfig[]>([]);
@@ -1850,7 +1851,7 @@ export default function Home() {
   const portMenuRef = useRef<HTMLDivElement>(null);
   const [serialLog, setSerialLog] = useState<{ key: string; time: string }[]>([]);
   const serialLogRef = useRef<HTMLDivElement>(null);
-  const [showSerialMonitor, setShowSerialMonitor] = useState(true);
+  const [showSerialMonitor, setShowSerialMonitor] = useState(false);
   const [selectedInputId, setSelectedInputId] = useState<string | null>(null);
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const [deleteConfirmUserId, setDeleteConfirmUserId] = useState<string | null>(null);
@@ -1859,7 +1860,6 @@ export default function Home() {
 
   const logEndRef = useRef<HTMLDivElement>(null);
   const saveMenuRef = useRef<HTMLDivElement>(null);
-  const exportMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [uploadLog]);
   useEffect(() => { if (serialLogRef.current) serialLogRef.current.scrollTop = serialLogRef.current.scrollHeight; }, [serialLog]);
@@ -1879,10 +1879,16 @@ export default function Home() {
   useEffect(() => { fetchPorts(); }, []);
   useEffect(() => {
     if (!showSaveMenu) return;
-    const h = (e: MouseEvent) => { if (!saveMenuRef.current?.contains(e.target as Node)) setShowSaveMenu(false); };
+    const h = (e: MouseEvent) => { if (!saveMenuRef.current?.contains(e.target as Node)) { setShowSaveMenu(false); setDeleteConfirmSaveId(null); } };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, [showSaveMenu]);
+  useEffect(() => {
+    if (!saveContextMenu) return;
+    const h = () => setSaveContextMenu(null);
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [saveContextMenu]);
   useEffect(() => {
     if (!showPortMenu) return;
     const h = (e: MouseEvent) => { if (!portMenuRef.current?.contains(e.target as Node)) setShowPortMenu(false); };
@@ -1890,12 +1896,6 @@ export default function Home() {
     return () => document.removeEventListener("mousedown", h);
   }, [showPortMenu]);
 
-  useEffect(() => {
-    if (!showExportMenu) return;
-    const h = (e: MouseEvent) => { if (!exportMenuRef.current?.contains(e.target as Node)) setShowExportMenu(false); };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
-  }, [showExportMenu]);
 
   // ── Load shared setup from URL (?share=<id>) ────────────────────────────────
   useEffect(() => {
@@ -2197,7 +2197,6 @@ export default function Home() {
   }, []);
 
   const openPortMenu = async () => {
-    setShowExportMenu(false);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const serial = (navigator as any).serial;
     if (!serial) { setShowPortModal(true); setGrantedPorts([]); return; }
@@ -2403,106 +2402,7 @@ export default function Home() {
           {authReady && (
             appUser ? (
               <div className="flex items-center gap-2 flex-shrink-0">
-                {/* Save switcher */}
-                <div className="relative" ref={saveMenuRef}>
-                  <button
-                    onClick={() => setShowSaveMenu((v) => !v)}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-gray-800/60 border border-gray-700 hover:border-gray-500 text-xs text-gray-300 hover:text-gray-100 transition-all max-w-[140px]"
-                  >
-                    <span className="truncate">{currentSaveName}</span>
-                    <ChevronDown size={10} className="flex-shrink-0 text-gray-500" />
-                  </button>
-                  {showSaveMenu && (
-                    <div className="absolute right-0 top-full mt-1 w-52 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-[200] overflow-hidden">
-                      <div className="px-3 py-2 border-b border-gray-800">
-                        <input
-                          value={currentSaveName}
-                          onChange={(e) => setCurrentSaveName(e.target.value)}
-                          className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs text-gray-200 focus:outline-none focus:border-blue-500 transition-colors"
-                          placeholder="Save name"
-                        />
-                      </div>
-                      <div className="max-h-48 overflow-y-auto">
-                        {saves.map((s) => (
-                          <div key={s.id} className="flex items-center group">
-                            <button
-                              onClick={() => switchSave(s)}
-                              className={["flex-1 text-left px-3 py-2 text-xs transition-colors truncate",
-                                s.id === currentSaveId ? "bg-blue-600/20 text-blue-300" : "text-gray-300 hover:bg-gray-800"
-                              ].join(" ")}
-                            >{s.name}</button>
-                            <button
-                              onClick={() => handleDeleteSave(s.id)}
-                              className="px-2 py-2 text-gray-700 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0"
-                            ><Trash2 size={11} /></button>
-                          </div>
-                        ))}
-                        {saves.length === 0 && (
-                          <p className="px-3 py-2 text-xs text-gray-600 italic">No saves yet</p>
-                        )}
-                      </div>
-                      <div className="border-t border-gray-800">
-                        <button
-                          onClick={createNewSave}
-                          className="flex items-center gap-1.5 w-full px-3 py-2 text-xs text-gray-400 hover:text-gray-100 hover:bg-gray-800 transition-colors"
-                        ><Plus size={11} /> New save</button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                {/* Save status badge */}
-                <span className={["flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border transition-all",
-                  saving
-                    ? "text-amber-400 border-amber-800/50 bg-amber-900/20"
-                    : saveError
-                    ? "text-red-400 border-red-800/50 bg-red-900/20"
-                    : hasSaved
-                    ? "text-green-500 border-green-800/40 bg-green-900/10"
-                    : "text-gray-600 border-gray-800 bg-gray-900/20"
-                ].join(" ")}>
-                  {saving
-                    ? <><Loader2 size={9} className="animate-spin" /> Saving…</>
-                    : saveError
-                    ? <><XCircle size={9} /> Save failed</>
-                    : hasSaved
-                    ? <><CheckCircle2 size={9} /> Saved</>
-                    : <><CheckCircle2 size={9} /> Auto-save</>}
-                </span>
-                {/* Export / Import combined */}
-                <div className="relative" ref={exportMenuRef}>
-                  <button
-                    onClick={() => { setShowPortMenu(false); setShowExportMenu((v) => !v); }}
-                    title="Export or import setup"
-                    className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-gray-700 bg-gray-800/60 hover:bg-gray-700 text-gray-400 hover:text-gray-100 transition-all text-[10px] font-medium"
-                  >
-                    <Download size={12} /> <span className="hidden sm:inline">Export / Import</span>
-                  </button>
-                  {showExportMenu && (() => {
-                    const rect = exportMenuRef.current?.getBoundingClientRect();
-                    const top = rect ? rect.bottom + 6 : 52;
-                    const right = rect ? window.innerWidth - rect.right : 16;
-                    return (
-                    <div style={{ position: "fixed", top, right, zIndex: 99999 }} className="w-48 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl overflow-hidden">
-                      <button
-                        onClick={() => { copyShareLink(); setShowExportMenu(false); }}
-                        disabled={sharingLink}
-                        className="flex items-center gap-2 w-full px-3 py-2.5 text-xs text-blue-300 hover:bg-gray-800 hover:text-blue-100 transition-colors disabled:opacity-50"
-                      >
-                        {copiedLink ? <CheckCircle2 size={11} className="text-green-400" /> : <ExternalLink size={11} />}
-                        {copiedLink ? "Link copied!" : sharingLink ? "Generating…" : "Copy share link"}
-                      </button>
-                      <button
-                        onClick={() => { downloadSetup(); setShowExportMenu(false); }}
-                        className="flex items-center gap-2 w-full px-3 py-2.5 text-xs text-gray-300 hover:bg-gray-800 hover:text-white transition-colors border-t border-gray-800"
-                      ><Download size={11} /> Export as JSON</button>
-                      <label className="flex items-center gap-2 w-full px-3 py-2.5 text-xs text-gray-300 hover:bg-gray-800 hover:text-white transition-colors cursor-pointer border-t border-gray-800">
-                        <Upload size={11} /> Import from JSON
-                        <input type="file" accept=".json" className="hidden" onChange={(e) => { importSetup(e); setShowExportMenu(false); }} />
-                      </label>
-                    </div>
-                    );
-                  })()}
-                </div>
+                {/* User pill */}
                 <div className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-800/60 border border-gray-700 rounded-xl">
                   <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
                     <span className="text-white text-[9px] font-bold">
@@ -2962,7 +2862,7 @@ export default function Home() {
                 <div className="flex items-center gap-1 px-4 py-2.5 border-b border-gray-800 bg-gray-900/80">
                   <Zap size={13} className="text-blue-400 mr-1" />
                   <span className="text-xs font-semibold text-gray-300 uppercase tracking-wider mr-3">Device Tester</span>
-                  {(["mockup", "inputs", "controller"] as const).filter((v) => v !== "controller" || (adminSettings.show_controller ?? true)).map((v) => (
+                  {(["inputs", "controller", "mockup"] as const).filter((v) => v !== "controller" || (adminSettings.show_controller ?? true)).map((v) => (
                     <button key={v} onClick={() => setDeviceView(v)}
                       className={["px-3 py-1 rounded-lg text-xs font-medium transition-all",
                         deviceView === v
@@ -3617,6 +3517,159 @@ export default function Home() {
           irSensors={irSensors} sipPuffs={sipPuffs} joysticks={joysticks}
           onClose={() => setShowWiring(false)}
         />
+      )}
+
+      {/* ── Floating Save Panel ─────────────────────────────────────────────── */}
+      {appUser && (
+        <div className="fixed bottom-4 right-4 z-[300]" ref={saveMenuRef}>
+          {/* Trigger button */}
+          <button
+            onClick={() => setShowSaveMenu((v) => !v)}
+            className={["flex items-center gap-2 px-3 py-2 rounded-2xl border text-xs font-medium shadow-2xl transition-all",
+              showSaveMenu
+                ? "bg-gray-800 border-gray-600 text-gray-100"
+                : "bg-gray-900 border-gray-700 hover:border-gray-500 text-gray-300 hover:text-gray-100"
+            ].join(" ")}
+          >
+            <span className={["w-2 h-2 rounded-full flex-shrink-0 transition-all",
+              saving ? "bg-amber-400 animate-pulse" :
+              saveError ? "bg-red-400" :
+              hasSaved ? "bg-green-500" : "bg-gray-600"
+            ].join(" ")} />
+            <span className="max-w-[140px] truncate">{currentSaveName || "Untitled"}</span>
+            <ChevronDown size={11} className={["text-gray-500 transition-transform", showSaveMenu ? "rotate-180" : ""].join(" ")} />
+          </button>
+
+          {/* Panel — opens upward */}
+          {showSaveMenu && (
+            <div className="absolute bottom-full right-0 mb-2 w-72 bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl overflow-hidden">
+
+              {/* Current save */}
+              <div className="px-3 pt-3 pb-2.5">
+                <p className="text-[9px] font-semibold text-gray-600 uppercase tracking-widest mb-2">Current Save</p>
+                <input
+                  value={currentSaveName}
+                  onChange={(e) => setCurrentSaveName(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-2 text-xs text-gray-200 focus:outline-none focus:border-blue-500 transition-colors"
+                  placeholder="Name this setup…"
+                  onClick={(e) => e.stopPropagation()}
+                />
+                <div className="flex items-center gap-2 mt-2">
+                  <span className={["flex items-center gap-1 text-[10px] flex-1",
+                    saving ? "text-amber-400" : saveError ? "text-red-400" : hasSaved ? "text-green-500" : "text-gray-600"
+                  ].join(" ")}>
+                    {saving ? <><Loader2 size={9} className="animate-spin" /> Saving…</> :
+                     saveError ? <><XCircle size={9} /> Save failed</> :
+                     hasSaved ? <><CheckCircle2 size={9} /> Saved</> :
+                     "Not saved yet"}
+                  </span>
+                  <button
+                    onClick={() => copyShareLink()}
+                    disabled={sharingLink || !hasSaved}
+                    className="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-600/20 border border-blue-600/30 text-[10px] text-blue-300 hover:bg-blue-600/30 transition-colors disabled:opacity-40"
+                  >
+                    {copiedLink ? <><CheckCircle2 size={9} /> Copied!</> : sharingLink ? "…" : <><ExternalLink size={9} /> Share</>}
+                  </button>
+                </div>
+              </div>
+
+              {/* Saves list */}
+              {saves.length > 0 && (
+                <>
+                  <div className="border-t border-gray-800 mx-3" />
+                  <div className="px-1.5 py-1.5 max-h-52 overflow-y-auto">
+                    <p className="text-[9px] font-semibold text-gray-600 uppercase tracking-widest px-2 py-1">Your Saves</p>
+                    {saves.map((s) => (
+                      <div
+                        key={s.id}
+                        className="rounded-lg overflow-hidden"
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          setDeleteConfirmSaveId(null);
+                          setSaveContextMenu({ x: e.clientX, y: e.clientY, id: s.id });
+                        }}
+                      >
+                        {deleteConfirmSaveId === s.id ? (
+                          <div className="flex items-center gap-1.5 px-2.5 py-2 bg-red-950/30 border border-red-800/30 rounded-lg">
+                            <span className="flex-1 text-[10px] text-red-300">Delete "{s.name || "Untitled"}"?</span>
+                            <button
+                              onClick={() => { handleDeleteSave(s.id); setDeleteConfirmSaveId(null); }}
+                              className="px-2 py-0.5 rounded bg-red-600 hover:bg-red-500 text-[10px] text-white font-medium transition-colors"
+                            >Delete</button>
+                            <button
+                              onClick={() => setDeleteConfirmSaveId(null)}
+                              className="px-2 py-0.5 rounded bg-gray-700 hover:bg-gray-600 text-[10px] text-gray-300 transition-colors"
+                            >Cancel</button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center group">
+                            <button
+                              onClick={() => switchSave(s)}
+                              className={["flex-1 text-left px-2.5 py-2 text-xs transition-colors truncate rounded-lg",
+                                s.id === currentSaveId
+                                  ? "bg-blue-600/20 text-blue-300 font-medium"
+                                  : "text-gray-400 hover:bg-gray-800 hover:text-gray-200"
+                              ].join(" ")}
+                            >
+                              {s.id === currentSaveId && <span className="mr-1 text-blue-400">·</span>}
+                              {s.name || "Untitled"}
+                            </button>
+                            <button
+                              onClick={() => setDeleteConfirmSaveId(s.id)}
+                              className="px-2 py-2 text-gray-700 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0"
+                            ><Trash2 size={10} /></button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* Footer */}
+              <div className="border-t border-gray-800 px-1.5 py-1.5 flex gap-1">
+                <button
+                  onClick={createNewSave}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-[11px] text-gray-400 hover:text-gray-100 hover:bg-gray-800 transition-colors"
+                ><Plus size={11} /> New save</button>
+                <label className="flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-[11px] text-gray-400 hover:text-gray-100 hover:bg-gray-800 transition-colors cursor-pointer">
+                  <Upload size={11} /> Import
+                  <input type="file" accept=".json" className="hidden" onChange={(e) => { importSetup(e); setShowSaveMenu(false); }} />
+                </label>
+                <button
+                  onClick={() => { downloadSetup(); setShowSaveMenu(false); }}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg text-[11px] text-gray-400 hover:text-gray-100 hover:bg-gray-800 transition-colors"
+                ><Download size={11} /> Export</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Right-click context menu for saves */}
+      {saveContextMenu && (
+        <div
+          style={{ position: "fixed", top: saveContextMenu.y, left: saveContextMenu.x, zIndex: 99999 }}
+          className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl py-1 min-w-[160px]"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => {
+              setDeleteConfirmSaveId(saveContextMenu.id);
+              setShowSaveMenu(true);
+              setSaveContextMenu(null);
+            }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
+          >
+            <Trash2 size={11} /> Delete save…
+          </button>
+          <button
+            onClick={() => { const s = saves.find((sv) => sv.id === saveContextMenu.id); if (s) switchSave(s); setSaveContextMenu(null); }}
+            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-300 hover:bg-gray-800 transition-colors"
+          >
+            <RotateCcw size={11} /> Load this save
+          </button>
+        </div>
       )}
     </div>
   );

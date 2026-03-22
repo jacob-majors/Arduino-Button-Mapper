@@ -100,12 +100,15 @@ export async function upsertSave(
   config: UserConfig
 ): Promise<string> {
   if (id) {
-    await supabase
+    const { data } = await supabase
       .from("user_configs")
       .update({ name, config, updated_at: new Date().toISOString() })
       .eq("id", id)
-      .eq("user_id", userId);
-    return id;
+      .eq("user_id", userId)
+      .select("id")
+      .single();
+    if (data?.id) return data.id;
+    // Row not found (e.g. deleted externally) — fall through to insert
   }
   const { data } = await supabase
     .from("user_configs")

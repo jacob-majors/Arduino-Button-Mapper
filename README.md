@@ -1,24 +1,59 @@
 # Arduino Button Mapper
 
-A web app for programming an Arduino Leonardo to map physical buttons to keyboard inputs. Wire buttons to digital pins, assign keys in the UI, then upload directly to your board.
+A web app for programming an Arduino Leonardo as a USB HID controller — map physical buttons, joysticks, IR sensors, and sip/puff inputs to keyboard keys or gamepad inputs. Configure everything in the browser, then compile and flash directly to your board.
 
 ## Architecture
 
-- `frontend/` — Next.js 14 app, deployable to Vercel
-- `backend/` — Local Node.js/Express server that communicates with the Arduino hardware via `arduino-cli`
+| Layer | Stack | Hosting |
+|---|---|---|
+| Frontend | Next.js 14, TypeScript, Tailwind CSS | Vercel |
+| Backend | Node.js / Express + `arduino-cli` | Railway (Docker) |
+| Database / Auth | Supabase | Supabase cloud |
 
-The frontend calls the backend at `http://localhost:3001` by default (configurable via `NEXT_PUBLIC_BACKEND_URL`).
+The frontend calls the backend at the URL set in `NEXT_PUBLIC_BACKEND_URL`. The backend compiles sketches server-side with `arduino-cli` and streams upload progress back via SSE. Flashing to the board uses the **Web Serial API** in the browser (Chrome/Edge only).
+
+---
+
+## Features
+
+### Configure tab
+- Add **buttons**, **joysticks**, **IR sensors**, and **sip/puff** inputs, each mapped to an Arduino pin and a keyboard key or HID action
+- Per-button **LED** pin assignment
+- **Wiring diagram** modal showing how to connect each component
+- **Board connection** modal — lists already-granted serial ports, or opens the browser's native Web Serial picker to grant a new one
+- Live **sketch preview** (generated `.ino` before upload)
+
+### Test tab
+- **Controller mockup** — flat-UI diagram showing all mapped inputs on a gamepad layout (D-pad, face buttons, bumpers, triggers, thumbsticks, pads)
+- **All Inputs** view — table of every configured input and its current state
+- **Games** — Dino run, Snake, and Pong, playable with your mapped controller
+- **Serial monitor** — live serial output from the connected Arduino, with toggle open/close
+
+### Saves & sharing
+- Supabase-backed auto-save with 1.5 s debounce
+- Named saves — switch between multiple configs from the save dropdown
+- **Share link** — generates a public URL others can open to load a read-only copy of any save
+- **Import / Export** JSON for offline backup
+
+### Admin panel
+- Feature toggles: Games, Wiring diagram, Controller mockup, Upload, LEDs, Sensors, Buttons
+- Maintenance mode with custom welcome message
+- Accessible to admin accounts only
 
 ---
 
 ## Prerequisites
 
-1. **Node.js** (v18 or later) — https://nodejs.org
-2. **arduino-cli** — https://arduino.github.io/arduino-cli/installation/
-3. **Arduino AVR core** (required for Leonardo):
+1. **Node.js** v18 or later — https://nodejs.org
+2. **arduino-cli** (for local backend) — https://arduino.github.io/arduino-cli/installation/
+3. After installing `arduino-cli`, install the AVR core and required libraries:
    ```bash
+   arduino-cli core update-index
    arduino-cli core install arduino:avr
+   arduino-cli lib install "Keyboard" "Mouse"
    ```
+4. A **Supabase** project for auth and saves (see Environment Variables below)
+5. **Chrome or Edge** for Web Serial API support
 
 ---
 
@@ -32,44 +67,54 @@ npm install
 npm start
 ```
 
-The backend listens on `http://localhost:3001`. Keep this terminal open while using the app.
+The backend listens on `http://localhost:3001`.
 
 ### 2. Start the frontend
 
 ```bash
-cd frontend
 npm install
 npm run dev
 ```
 
-Open http://localhost:3000 in your browser.
+Open http://localhost:3000 in Chrome or Edge.
 
 ---
 
-## Deploying the Frontend to Vercel
+## Environment Variables
 
-The frontend can be deployed to Vercel so you can access the UI from any browser — but the **backend must still run locally** on the machine connected to the Arduino.
+Create a `.env.local` in the project root:
+
+```env
+NEXT_PUBLIC_BACKEND_URL=http://localhost:3001
+NEXT_PUBLIC_SUPABASE_URL=https://<your-project>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<your-anon-key>
+```
+
+For the Railway backend deployment, the `arduino-cli` installation and AVR core setup are handled automatically by the Dockerfile — no manual setup needed.
+
+---
+
+## Deploying
+
+### Frontend → Vercel
 
 ```bash
-cd frontend
 npx vercel
 ```
 
-After deploying, set the environment variable in your Vercel project settings:
+Set the same environment variables in your Vercel project settings. Point `NEXT_PUBLIC_BACKEND_URL` at your Railway backend URL.
 
-```
-NEXT_PUBLIC_BACKEND_URL=http://localhost:3001
-```
+### Backend → Railway
 
-> Note: even when the frontend is hosted on Vercel, `NEXT_PUBLIC_BACKEND_URL` should point to `http://localhost:3001` on your local machine, since that's where the Arduino is physically connected. The browser makes these API calls directly, not through Vercel's servers.
+The `backend/` directory contains a `Dockerfile` that installs `arduino-cli`, the `arduino:avr` core, and the `Keyboard`/`Mouse` libraries at build time. Push to Railway and it builds automatically.
 
 ---
 
 ## Hardware Setup
 
-1. Connect each button between a digital pin (2–13) and **GND**.
-2. No external resistors needed — the sketch uses `INPUT_PULLUP` mode, which enables the Arduino's internal pull-up resistors.
-3. When a button is pressed (pin pulled LOW), the mapped key is sent to the host computer as a USB HID keyboard event.
+Target board: **Arduino Leonardo** (or any ATmega32U4-based board).
+
+Connect each button between a digital pin (2–13) and **GND** — the sketch uses `INPUT_PULLUP`, so no external resistors are needed.
 
 ```
 Arduino Pin 2  ──┤ Button ├── GND
@@ -77,14 +122,7 @@ Arduino Pin 3  ──┤ Button ├── GND
 ...
 ```
 
----
-
-## Usage
-
-1. **Select Port** — Choose the serial port your Arduino Leonardo is connected to. Click the refresh icon if it doesn't appear.
-2. **Configure Buttons** — Add button cards. For each one, select the Arduino pin and click the key input field, then press the key you want to map.
-3. **Upload** — Click "Upload to Arduino". Watch the log for compile and upload progress.
-4. **Preview Sketch** — Use "View Sketch" or "Preview Sketch" to see the generated `.ino` file before uploading.
+For LEDs, connect each LED + resistor (220 Ω) between the assigned pin and GND.
 
 ---
 
@@ -92,7 +130,8 @@ Arduino Pin 3  ──┤ Button ├── GND
 
 | Problem | Fix |
 |---|---|
-| No ports listed | Make sure Arduino is plugged in, backend is running, and `arduino-cli` is installed |
-| Compile fails | Run `arduino-cli core install arduino:avr` and try again |
-| Upload fails | Check the port is correct; try pressing the Arduino's reset button and uploading immediately |
-| Backend connection refused | Make sure `npm start` is running in the `backend/` directory |
+| No ports listed | Plug in the Arduino, use Chrome/Edge, and click "Connect new board…" to grant serial access |
+| Compile fails — Keyboard.h not found | Run `arduino-cli lib install "Keyboard" "Mouse"` on the machine running the backend |
+| Upload fails | Verify the correct port is selected; try pressing the Arduino's reset button and re-uploading |
+| Backend connection refused | Make sure `npm start` is running in `backend/` and `NEXT_PUBLIC_BACKEND_URL` is set correctly |
+| Web Serial not available | Use Chrome or Edge — Firefox does not support the Web Serial API |
