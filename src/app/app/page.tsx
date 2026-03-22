@@ -2244,12 +2244,29 @@ export default function Home() {
     setShowSaveMenu(false);
   };
 
-  const createNewSave = () => {
+  const createNewSave = async () => {
+    // Flush current save to DB before switching so it stays in the list
+    if (appUser) {
+      const cfg = { buttons, portInputs, leds, irSensors, sipPuffs, joysticks };
+      const savedId = await upsertSave(appUser.id, currentSaveId, currentSaveName, cfg);
+      if (savedId) {
+        const now = new Date().toISOString();
+        setSaves((prev) => {
+          const exists = prev.find((s) => s.id === savedId);
+          if (exists) return prev.map((s) => s.id === savedId ? { ...s, name: currentSaveName, config: cfg, updated_at: now } : s);
+          return [{ id: savedId, name: currentSaveName, config: cfg, updated_at: now }, ...prev];
+        });
+        setCurrentSaveId(savedId);
+        setHasSaved(true);
+      }
+    }
+    // Now switch to blank new save
     setCurrentSaveId(null);
-    setCurrentSaveName("New Setup");
+    setCurrentSaveName("Untitled");
     setButtons([{ id: generateId(), name: "", pin: 2, keyDisplay: "", arduinoKey: "", mode: "momentary", ledPin: -1, ledMode: "active" }]);
     setPortInputs([]); setLeds({ enabled: false, onPin: 11, offPin: 12 });
     setIrSensors([]); setSipPuffs([]); setJoysticks([]);
+    setHasSaved(false);
     setShowSaveMenu(false);
   };
 
@@ -2460,8 +2477,12 @@ export default function Home() {
                   >
                     <Download size={12} /> <span className="hidden sm:inline">Export / Import</span>
                   </button>
-                  {showExportMenu && (
-                    <div className="fixed top-12 right-4 w-48 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-[99999] overflow-hidden">
+                  {showExportMenu && (() => {
+                    const rect = exportMenuRef.current?.getBoundingClientRect();
+                    const top = rect ? rect.bottom + 6 : 52;
+                    const right = rect ? window.innerWidth - rect.right : 16;
+                    return (
+                    <div style={{ position: "fixed", top, right, zIndex: 99999 }} className="w-48 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl overflow-hidden">
                       <button
                         onClick={() => { copyShareLink(); setShowExportMenu(false); }}
                         disabled={sharingLink}
@@ -2479,7 +2500,8 @@ export default function Home() {
                         <input type="file" accept=".json" className="hidden" onChange={(e) => { importSetup(e); setShowExportMenu(false); }} />
                       </label>
                     </div>
-                  )}
+                    );
+                  })()}
                 </div>
                 <div className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-800/60 border border-gray-700 rounded-xl">
                   <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
