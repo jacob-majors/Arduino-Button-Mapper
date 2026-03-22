@@ -691,10 +691,10 @@ function JoystickCard({ joy, index, usedPins, usedAnalogPins, onUpdate, onRemove
       </div>
 
       {/* Direction keys */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pl-1">
+      <div className="grid grid-cols-2 gap-1.5">
         {dirs.map(({ label, key, display }) => (
           <div key={String(key)} className="flex items-center gap-1.5">
-            <span className="text-[10px] text-violet-400 font-mono w-10 flex-shrink-0">{label}</span>
+            <span className="text-[10px] text-violet-400 font-mono w-12 flex-shrink-0">{label}</span>
             <div className="flex-1">
               <KeyCaptureInput
                 value={joy[key] as string} display={joy[display] as string}
@@ -2194,8 +2194,8 @@ export default function Home() {
             </div>
           )}
 
-          <div className="flex-1 overflow-hidden flex flex-col">
-          <div className="h-full max-w-[1400px] mx-auto px-4 sm:px-6 py-4 w-full flex flex-col gap-4">
+          <div className="flex-1 overflow-hidden flex flex-col min-w-0">
+          <div className="h-full max-w-[1400px] mx-auto px-4 sm:px-6 py-4 w-full flex flex-col gap-4 min-w-0">
 
             {/* Top bar: Get Code */}
             {adminSettings.show_upload && <section className="bg-gray-900 border border-gray-800 rounded-2xl px-4 py-3 flex-shrink-0">
@@ -2349,8 +2349,8 @@ export default function Home() {
               </div>
 
               {/* Unified input list — responsive grid */}
-              <div className="flex-1 overflow-y-auto min-h-0">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+              <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 min-w-0">
                   {buttons.map((btn, i) => (
                     <ButtonCard key={btn.id} button={btn} index={i} usedPins={usedPins}
                       onUpdate={updateButton} onRemove={removeButton} typeLabel="Switch" />
