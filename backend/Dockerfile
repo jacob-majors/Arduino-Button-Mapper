@@ -1,7 +1,7 @@
 FROM node:20-slim
 
 # Force cache bust
-ARG CACHEBUST=4
+ARG CACHEBUST=5
 
 # arduino:avr 1.8.6+ no longer bundles Keyboard.h inside the platform —
 # it must be installed as a separate library.
@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl tar ca-cer
     arduino-cli config init && \
     arduino-cli core update-index && \
     arduino-cli core install arduino:avr && \
-    arduino-cli lib install "Keyboard" "Mouse" "HID" && \
+    arduino-cli lib install "Keyboard" "Mouse" && \
     find /root/.arduino15/libraries/Keyboard -name "Keyboard.h" | grep -q . && \
     echo "✓ Keyboard.h verified" && \
     apt-get clean && rm -rf /var/lib/apt/lists/*

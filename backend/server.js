@@ -267,7 +267,7 @@ function ensureAvrCore(cli) {
         return resolve();
       }
       console.log('⚠ Keyboard.h not found — installing arduino:avr core now…');
-      exec(`"${cli}" core update-index && "${cli}" core install arduino:avr && "${cli}" lib install "Keyboard" "Mouse" "HID"`, { timeout: 300000 }, (err2, stdout2, stderr2) => {
+      exec(`"${cli}" core update-index && "${cli}" core install arduino:avr && "${cli}" lib install "Keyboard" "Mouse"`, { timeout: 300000 }, (err2, stdout2, stderr2) => {
         if (err2) {
           console.error('✗ Failed to install arduino:avr core:', stderr2 || err2.message);
         } else {

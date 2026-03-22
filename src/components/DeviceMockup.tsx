@@ -15,8 +15,11 @@ interface Props {
   ports: PortConfig[];
 }
 
-export default function DeviceMockup({ buttons, leds, ports }: Props) {
-  const [view, setView] = useState<"mockup" | "inputs">("mockup");
+interface PropsWithView extends Props {
+  view?: "mockup" | "inputs";
+}
+
+export default function DeviceMockup({ buttons, leds, ports, view = "mockup" }: PropsWithView) {
   const [pressedKeys, setPressedKeys] = useState<Set<string>>(new Set());
   const [systemOn, setSystemOn] = useState(true);
   const prevPowerRef = useRef(false);
@@ -82,20 +85,6 @@ export default function DeviceMockup({ buttons, leds, ports }: Props) {
 
   return (
     <div className="flex flex-col items-center gap-4">
-      {/* View switcher */}
-      <div className="flex bg-gray-800/60 border border-gray-700 rounded-xl p-0.5 gap-0.5 self-end">
-        <button
-          onClick={() => setView("mockup")}
-          className={["px-3 py-1 rounded-lg text-xs font-medium transition-all",
-            view === "mockup" ? "bg-gray-700 text-gray-100" : "text-gray-500 hover:text-gray-300"].join(" ")}
-        >Mockup</button>
-        <button
-          onClick={() => setView("inputs")}
-          className={["px-3 py-1 rounded-lg text-xs font-medium transition-all",
-            view === "inputs" ? "bg-gray-700 text-gray-100" : "text-gray-500 hover:text-gray-300"].join(" ")}
-        >All Inputs</button>
-      </div>
-
       {view === "inputs" && (
         <div className="w-full max-w-2xl">
           {buttons.length === 0 && ports.length === 0 ? (
