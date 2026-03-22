@@ -1833,6 +1833,7 @@ export default function Home() {
   const [showTemplates, setShowTemplates] = useState(false);
   const [selectedGame, setSelectedGame] = useState<"dino" | "snake" | "pong">("dino");
   const [dinoLeaderboard, setDinoLeaderboard] = useState<DinoScore[]>([]);
+  const [deviceView, setDeviceView] = useState<"mockup" | "inputs" | "controller">("mockup");
   const [irSensors, setIrSensors] = useState<IRSensorConfig[]>([]);
   const [sipPuffs, setSipPuffs] = useState<SipPuffConfig[]>([]);
   const [joysticks, setJoysticks] = useState<JoystickConfig[]>([]);
@@ -2132,17 +2133,19 @@ export default function Home() {
     setJoysticks((prev) => prev.map((j) => (j.id === id ? { ...j, ...u } : j)));
   const removeJoystick = (id: string) => setJoysticks((prev) => prev.filter((j) => j.id !== id));
 
-  const addInput = () => {
-    if (addInputType === "micro-switch") addButton();
-    else if (addInputType === "toggle-switch") {
+  const addInputByType = (type: string) => {
+    if (type === "micro-switch") addButton();
+    else if (type === "toggle-switch") {
       const next = ALL_PINS.find((p) => !usedPins.includes(p)) ?? 2;
       setButtons((prev) => [...prev, { id: generateId(), name: "", pin: next, keyDisplay: "", arduinoKey: "", mode: "toggle", ledPin: -1, ledMode: "active" }]);
     }
-    else if (addInputType === "sip-puff") addSipPuff();
-    else if (addInputType === "ir-sensor") addIR();
-    else if (addInputType === "joystick") addJoystick();
-    else if (addInputType === "port") addPort();
+    else if (type === "sip-puff") addSipPuff();
+    else if (type === "ir-sensor") addIR();
+    else if (type === "joystick") addJoystick();
+    else if (type === "port") addPort();
   };
+
+  const addInput = () => addInputByType(addInputType);
 
   const handleWebSerialUpload = async (forceNewPort = false) => {
     setWsUploading(true);
@@ -2425,7 +2428,7 @@ export default function Home() {
                     <Download size={12} /> <span className="hidden sm:inline">Export / Import</span>
                   </button>
                   {showExportMenu && (
-                    <div className="absolute right-0 top-full mt-1 w-48 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-[200] overflow-hidden">
+                    <div className="absolute right-0 top-full mt-1 w-48 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-[9999] overflow-hidden">
                       <button
                         onClick={() => { copyShareLink(); setShowExportMenu(false); }}
                         disabled={sharingLink}
@@ -2580,7 +2583,7 @@ export default function Home() {
                     <Usb size={12} /> Board <ChevronDown size={10} />
                   </button>
                   {showPortMenu && (
-                    <div className="absolute left-0 top-full mt-1 w-52 bg-gray-900 border border-gray-700 rounded-xl shadow-xl z-50 py-1 overflow-hidden">
+                    <div className="absolute left-0 top-full mt-1 w-52 bg-gray-900 border border-gray-700 rounded-xl shadow-xl z-[9999] py-1 overflow-hidden">
                       {grantedPorts.length > 0 && (
                         <>
                           <div className="px-3 py-1.5 text-[10px] text-gray-500 uppercase tracking-wider font-semibold">Connected boards</div>
@@ -2807,25 +2810,26 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Add input row */}
-              <div className="mt-3 flex gap-2 flex-shrink-0">
-                <div className="relative flex-1 max-w-xs">
-                  <select value={addInputType} onChange={(e) => setAddInputType(e.target.value)}
-                    className="w-full appearance-none bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-xs text-gray-300 focus:outline-none cursor-pointer pr-6"
-                  >
-                    <option value="micro-switch">Micro Switch</option>
-                    <option value="toggle-switch">Toggle Switch</option>
-                    <option value="sip-puff">Sip &amp; Puff</option>
-                    <option value="ir-sensor">IR Sensor</option>
-                    <option value="joystick">Joystick</option>
-                  </select>
-                  <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+              {/* Add input — centered icon pill buttons */}
+              <div className="mt-3 pt-3 border-t border-gray-800 flex-shrink-0">
+                <p className="text-[10px] text-gray-600 uppercase tracking-wider font-semibold text-center mb-2">Add Input</p>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {([
+                    { type: "micro-switch",  label: "Micro Switch",  icon: <Keyboard size={13} />,  color: "hover:bg-blue-600/20 hover:border-blue-500/50 hover:text-blue-300"  },
+                    { type: "toggle-switch", label: "Toggle Switch", icon: <RotateCcw size={13} />, color: "hover:bg-sky-600/20 hover:border-sky-500/50 hover:text-sky-300"    },
+                    { type: "joystick",      label: "Joystick",      icon: <Joystick size={13} />,  color: "hover:bg-violet-600/20 hover:border-violet-500/50 hover:text-violet-300" },
+                    { type: "ir-sensor",     label: "IR Sensor",     icon: <Radio size={13} />,     color: "hover:bg-green-600/20 hover:border-green-500/50 hover:text-green-300" },
+                    { type: "sip-puff",      label: "Sip & Puff",    icon: <Wind size={13} />,      color: "hover:bg-cyan-600/20 hover:border-cyan-500/50 hover:text-cyan-300"  },
+                    { type: "port",          label: "3.5mm Port",    icon: <Usb size={13} />,       color: "hover:bg-orange-600/20 hover:border-orange-500/50 hover:text-orange-300" },
+                  ] as const).map(({ type, label, icon, color }) => (
+                    <button key={type}
+                      onClick={() => addInputByType(type)}
+                      className={["flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-700 bg-gray-800/60 text-gray-400 text-xs font-medium transition-all", color].join(" ")}
+                    >
+                      {icon} {label}
+                    </button>
+                  ))}
                 </div>
-                <button onClick={addInput}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-all flex-shrink-0"
-                >
-                  <Plus size={13} /> Add
-                </button>
               </div>
             </section>}
           </div>
@@ -2835,138 +2839,170 @@ export default function Home() {
 
       {/* ══ TEST TAB ═══════════════════════════════════════════════════════ */}
       {tab === "test" && (
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 py-5 flex flex-col gap-5">
+        <div className="flex-1 overflow-hidden flex gap-0">
 
-            {/* ── Game area + selector ── */}
-            <div className="flex gap-4 items-start">
+          {/* ── Main content ── */}
+          <div className="flex-1 overflow-y-auto min-w-0">
+            <div className="max-w-4xl mx-auto px-4 sm:px-6 py-5 flex flex-col gap-5">
 
-              {/* Game canvas */}
-              <div className="flex-1 bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden min-w-0">
-                <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-800">
-                  <Gamepad2 size={14} className="text-purple-400" />
-                  <h2 className="text-sm font-semibold text-gray-200">
-                    {selectedGame === "dino" && "Dino Game"}
-                    {selectedGame === "snake" && "Snake"}
-                    {selectedGame === "pong" && "Pong"}
-                  </h2>
-                  <span className="text-xs text-gray-600 ml-1">
-                    {selectedGame === "dino" && "↑ jump · ↓ duck"}
-                    {selectedGame === "snake" && "↑↓←→ · WASD · joystick"}
-                    {selectedGame === "pong" && "W/S or ↑/↓ to move"}
-                  </span>
+              {/* Game area + selector */}
+              <div className="flex gap-4 items-start">
+                {/* Game canvas */}
+                <div className="flex-1 bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden min-w-0">
+                  <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-800">
+                    <Gamepad2 size={14} className="text-purple-400" />
+                    <h2 className="text-sm font-semibold text-gray-200">
+                      {selectedGame === "dino" && "Dino Game"}
+                      {selectedGame === "snake" && "Snake"}
+                      {selectedGame === "pong" && "Pong"}
+                    </h2>
+                    <span className="text-xs text-gray-600 ml-1">
+                      {selectedGame === "dino" && "↑ jump · ↓ duck"}
+                      {selectedGame === "snake" && "↑↓←→ · WASD · joystick"}
+                      {selectedGame === "pong" && "W/S or ↑/↓ to move"}
+                    </span>
+                  </div>
+                  <div className="p-4">
+                    {selectedGame === "dino" && <DinoGame jumpKeys={jumpKeys} onGameOver={handleDinoGameOver} />}
+                    {selectedGame === "snake" && <SnakeGame joystickMaps={joystickMaps} />}
+                    {selectedGame === "pong" && <PongGame joystickMaps={joystickMaps[0] ? { up: [joystickMaps[0].up], down: [joystickMaps[0].down] } : undefined} />}
+                  </div>
                 </div>
-                <div className="p-4">
-                  {selectedGame === "dino" && <DinoGame jumpKeys={jumpKeys} onGameOver={handleDinoGameOver} />}
-                  {selectedGame === "snake" && <SnakeGame joystickMaps={joystickMaps} />}
-                  {selectedGame === "pong" && <PongGame joystickMaps={joystickMaps[0] ? { up: [joystickMaps[0].up], down: [joystickMaps[0].down] } : undefined} />}
+                {/* Game selector + leaderboard */}
+                <div className="w-40 flex-shrink-0 flex flex-col gap-3">
+                  <div className="bg-gray-900 border border-gray-800 rounded-2xl p-3 flex flex-col gap-1.5">
+                    <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide px-1 mb-1">Games</p>
+                    {([
+                      { id: "dino",  label: "Dino",  emoji: "🦕", hint: "↑ jump ↓ duck" },
+                      { id: "snake", label: "Snake", emoji: "🐍", hint: "Arrows / WASD" },
+                      { id: "pong",  label: "Pong",  emoji: "🏓", hint: "W/S or ↑/↓" },
+                    ] as const).map((g) => (
+                      <button key={g.id} onClick={() => setSelectedGame(g.id)}
+                        className={["w-full text-left px-3 py-2 rounded-xl transition-all",
+                          selectedGame === g.id
+                            ? "bg-purple-600/20 border border-purple-600/40 text-purple-300"
+                            : "border border-transparent hover:bg-gray-800 text-gray-400 hover:text-gray-200",
+                        ].join(" ")}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm leading-none">{g.emoji}</span>
+                          <span className="text-xs font-medium">{g.label}</span>
+                        </div>
+                        <p className="text-[10px] text-gray-600 mt-0.5 pl-6">{g.hint}</p>
+                      </button>
+                    ))}
+                  </div>
+                  {selectedGame === "dino" && (
+                    <div className="bg-gray-900 border border-gray-800 rounded-2xl p-3">
+                      <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide px-1 mb-2">Top Scores</p>
+                      {dinoLeaderboard.length === 0 ? (
+                        <p className="text-[11px] text-gray-600 px-1">No scores yet</p>
+                      ) : (
+                        <ol className="flex flex-col gap-1.5">
+                          {dinoLeaderboard.map((entry, i) => (
+                            <li key={entry.username} className="flex items-center gap-1.5 px-1">
+                              <span className="text-[10px]">{i === 0 ? "🥇" : i === 1 ? "🥈" : "🥉"}</span>
+                              <span className="text-[11px] text-gray-300 truncate flex-1">{entry.username}</span>
+                              <span className="text-[11px] font-mono text-purple-300">{entry.score}</span>
+                            </li>
+                          ))}
+                        </ol>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {/* Game selector */}
-              <div className="w-44 flex-shrink-0 flex flex-col gap-3">
-                <div className="bg-gray-900 border border-gray-800 rounded-2xl p-3 flex flex-col gap-2">
-                  <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide px-1 mb-1">Games</p>
-                  {(
-                    [
-                      { id: "dino",  label: "Dino Game", emoji: "🦕", hint: "↑ jump  ↓ duck" },
-                      { id: "snake", label: "Snake",     emoji: "🐍", hint: "Arrow keys / WASD" },
-                      { id: "pong",  label: "Pong",      emoji: "🏓", hint: "W/S or ↑/↓" },
-                    ] as const
-                  ).map((g) => (
-                    <button
-                      key={g.id}
-                      onClick={() => setSelectedGame(g.id)}
-                      className={[
-                        "w-full text-left px-3 py-2.5 rounded-xl transition-all",
-                        selectedGame === g.id
-                          ? "bg-purple-600/20 border border-purple-600/40 text-purple-300"
-                          : "border border-transparent hover:bg-gray-800 text-gray-400 hover:text-gray-200",
+              {/* Device Tester — tabbed: Mockup / All Inputs / Controller */}
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+                {/* Sub-tab bar */}
+                <div className="flex items-center gap-1 px-4 py-2.5 border-b border-gray-800 bg-gray-900/80">
+                  <Zap size={13} className="text-blue-400 mr-1" />
+                  <span className="text-xs font-semibold text-gray-300 uppercase tracking-wider mr-3">Device Tester</span>
+                  {(["mockup", "inputs", "controller"] as const).map((v) => (
+                    <button key={v} onClick={() => setDeviceView(v)}
+                      className={["px-3 py-1 rounded-lg text-xs font-medium transition-all",
+                        deviceView === v
+                          ? "bg-blue-600/20 border border-blue-600/40 text-blue-300"
+                          : "text-gray-500 hover:text-gray-300 hover:bg-gray-800",
                       ].join(" ")}
                     >
-                      <div className="flex items-center gap-2">
-                        <span className="text-base leading-none">{g.emoji}</span>
-                        <span className="text-xs font-medium">{g.label}</span>
-                      </div>
-                      <p className="text-[10px] text-gray-600 mt-1 pl-6">{g.hint}</p>
+                      {v === "mockup" ? "Mockup" : v === "inputs" ? "All Inputs" : "Controller"}
                     </button>
                   ))}
                 </div>
-
-                {/* Dino leaderboard */}
-                {selectedGame === "dino" && (
-                  <div className="bg-gray-900 border border-gray-800 rounded-2xl p-3">
-                    <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide px-1 mb-2">Top Scores</p>
-                    {dinoLeaderboard.length === 0 ? (
-                      <p className="text-[11px] text-gray-600 px-1">No scores yet</p>
-                    ) : (
-                      <ol className="flex flex-col gap-1.5">
-                        {dinoLeaderboard.map((entry, i) => (
-                          <li key={entry.username} className="flex items-center gap-2 px-1">
-                            <span className={`text-[11px] font-bold w-4 flex-shrink-0 ${i === 0 ? "text-yellow-400" : i === 1 ? "text-gray-400" : "text-amber-700"}`}>
-                              {i === 0 ? "🥇" : i === 1 ? "🥈" : "🥉"}
-                            </span>
-                            <span className="text-[11px] text-gray-300 truncate flex-1">{entry.username}</span>
-                            <span className="text-[11px] font-mono text-purple-300 flex-shrink-0">{entry.score}</span>
-                          </li>
-                        ))}
-                      </ol>
-                    )}
-                  </div>
-                )}
+                <div className="p-5">
+                  {deviceView === "mockup" && <DeviceMockup buttons={buttons} leds={leds} ports={portInputs} />}
+                  {deviceView === "controller" && <ControllerMockup buttons={buttons} ports={portInputs} joysticks={joysticks} />}
+                  {deviceView === "inputs" && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {[...buttons, ...portInputs].map((b) => {
+                        const browserKey = b.arduinoKey.startsWith("KEY_") ? b.arduinoKey.replace("KEY_","").replace("_ARROW","").replace("_"," ") : b.arduinoKey.toUpperCase();
+                        return (
+                          <div key={b.id} className="flex items-center gap-2 bg-gray-800/60 border border-gray-700/50 rounded-xl px-3 py-2">
+                            <div className="w-2 h-2 rounded-full bg-blue-400 flex-shrink-0" />
+                            <span className="text-xs text-gray-300 truncate flex-1">{b.name || "Unnamed"}</span>
+                            <span className="text-[10px] font-mono text-gray-500 bg-gray-700 px-1.5 py-0.5 rounded flex-shrink-0">D{b.pin}</span>
+                            {b.arduinoKey && <span className="text-[10px] font-mono text-blue-300 flex-shrink-0">{browserKey}</span>}
+                          </div>
+                        );
+                      })}
+                      {joysticks.map((j) => (
+                        <div key={j.id} className="flex items-center gap-2 bg-gray-800/60 border border-violet-700/30 rounded-xl px-3 py-2 col-span-2">
+                          <div className="w-2 h-2 rounded-full bg-violet-400 flex-shrink-0" />
+                          <span className="text-xs text-gray-300 truncate flex-1">{j.name || "Joystick"}</span>
+                          <span className="text-[10px] font-mono text-gray-500 bg-gray-700 px-1.5 py-0.5 rounded">A{j.xPin}/A{j.yPin}</span>
+                          <span className="text-[10px] text-violet-300 font-mono">W A S D</span>
+                        </div>
+                      ))}
+                      {irSensors.map((s) => (
+                        <div key={s.id} className="flex items-center gap-2 bg-gray-800/60 border border-green-700/30 rounded-xl px-3 py-2">
+                          <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
+                          <span className="text-xs text-gray-300 truncate flex-1">{s.name || "IR Sensor"}</span>
+                          <span className="text-[10px] font-mono text-gray-500 bg-gray-700 px-1.5 py-0.5 rounded">D{s.pin}</span>
+                        </div>
+                      ))}
+                      {sipPuffs.map((s) => (
+                        <div key={s.id} className="flex items-center gap-2 bg-gray-800/60 border border-cyan-700/30 rounded-xl px-3 py-2">
+                          <div className="w-2 h-2 rounded-full bg-cyan-400 flex-shrink-0" />
+                          <span className="text-xs text-gray-300 truncate flex-1">{s.name || "Sip & Puff"}</span>
+                          <span className="text-[10px] font-mono text-gray-500 bg-gray-700 px-1.5 py-0.5 rounded">D{s.pin}</span>
+                        </div>
+                      ))}
+                      {buttons.length + portInputs.length + irSensors.length + sipPuffs.length + joysticks.length === 0 && (
+                        <p className="col-span-full text-xs text-gray-600 text-center py-4">No inputs configured yet</p>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
+
             </div>
-
-            {/* ── Device Tester ── */}
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Zap size={14} className="text-blue-400" />
-                <h2 className="text-sm font-semibold text-gray-200">Device Tester</h2>
-                <span className="text-xs text-gray-600">click or press keys to test</span>
-              </div>
-              <DeviceMockup buttons={buttons} leds={leds} ports={portInputs} />
-            </div>
-
-            {/* ── Controller Mockup ── */}
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Gamepad2 size={14} className="text-purple-400" />
-                <h2 className="text-sm font-semibold text-gray-200">Controller View</h2>
-                <span className="text-xs text-gray-600">buttons light up when pressed</span>
-              </div>
-              <ControllerMockup buttons={buttons} ports={portInputs} joysticks={joysticks} />
-            </div>
-
-            {/* ── Serial Monitor ── */}
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <Terminal size={14} className="text-green-400" />
-                <h2 className="text-sm font-semibold text-gray-200">Input Monitor</h2>
-                <span className="text-xs text-gray-600">every key press from your controller shows here</span>
-                <button
-                  onClick={() => setSerialLog([])}
-                  className="ml-auto text-[10px] text-gray-600 hover:text-red-400 transition-colors px-2 py-0.5 rounded border border-gray-800 hover:border-red-900"
-                >Clear</button>
-              </div>
-              <div
-                ref={serialLogRef}
-                className="bg-gray-950 border border-gray-800 rounded-xl p-3 h-40 overflow-y-auto font-mono text-xs"
-              >
-                {serialLog.length === 0 ? (
-                  <p className="text-gray-700 select-none">Waiting for input… press any key or use your Arduino controller</p>
-                ) : (
-                  <div className="flex flex-wrap gap-1.5">
-                    {serialLog.map((entry, i) => (
-                      <span key={i} title={entry.time}
-                        className="inline-flex items-center px-2 py-0.5 rounded-md bg-green-950/60 border border-green-800/40 text-green-300 text-[11px] font-mono"
-                      >{entry.key}</span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
           </div>
+
+          {/* ── Serial Monitor sidebar ── */}
+          <div className="w-72 flex-shrink-0 border-l border-gray-800 bg-black flex flex-col">
+            <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-800 bg-gray-950 flex-shrink-0">
+              <Terminal size={12} className="text-green-400" />
+              <span className="text-[11px] font-semibold text-green-400 font-mono tracking-wide uppercase">Serial Monitor</span>
+              <button onClick={() => setSerialLog([])}
+                className="ml-auto text-[10px] text-gray-700 hover:text-red-400 transition-colors font-mono"
+              >[CLR]</button>
+            </div>
+            <div ref={serialLogRef} className="flex-1 overflow-y-auto p-3 font-mono text-[11px] leading-5">
+              {serialLog.length === 0 ? (
+                <p className="text-gray-700">{">"} waiting for input_</p>
+              ) : (
+                serialLog.map((entry, i) => (
+                  <div key={i} className="flex gap-2 hover:bg-green-950/10">
+                    <span className="text-gray-600 flex-shrink-0 select-none">[{entry.time}]</span>
+                    <span className="text-green-400">{entry.key}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
         </div>
       )}
 

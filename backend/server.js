@@ -255,7 +255,31 @@ app.post('/api/upload', async (req, res) => {
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 
-app.listen(PORT, () => {
+// ─── Startup: ensure arduino:avr core is installed ───────────────────────────
+// This self-heals if the Docker build silently skipped the core install.
+
+function ensureAvrCore(cli) {
+  return new Promise((resolve) => {
+    if (!cli) return resolve();
+    exec(`find /root/.arduino15/packages/arduino/hardware/avr -name "Keyboard.h" 2>/dev/null`, (err, stdout) => {
+      if (stdout && stdout.trim()) {
+        console.log('✓ arduino:avr core already installed (Keyboard.h found)');
+        return resolve();
+      }
+      console.log('⚠ Keyboard.h not found — installing arduino:avr core now…');
+      exec(`"${cli}" core update-index && "${cli}" core install arduino:avr`, { timeout: 300000 }, (err2, stdout2, stderr2) => {
+        if (err2) {
+          console.error('✗ Failed to install arduino:avr core:', stderr2 || err2.message);
+        } else {
+          console.log('✓ arduino:avr core installed successfully');
+        }
+        resolve();
+      });
+    });
+  });
+}
+
+app.listen(PORT, async () => {
   console.log('');
   console.log('╔════════════════════════════════════════════╗');
   console.log('║     Arduino Button Mapper - Backend        ║');
@@ -263,4 +287,6 @@ app.listen(PORT, () => {
   console.log(`║  Server running at http://localhost:${PORT}   ║`);
   console.log('╚════════════════════════════════════════════╝');
   console.log('');
+  const cli = await findCli();
+  await ensureAvrCore(cli);
 });
