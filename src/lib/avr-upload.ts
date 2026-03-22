@@ -93,10 +93,20 @@ export async function compileAndUpload(
     );
   }
   if (!res.ok) {
+    const contentType = res.headers.get("content-type") ?? "";
     const text = await res.text().catch(() => "");
-    let errMsg = "Unknown error";
-    try { const j = JSON.parse(text); errMsg = j.error ?? errMsg; } catch { errMsg = text.slice(0, 400) || `HTTP ${res.status}`; }
-    throw new Error(`Compilation failed (HTTP ${res.status}):\n${errMsg}`);
+    // If the server returned HTML it's the wrong URL (hitting Vercel instead of Railway)
+    if (contentType.includes("text/html") || text.trimStart().startsWith("<!")) {
+      throw new Error(
+        `Wrong server — got a webpage instead of the compile API.\n` +
+        `The backend URL is set to: ${backendUrl}\n` +
+        `This looks like your Vercel frontend, not the Railway compile server.\n` +
+        `Fix: set NEXT_PUBLIC_BACKEND_URL to your Railway URL and redeploy on Vercel.`
+      );
+    }
+    let errMsg = `HTTP ${res.status}`;
+    try { const j = JSON.parse(text); errMsg = j.error ?? errMsg; } catch { errMsg = text.slice(0, 300) || errMsg; }
+    throw new Error(`Compilation failed: ${errMsg}`);
   }
   const { hex } = await res.json();
   onProgress("✓ Compilation successful — connecting to board…");
