@@ -2461,7 +2461,7 @@ export default function Home() {
                     <Download size={12} /> <span className="hidden sm:inline">Export / Import</span>
                   </button>
                   {showExportMenu && (
-                    <div className="absolute right-0 top-full mt-1 w-48 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-[9999] overflow-hidden">
+                    <div className="fixed top-12 right-4 w-48 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-[99999] overflow-hidden">
                       <button
                         onClick={() => { copyShareLink(); setShowExportMenu(false); }}
                         disabled={sharingLink}
