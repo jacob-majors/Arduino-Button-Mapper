@@ -233,8 +233,6 @@ export default function SnakeGame({ joystickMaps = [] }: { joystickMaps?: Direct
     const dpr = window.devicePixelRatio || 1;
     canvas.width  = W * dpr;
     canvas.height = H * dpr;
-    canvas.style.width  = `${W}px`;
-    canvas.style.height = `${H}px`;
     ctx.scale(dpr, dpr);
 
     function advance(now: number) {
@@ -305,15 +303,12 @@ export default function SnakeGame({ joystickMaps = [] }: { joystickMaps?: Direct
 
   return (
     <div className="flex flex-col items-center gap-2">
-      <div className="flex items-center justify-between w-full px-1">
-        <span className="text-xs text-gray-400 font-mono">
-          {!started ? "waiting" : dead ? "game over" : `score ${score}`}
-        </span>
+      <div className="flex items-center justify-end w-full px-1">
         <span className="text-xs text-gray-500 font-mono">↑↓←→ · WASD · joystick</span>
       </div>
       <canvas
         ref={canvasRef}
-        style={{ imageRendering: "pixelated", maxWidth: "100%" }}
+        style={{ imageRendering: "pixelated", width: "100%", height: "auto" }}
         className="rounded-xl border border-gray-800 cursor-pointer"
         onClick={() => { if (!stateRef.current.running || stateRef.current.dead) handleDir("R"); }}
       />
