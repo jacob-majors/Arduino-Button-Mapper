@@ -27,6 +27,7 @@ import {
   getAdminSettings,
   updateAdminSettings,
   loadAllUsers,
+  deleteUser,
   isAdmin,
   ADMIN_USERNAME,
 } from "@/lib/supabase";
@@ -1715,6 +1716,10 @@ export default function Home() {
   const [wsLog, setWsLog] = useState<string[]>([]);
   const [wsUploading, setWsUploading] = useState(false);
   const [selectedInputId, setSelectedInputId] = useState<string | null>(null);
+  const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
+  const [deleteConfirmUserId, setDeleteConfirmUserId] = useState<string | null>(null);
+  const [userSaveCounts, setUserSaveCounts] = useState<Record<string, number>>({});
+  const [userSearch, setUserSearch] = useState("");
 
   const logEndRef = useRef<HTMLDivElement>(null);
   const saveMenuRef = useRef<HTMLDivElement>(null);
@@ -2222,7 +2227,18 @@ export default function Home() {
                 tab === "info" ? "bg-gray-700 text-gray-100" : "text-gray-500 hover:text-gray-300"].join(" ")}
             ><Info size={12} /> Info</button>
             {appUser && isAdmin(appUser.username) && (
-              <button onClick={() => { setTab("admin"); loadAllUsers().then(setAllUsers); }}
+              <button onClick={() => {
+                setTab("admin");
+                loadAllUsers().then(async (users) => {
+                  setAllUsers(users);
+                  const counts: Record<string, number> = {};
+                  await Promise.all(users.map(async (u) => {
+                    const s = await loadAllSaves(u.id);
+                    counts[u.id] = s.length;
+                  }));
+                  setUserSaveCounts(counts);
+                });
+              }}
                 className={["flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
                   tab === "admin" ? "bg-amber-700/60 text-amber-200" : "text-amber-600 hover:text-amber-400"].join(" ")}
               ><Settings size={12} /> Admin</button>
@@ -2569,218 +2585,289 @@ export default function Home() {
         <div className="flex-1 overflow-y-auto">
           <div className="max-w-3xl mx-auto px-4 sm:px-6 py-5 flex flex-col gap-5">
 
-            <div className="flex items-center gap-2">
-              <Settings size={16} className="text-amber-400" />
-              <h2 className="text-sm font-semibold text-gray-200">Admin Panel</h2>
-              <span className="text-xs text-gray-600">jacob.majors</span>
+            {/* Header */}
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
+                <Settings size={15} className="text-amber-400" />
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-gray-100">Admin Panel</h2>
+                <p className="text-[11px] text-gray-600">{appUser.username} · Full access</p>
+              </div>
+              <div className="ml-auto flex items-center gap-3">
+                <div className="text-right">
+                  <p className="text-[10px] text-gray-600 uppercase tracking-wider">Users</p>
+                  <p className="text-lg font-black text-white leading-none">{allUsers.length}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[10px] text-gray-600 uppercase tracking-wider">Total Saves</p>
+                  <p className="text-lg font-black text-white leading-none">{Object.values(userSaveCounts).reduce((a, b) => a + b, 0)}</p>
+                </div>
+              </div>
             </div>
 
-            {/* Global section toggles */}
+            {/* Feature Toggles */}
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Global Section Visibility</h3>
-              <p className="text-xs text-gray-600 mb-4">These toggles affect ALL users in real-time.</p>
+              <div className="flex items-center gap-2 mb-1">
+                <Power size={13} className="text-blue-400" />
+                <h3 className="text-xs font-semibold text-gray-200">Feature Toggles</h3>
+                <span className="ml-auto text-[10px] text-green-500 bg-green-500/10 border border-green-500/20 px-2 py-0.5 rounded-full">Live · Affects all users</span>
+              </div>
+              <p className="text-[11px] text-gray-600 mb-4">Changes take effect instantly for every logged-in user.</p>
+              <div className="flex flex-col divide-y divide-gray-800/60">
+                {([
+                  { key: "show_upload" as const, label: "Compile & Upload", desc: "Show the Compile & Upload to Arduino button and upload log", icon: <Upload size={13} className="text-green-400" /> },
+                  { key: "show_buttons" as const, label: "Configure Inputs", desc: "Show the main input configuration panel", icon: <Keyboard size={13} className="text-blue-400" /> },
+                  { key: "show_sensors" as const, label: "Sensors & Joysticks", desc: "Show IR sensor, sip & puff, and joystick input types", icon: <Radio size={13} className="text-emerald-400" /> },
+                  { key: "show_leds" as const, label: "LED Indicators", desc: "Show the LED configuration section", icon: <Lightbulb size={13} className="text-yellow-400" /> },
+                  { key: "show_ports" as const, label: "Back Panel Ports", desc: "Show the 3.5mm port input section", icon: <Usb size={13} className="text-sky-400" /> },
+                ] as { key: keyof AdminSettings; label: string; desc: string; icon: React.ReactNode }[]).map(({ key, label, desc, icon }) => (
+                  <div key={key} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 rounded-lg bg-gray-800 flex items-center justify-center flex-shrink-0">{icon}</div>
+                      <div>
+                        <span className="text-sm text-gray-200">{label}</span>
+                        <p className="text-[11px] text-gray-600">{desc}</p>
+                      </div>
+                    </div>
+                    <div
+                      onClick={async () => {
+                        const next = !adminSettings[key];
+                        setAdminSettings((s) => { const n = { ...s, [key]: next }; localStorage.setItem("adminSettings", JSON.stringify(n)); return n; });
+                        await updateAdminSettings({ [key]: next });
+                      }}
+                      className={["relative w-10 h-6 rounded-full transition-colors cursor-pointer flex-shrink-0 ml-4",
+                        adminSettings[key] ? "bg-blue-600" : "bg-gray-700"].join(" ")}
+                    >
+                      <div className={["absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform",
+                        adminSettings[key] ? "translate-x-5" : "translate-x-1"].join(" ")} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* App Config */}
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Terminal size={13} className="text-purple-400" />
+                <h3 className="text-xs font-semibold text-gray-200">App Configuration</h3>
+              </div>
               <div className="flex flex-col gap-3">
-                {/* show_leds toggle */}
-                <div className="flex items-center justify-between">
+                <div className="flex items-start gap-3 p-3 bg-gray-800/50 rounded-xl border border-gray-700/50">
                   <div>
-                    <span className="text-sm text-gray-200">LED Indicators section</span>
-                    <p className="text-xs text-gray-600">Show/hide the LED section for all users</p>
-                  </div>
-                  <div
-                    onClick={async () => {
-                      const next = !adminSettings.show_leds;
-                      setAdminSettings((s) => { const n = { ...s, show_leds: next }; localStorage.setItem("adminSettings", JSON.stringify(n)); return n; });
-                      await updateAdminSettings({ show_leds: next });
-                    }}
-                    className={["relative w-10 h-6 rounded-full transition-colors cursor-pointer flex-shrink-0",
-                      adminSettings.show_leds ? "bg-blue-600" : "bg-gray-700"].join(" ")}
-                  >
-                    <div className={["absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform",
-                      adminSettings.show_leds ? "translate-x-5" : "translate-x-1"].join(" ")} />
+                    <p className="text-xs font-medium text-gray-300 mb-0.5">Backend URL</p>
+                    <p className="text-[11px] text-gray-600 mb-1.5">Compile server (Railway). Set via NEXT_PUBLIC_BACKEND_URL in Vercel.</p>
+                    <code className="text-[11px] text-green-400 font-mono bg-gray-950 px-2 py-1 rounded-lg border border-gray-700 break-all">{BACKEND_URL}</code>
                   </div>
                 </div>
-                {/* show_ports toggle */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-sm text-gray-200">Back Panel Ports section</span>
-                    <p className="text-xs text-gray-600">Show/hide the 3.5mm ports section for all users</p>
-                  </div>
-                  <div
-                    onClick={async () => {
-                      const next = !adminSettings.show_ports;
-                      setAdminSettings((s) => { const n = { ...s, show_ports: next }; localStorage.setItem("adminSettings", JSON.stringify(n)); return n; });
-                      await updateAdminSettings({ show_ports: next });
-                    }}
-                    className={["relative w-10 h-6 rounded-full transition-colors cursor-pointer flex-shrink-0",
-                      adminSettings.show_ports ? "bg-blue-600" : "bg-gray-700"].join(" ")}
-                  >
-                    <div className={["absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform",
-                      adminSettings.show_ports ? "translate-x-5" : "translate-x-1"].join(" ")} />
+                <div className="flex items-start gap-3 p-3 bg-gray-800/50 rounded-xl border border-gray-700/50">
+                  <div className="w-full">
+                    <p className="text-xs font-medium text-gray-300 mb-0.5">Arduino Board Target</p>
+                    <p className="text-[11px] text-gray-600 mb-1.5">FQBN used when compiling sketches.</p>
+                    <code className="text-[11px] text-blue-400 font-mono bg-gray-950 px-2 py-1 rounded-lg border border-gray-700">arduino:avr:leonardo</code>
                   </div>
                 </div>
-                {/* show_upload toggle */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-sm text-gray-200">Upload to Arduino section</span>
-                    <p className="text-xs text-gray-600">Show/hide the port select and upload controls</p>
-                  </div>
-                  <div
-                    onClick={async () => {
-                      const next = !adminSettings.show_upload;
-                      setAdminSettings((s) => { const n = { ...s, show_upload: next }; localStorage.setItem("adminSettings", JSON.stringify(n)); return n; });
-                      await updateAdminSettings({ show_upload: next });
-                    }}
-                    className={["relative w-10 h-6 rounded-full transition-colors cursor-pointer flex-shrink-0",
-                      adminSettings.show_upload ? "bg-blue-600" : "bg-gray-700"].join(" ")}
-                  >
-                    <div className={["absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform",
-                      adminSettings.show_upload ? "translate-x-5" : "translate-x-1"].join(" ")} />
-                  </div>
-                </div>
-                {/* show_sensors toggle */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-sm text-gray-200">Sensors section</span>
-                    <p className="text-xs text-gray-600">Show/hide IR sensors and joystick configuration</p>
-                  </div>
-                  <div
-                    onClick={async () => {
-                      const next = !adminSettings.show_sensors;
-                      setAdminSettings((s) => { const n = { ...s, show_sensors: next }; localStorage.setItem("adminSettings", JSON.stringify(n)); return n; });
-                      await updateAdminSettings({ show_sensors: next });
-                    }}
-                    className={["relative w-10 h-6 rounded-full transition-colors cursor-pointer flex-shrink-0",
-                      adminSettings.show_sensors ? "bg-blue-600" : "bg-gray-700"].join(" ")}
-                  >
-                    <div className={["absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform",
-                      adminSettings.show_sensors ? "translate-x-5" : "translate-x-1"].join(" ")} />
-                  </div>
-                </div>
-                {/* show_buttons toggle */}
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-sm text-gray-200">Configure Buttons section</span>
-                    <p className="text-xs text-gray-600">Show/hide the main button configuration panel</p>
-                  </div>
-                  <div
-                    onClick={async () => {
-                      const next = !adminSettings.show_buttons;
-                      setAdminSettings((s) => { const n = { ...s, show_buttons: next }; localStorage.setItem("adminSettings", JSON.stringify(n)); return n; });
-                      await updateAdminSettings({ show_buttons: next });
-                    }}
-                    className={["relative w-10 h-6 rounded-full transition-colors cursor-pointer flex-shrink-0",
-                      adminSettings.show_buttons ? "bg-blue-600" : "bg-gray-700"].join(" ")}
-                  >
-                    <div className={["absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform",
-                      adminSettings.show_buttons ? "translate-x-5" : "translate-x-1"].join(" ")} />
+                <div className="flex items-start gap-3 p-3 bg-gray-800/50 rounded-xl border border-gray-700/50">
+                  <div className="w-full">
+                    <p className="text-xs font-medium text-gray-300 mb-0.5">Admin Usernames</p>
+                    <p className="text-[11px] text-gray-600 mb-1.5">Usernames with admin access. Edit in supabase.ts.</p>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {["jacob.majors", "ramsey.musallam"].map((u) => (
+                        <span key={u} className="text-[11px] font-mono text-amber-400 bg-amber-900/20 border border-amber-800/40 px-2 py-0.5 rounded-full">{u}</span>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* User list + shadow view */}
+            {/* User Management */}
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">
-                Users ({allUsers.length})
-              </h3>
+              <div className="flex items-center gap-2 mb-4">
+                <Gamepad2 size={13} className="text-violet-400" />
+                <h3 className="text-xs font-semibold text-gray-200">User Management</h3>
+                <span className="text-xs text-gray-600 ml-auto">{allUsers.length} registered</span>
+              </div>
+
+              {/* Search */}
+              <div className="relative mb-3">
+                <input
+                  type="text"
+                  placeholder="Search users…"
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:border-gray-500"
+                />
+              </div>
+
               {allUsers.length === 0 ? (
                 <p className="text-xs text-gray-600">No users yet.</p>
               ) : (
-                <div className="flex flex-col gap-1 mb-4">
-                  {allUsers.map((u) => (
-                    <button
-                      key={u.id}
-                      onClick={async () => {
-                        if (shadowUser?.id === u.id) { setShadowUser(null); setShadowSaves([]); return; }
-                        setShadowUser(u);
-                        const saves = await loadAllSaves(u.id);
-                        setShadowSaves(saves);
-                        setShadowSaveIndex(0);
-                      }}
-                      className={[
-                        "flex items-center gap-3 px-3 py-2 rounded-xl text-left transition-all",
-                        shadowUser?.id === u.id
-                          ? "bg-amber-600/20 border border-amber-600/40 text-amber-300"
-                          : "hover:bg-gray-800 text-gray-300",
-                      ].join(" ")}
-                    >
-                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
-                        <span className="text-white text-[9px] font-bold">{u.username[0].toUpperCase()}</span>
-                      </div>
-                      <span className="text-xs font-medium">{u.username}</span>
-                      {u.username === ADMIN_USERNAME && (
-                        <span className="text-[10px] text-amber-500 font-semibold ml-auto">ADMIN</span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* Shadow view */}
-              {shadowUser && shadowSaves.length > 0 && (
-                <div className="border-t border-gray-800 pt-4">
-                  <div className="flex items-center gap-2 mb-3">
-                    <span className="text-xs font-semibold text-amber-400">Viewing: {shadowUser.username}</span>
-                    {shadowSaves.length > 1 && (
-                      <select
-                        value={shadowSaveIndex}
-                        onChange={(e) => setShadowSaveIndex(parseInt(e.target.value))}
-                        className="ml-auto appearance-none bg-gray-800 border border-gray-700 rounded-lg px-2 py-1 text-xs text-gray-300 focus:outline-none"
+                <div className="flex flex-col gap-1">
+                  {allUsers.filter((u) => !userSearch || u.username.toLowerCase().includes(userSearch.toLowerCase())).map((u) => (
+                    <div key={u.id} className="rounded-xl border border-transparent overflow-hidden">
+                      {/* User row */}
+                      <button
+                        onClick={async () => {
+                          if (expandedUserId === u.id) {
+                            setExpandedUserId(null);
+                            setShadowUser(null);
+                            setShadowSaves([]);
+                          } else {
+                            setExpandedUserId(u.id);
+                            setShadowUser(u);
+                            const saves = await loadAllSaves(u.id);
+                            setShadowSaves(saves);
+                            setShadowSaveIndex(0);
+                            setUserSaveCounts((prev) => ({ ...prev, [u.id]: saves.length }));
+                          }
+                        }}
+                        className={[
+                          "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all",
+                          expandedUserId === u.id
+                            ? "bg-violet-600/15 border border-violet-600/30"
+                            : "hover:bg-gray-800/80 border border-transparent",
+                        ].join(" ")}
                       >
-                        {shadowSaves.map((s, i) => (
-                          <option key={s.id} value={i}>{s.name}</option>
-                        ))}
-                      </select>
-                    )}
-                  </div>
-                  {(() => {
-                    const save = shadowSaves[shadowSaveIndex];
-                    if (!save) return null;
-                    const cfg = save.config;
-                    const btns = (cfg.buttons ?? []) as ButtonConfig[];
-                    const ports = (cfg.portInputs ?? []) as PortConfig[];
-                    return (
-                      <div className="space-y-3">
-                        <div className="bg-gray-950 rounded-xl p-3">
-                          <p className="text-[10px] text-gray-500 uppercase font-semibold tracking-wide mb-2">Buttons ({btns.length})</p>
-                          {btns.length === 0 ? <p className="text-xs text-gray-700">None</p> : (
-                            <div className="flex flex-col gap-1">
-                              {btns.map((b) => (
-                                <div key={b.id} className="flex items-center gap-2 text-xs">
-                                  <span className="font-mono text-blue-400 w-8">D{b.pin}</span>
-                                  <span className="text-gray-300">{b.name || "(unnamed)"}</span>
-                                  <span className="text-gray-600 ml-auto">[{b.keyDisplay || b.arduinoKey || "—"}]</span>
-                                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${b.mode === "power" ? "bg-amber-900/40 text-amber-400" : "bg-gray-800 text-gray-500"}`}>{b.mode}</span>
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                          <span className="text-white text-xs font-bold">{u.username[0].toUpperCase()}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-200 font-medium truncate">{u.username}</span>
+                            {isAdmin(u.username) && (
+                              <span className="text-[9px] text-amber-400 bg-amber-900/30 border border-amber-800/40 px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wider">admin</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 mt-0.5">
+                            <span className="text-[11px] text-gray-600">{userSaveCounts[u.id] ?? "…"} saves</span>
+                            {u.created_at && (
+                              <span className="text-[11px] text-gray-700">Joined {new Date(u.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>
+                            )}
+                          </div>
+                        </div>
+                        <ChevronDown size={13} className={["text-gray-600 transition-transform flex-shrink-0", expandedUserId === u.id ? "rotate-180" : ""].join(" ")} />
+                      </button>
+
+                      {/* Expanded user detail */}
+                      {expandedUserId === u.id && (
+                        <div className="px-3 pb-3 pt-1 border-t border-gray-800/60 mx-1">
+                          {/* Delete button */}
+                          {!isAdmin(u.username) && (
+                            <div className="mb-3">
+                              {deleteConfirmUserId === u.id ? (
+                                <div className="flex items-center gap-2 p-2.5 bg-red-950/30 border border-red-800/40 rounded-xl">
+                                  <XCircle size={13} className="text-red-400 flex-shrink-0" />
+                                  <span className="text-xs text-red-300 flex-1">Delete {u.username} and all their saves?</span>
+                                  <button
+                                    onClick={async () => {
+                                      await deleteUser(u.id);
+                                      setAllUsers((prev) => prev.filter((x) => x.id !== u.id));
+                                      setUserSaveCounts((prev) => { const n = { ...prev }; delete n[u.id]; return n; });
+                                      setDeleteConfirmUserId(null);
+                                      setExpandedUserId(null);
+                                    }}
+                                    className="text-[11px] font-semibold text-red-400 bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 px-2.5 py-1 rounded-lg transition-colors"
+                                  >Yes, delete</button>
+                                  <button
+                                    onClick={() => setDeleteConfirmUserId(null)}
+                                    className="text-[11px] text-gray-500 hover:text-gray-300 px-2 py-1 transition-colors"
+                                  >Cancel</button>
                                 </div>
-                              ))}
+                              ) : (
+                                <button
+                                  onClick={() => setDeleteConfirmUserId(u.id)}
+                                  className="flex items-center gap-1.5 text-[11px] text-red-500 hover:text-red-400 transition-colors"
+                                >
+                                  <Trash2 size={11} /> Delete user &amp; all saves
+                                </button>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Saves list */}
+                          {shadowSaves.length === 0 ? (
+                            <p className="text-xs text-gray-700 py-1">No saves yet.</p>
+                          ) : (
+                            <div className="space-y-2">
+                              <p className="text-[10px] text-gray-600 uppercase tracking-wider font-semibold mb-2">Saved configs</p>
+                              {shadowSaves.length > 1 && (
+                                <select
+                                  value={shadowSaveIndex}
+                                  onChange={(e) => setShadowSaveIndex(parseInt(e.target.value))}
+                                  className="w-full appearance-none bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-gray-300 focus:outline-none mb-2"
+                                >
+                                  {shadowSaves.map((s, i) => (
+                                    <option key={s.id} value={i}>{s.name} · {new Date(s.updated_at).toLocaleDateString()}</option>
+                                  ))}
+                                </select>
+                              )}
+                              {(() => {
+                                const save = shadowSaves[shadowSaveIndex];
+                                if (!save) return null;
+                                const cfg = save.config;
+                                const btns = (cfg.buttons ?? []) as ButtonConfig[];
+                                const ports = (cfg.portInputs ?? []) as PortConfig[];
+                                const irs = (cfg.irSensors ?? []) as IRSensorConfig[];
+                                const sps = (cfg.sipPuffs ?? []) as SipPuffConfig[];
+                                const joys = (cfg.joysticks ?? []) as JoystickConfig[];
+                                return (
+                                  <div className="bg-gray-950 rounded-xl p-3 space-y-3">
+                                    <div className="flex items-center gap-3 text-[11px] text-gray-500 flex-wrap">
+                                      <span className="text-blue-400 font-semibold">{btns.length} buttons</span>
+                                      {ports.length > 0 && <span className="text-sky-400 font-semibold">{ports.length} ports</span>}
+                                      {irs.length > 0 && <span className="text-emerald-400 font-semibold">{irs.length} IR</span>}
+                                      {sps.length > 0 && <span className="text-cyan-400 font-semibold">{sps.length} sip&amp;puff</span>}
+                                      {joys.length > 0 && <span className="text-violet-400 font-semibold">{joys.length} joystick</span>}
+                                      <span className="ml-auto text-gray-700">Updated {new Date(save.updated_at).toLocaleDateString()}</span>
+                                    </div>
+                                    {btns.length > 0 && (
+                                      <div className="flex flex-col gap-1">
+                                        {btns.map((b) => (
+                                          <div key={b.id} className="flex items-center gap-2 text-xs">
+                                            <span className="font-mono text-blue-400 w-8 flex-shrink-0">D{b.pin}</span>
+                                            <span className="text-gray-400 truncate flex-1">{b.name || "(unnamed)"}</span>
+                                            <span className="text-gray-600 font-mono text-[11px]">{b.keyDisplay || b.arduinoKey || "—"}</span>
+                                            <span className={`text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 ${b.mode === "power" ? "bg-amber-900/40 text-amber-400" : "bg-gray-800 text-gray-500"}`}>{b.mode}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {irs.map((ir) => (
+                                      <div key={ir.id} className="flex items-center gap-2 text-xs">
+                                        <span className="font-mono text-emerald-400 w-8 flex-shrink-0">D{ir.pin}</span>
+                                        <span className="text-gray-400 truncate flex-1">{ir.name || "IR Sensor"}</span>
+                                        <span className="text-gray-600 font-mono text-[11px]">{ir.keyDisplay || "—"}</span>
+                                      </div>
+                                    ))}
+                                    {sps.map((sp) => (
+                                      <div key={sp.id} className="flex items-center gap-2 text-xs">
+                                        <span className="font-mono text-cyan-400 w-8 flex-shrink-0">D{sp.pin}</span>
+                                        <span className="text-gray-400 truncate flex-1">Sip &amp; Puff</span>
+                                        <span className="text-gray-600 font-mono text-[11px]">{sp.keyDisplay || "—"}</span>
+                                      </div>
+                                    ))}
+                                    {joys.map((j) => (
+                                      <div key={j.id} className="flex items-center gap-2 text-xs">
+                                        <span className="font-mono text-violet-400 w-8 flex-shrink-0">A{j.xPin}</span>
+                                        <span className="text-gray-400 truncate flex-1">Joystick</span>
+                                        <span className="text-gray-600 text-[11px]">↑{j.upKey} ↓{j.downKey} ←{j.leftKey} →{j.rightKey}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                );
+                              })()}
                             </div>
                           )}
                         </div>
-                        {ports.length > 0 && (
-                          <div className="bg-gray-950 rounded-xl p-3">
-                            <p className="text-[10px] text-gray-500 uppercase font-semibold tracking-wide mb-2">Port Inputs ({ports.length})</p>
-                            <div className="flex flex-col gap-1">
-                              {ports.map((p) => (
-                                <div key={p.id} className="flex items-center gap-2 text-xs">
-                                  <span className="font-mono text-sky-400 w-8">D{p.pin}</span>
-                                  <span className="text-gray-300">{p.name || "(unnamed)"}</span>
-                                  <span className="text-gray-600 ml-auto">[{p.keyDisplay || p.arduinoKey || "—"}]</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
-              {shadowUser && shadowSaves.length === 0 && (
-                <div className="border-t border-gray-800 pt-4">
-                  <p className="text-xs text-gray-600">No saves for {shadowUser.username} yet.</p>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
+
           </div>
         </div>
       )}
@@ -2833,40 +2920,32 @@ export default function Home() {
                 <h3 className="text-sm font-semibold text-gray-200">How to Use This App</h3>
               </div>
 
-              {/* Just use the website */}
+              {/* Nothing to install */}
               <div className="mb-4 px-3 py-2.5 bg-green-950/30 border border-green-800/40 rounded-xl">
-                <p className="text-xs text-green-300 font-medium mb-0.5">Just open the website — no setup needed</p>
+                <p className="text-xs text-green-300 font-medium mb-0.5">Nothing to install — works entirely in your browser</p>
                 <p className="text-xs text-gray-500 leading-relaxed">
-                  Configure your inputs, assign keys, preview the sketch, and save your setup. All of this works in the browser with no installation required.
+                  Configure inputs, assign keys, generate sketches, and flash your Arduino — all from Chrome or Edge with no software to download.
                 </p>
               </div>
 
-              {/* Uploading to Arduino needs the backend */}
-              <p className="text-xs text-gray-600 mb-4 leading-relaxed">
-                To actually <span className="text-gray-400">flash the sketch onto your Arduino</span>, you need the local backend running on your computer. Browsers can&apos;t access USB directly, so a small local server handles the compile and upload.
-              </p>
-
-              <p className="text-[11px] text-gray-600 uppercase tracking-wider font-semibold mb-3">One-time setup for uploading</p>
               <ol className="space-y-4">
                 {([
                   {
-                    n: 1, title: "Install arduino-cli",
-                    body: "Download from arduino.cc/en/software and add it to your PATH. Then install the Leonardo core:",
-                    code: "arduino-cli core install arduino:avr",
+                    n: 1, title: "Configure your inputs",
+                    body: "Add micro switches, toggle switches, joysticks, IR sensors, or sip & puff sensors. Assign a pin and key binding to each. All configuration happens live in the browser.",
                   },
                   {
-                    n: 2, title: "Run the local backend",
-                    body: "Open a terminal in the project folder and start the server:",
-                    code: "cd backend && node server.js",
-                    note: "Keep this running whenever you want to upload. It listens on port 3001.",
+                    n: 2, title: "Plug in your Arduino Leonardo",
+                    body: "Use a USB data cable — not a charge-only cable. Chrome will prompt you to select the serial port when you click Compile & Upload.",
                   },
                   {
-                    n: 3, title: "Plug in your Arduino Leonardo",
-                    body: "Use a USB data cable — not a charge-only cable. The port appears in the dropdown at the top of the Configure tab. Hit refresh if it doesn't show up.",
+                    n: 3, title: "Click Compile & Upload",
+                    body: "The sketch is sent to a cloud compile server (Railway + arduino-cli), which returns a compiled .hex file. The browser then flashes it directly to your board over Web Serial — no Arduino IDE or local tools needed.",
+                    note: "Requires Chrome or Edge. Firefox and Safari do not support Web Serial.",
                   },
                   {
-                    n: 4, title: "Click Upload",
-                    body: "The app generates the Arduino sketch, compiles it with arduino-cli, and flashes it to the board over USB. Watch the log for errors. Once done, press your inputs to confirm the right keys are sent.",
+                    n: 4, title: "Test your controller",
+                    body: "Switch to the Test tab to confirm key presses are working correctly. Play Dino, Snake, or Pong with your newly mapped inputs.",
                   },
                 ] as { n: number; title: string; body: string; code?: string; note?: string }[]).map(({ n, title, body, code, note }) => (
                   <li key={n} className="flex gap-3">
@@ -2907,7 +2986,7 @@ export default function Home() {
                     { label: "Power button", color: "text-amber-400", desc: "One button can be set as a power toggle. It flips a systemActive flag — when off, all other inputs stop sending keys and Keyboard.releaseAll() is called immediately." },
                     { label: "LED indicators", color: "text-yellow-400", desc: "Two digital output pins — one goes HIGH when the system is active, the other when off. Wire each through a 220Ω resistor to an LED." },
                     { label: "IR sensors", color: "text-emerald-400", desc: "Digital inputs with configurable active polarity (HIGH=on or LOW=on). Most IR proximity modules pull output LOW when triggered, so LOW=on is the default." },
-                    { label: "Sip & puff", color: "text-cyan-400", desc: "An analog pressure sensor on A0–A5. analogRead() returns 0–1023. Values below the sip threshold press one key; values above the puff threshold press another; in between releases both." },
+                    { label: "Sip & puff", color: "text-cyan-400", desc: "A digital input on any Arduino pin using INPUT_PULLUP. Pressing triggers the assigned key, releasing it sends key up. Simple on/off activation — no analog thresholds needed." },
                     { label: "Joystick", color: "text-violet-400", desc: "Two analog axes read via analogRead(). Center is 512 — if deviation from center exceeds the deadzone, the matching direction key is pressed. Optional click button uses a digital pin with INPUT_PULLUP." },
                   ].map(({ label, color, desc }) => (
                     <div key={label} className="flex gap-2.5">
@@ -2930,8 +3009,8 @@ export default function Home() {
                   { name: "Next.js 14", tag: "Frontend", color: "text-blue-400", desc: "App Router, React, TypeScript" },
                   { name: "Tailwind CSS", tag: "Styling", color: "text-cyan-400", desc: "Utility-first, dark theme" },
                   { name: "Supabase", tag: "Auth + DB", color: "text-emerald-400", desc: "Google login + save slots" },
-                  { name: "Express.js", tag: "Backend", color: "text-green-400", desc: "Local server on port 3001" },
-                  { name: "arduino-cli", tag: "Compiler", color: "text-yellow-400", desc: "Compile + upload over USB" },
+                  { name: "Express.js", tag: "Backend", color: "text-green-400", desc: "Cloud compile server on Railway" },
+                  { name: "arduino-cli", tag: "Compiler", color: "text-yellow-400", desc: "Compile sketches to .hex in cloud" },
                   { name: "Canvas API", tag: "Games", color: "text-purple-400", desc: "Dino + Snake, no sprites" },
                   { name: "SSE stream", tag: "Upload log", color: "text-orange-400", desc: "Real-time compile output" },
                   { name: "Claude AI", tag: "Coded with", color: "text-indigo-400", desc: "AI-assisted development" },

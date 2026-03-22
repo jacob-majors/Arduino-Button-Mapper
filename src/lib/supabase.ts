@@ -9,7 +9,7 @@ export const ADMIN_USERNAME = "jacob.majors";
 const ADMIN_USERNAMES = ["jacob.majors", "ramsey.musallam"];
 export const isAdmin = (username: string) => ADMIN_USERNAMES.includes(username);
 
-export type AppUser = { id: string; username: string };
+export type AppUser = { id: string; username: string; created_at?: string };
 
 export type UserConfig = {
   buttons: unknown[];
@@ -135,7 +135,12 @@ export async function updateAdminSettings(settings: Partial<AdminSettings>): Pro
 export async function loadAllUsers(): Promise<AppUser[]> {
   const { data } = await supabase
     .from("app_users")
-    .select("id, username")
-    .order("username");
+    .select("id, username, created_at")
+    .order("created_at", { ascending: false });
   return (data as AppUser[]) ?? [];
+}
+
+export async function deleteUser(userId: string): Promise<void> {
+  await supabase.from("user_configs").delete().eq("user_id", userId);
+  await supabase.from("app_users").delete().eq("id", userId);
 }
