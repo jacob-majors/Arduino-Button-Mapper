@@ -81,8 +81,10 @@ export async function compileAndUpload(
     );
   }
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Unknown error" }));
-    throw new Error(`Compilation failed: ${err.error}\n${err.log ?? ""}`);
+    const text = await res.text().catch(() => "");
+    let errMsg = "Unknown error";
+    try { const j = JSON.parse(text); errMsg = j.error ?? errMsg; } catch { errMsg = text.slice(0, 200) || `HTTP ${res.status}`; }
+    throw new Error(`Compilation failed (HTTP ${res.status}): ${errMsg}`);
   }
   const { hex } = await res.json();
   onProgress("Compilation successful!");
