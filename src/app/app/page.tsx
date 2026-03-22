@@ -126,7 +126,7 @@ function ButtonCard({ button, index, usedPins, onUpdate, onRemove, typeLabel }: 
         ><Trash2 size={12} /></button>
       </div>
 
-      {/* Pin + Mode */}
+      {/* Pin */}
       <div className="flex gap-2 items-center">
         <label className="text-[10px] text-gray-500 uppercase tracking-wider w-6 flex-shrink-0">Pin</label>
         <div className="relative" style={{ width: 68 }}>
@@ -137,21 +137,6 @@ function ButtonCard({ button, index, usedPins, onUpdate, onRemove, typeLabel }: 
             {availablePins.map((pin) => <option key={pin} value={pin}>D{pin}</option>)}
           </select>
           <ChevronDown size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
-        </div>
-        <div className="flex rounded-lg overflow-hidden border border-gray-700 flex-1">
-          {(["momentary", "toggle"] as ButtonMode[]).map((m) => (
-            <button key={m}
-              onClick={() => onUpdate(button.id, { mode: m })}
-              className={[
-                "flex-1 py-1.5 text-[10px] font-medium transition-colors",
-                button.mode === m
-                  ? isPort ? "bg-sky-700 text-white" : "bg-blue-600 text-white"
-                  : "bg-gray-900 text-gray-500 hover:text-gray-300",
-              ].join(" ")}
-            >
-              {m === "momentary" ? "Hold" : "Toggle"}
-            </button>
-          ))}
         </div>
       </div>
 
