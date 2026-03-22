@@ -67,13 +67,9 @@ export interface IRSensorConfig {
 export interface SipPuffConfig {
   id: string;
   name: string;
-  analogPin: number;     // 0–5 → A0–A5
-  sipKey: string;
-  sipDisplay: string;
-  puffKey: string;
-  puffDisplay: string;
-  sipThreshold: number;  // analog value below which = sip  (default 300)
-  puffThreshold: number; // analog value above which = puff (default 700)
+  pin: number;           // digital pin (2–13)
+  key: string;
+  keyDisplay: string;
 }
 
 /** Analog joystick (X/Y axes) with optional digital click button */
@@ -233,35 +229,28 @@ bool irToggleState[${m}] = {${irSensors.map(() => "false").join(", ")}};
 
   let spGlobals = "";
   let spLoop    = "";
+  let spSetup   = "";
 
   if (sipPuffs.length > 0) {
     const spCmt = sipPuffs
-      .map((s, i) => `// Sip&Puff ${i + 1}${s.name ? `: ${s.name}` : ""} — A${s.analogPin}`)
+      .map((s, i) => `// Sip&Puff ${i + 1}${s.name ? `: ${s.name}` : ""} — D${s.pin}`)
       .join("\n");
 
     spGlobals = `\n${spCmt}\n`;
     sipPuffs.forEach((s, i) => {
-      spGlobals += `const int SP${i}_PIN = A${s.analogPin};\n`;
-      spGlobals += `const int SP${i}_SIP_KEY = ${keyLiteral(s.sipKey)};\n`;
-      spGlobals += `const int SP${i}_PUFF_KEY = ${keyLiteral(s.puffKey)};\n`;
-      spGlobals += `const int SP${i}_SIP_THR = ${s.sipThreshold};\n`;
-      spGlobals += `const int SP${i}_PUFF_THR = ${s.puffThreshold};\n`;
-      spGlobals += `bool sp${i}Sip = false, sp${i}Puff = false;\n`;
+      spGlobals += `const int SP${i}_PIN = ${s.pin};\n`;
+      spGlobals += `const int SP${i}_KEY = ${keyLiteral(s.key)};\n`;
+      spGlobals += `bool sp${i}Pressed = false;\n`;
     });
+
+    spSetup = sipPuffs.map((s, i) => `  pinMode(SP${i}_PIN, INPUT_PULLUP);`).join("\n");
 
     spLoop = `  // ── Sip & puff\n  if (systemActive) {\n`;
     sipPuffs.forEach((s, i) => {
-      spLoop += `    { int v = analogRead(SP${i}_PIN);
-      if (v < SP${i}_SIP_THR) {
-        if (!sp${i}Sip  && SP${i}_SIP_KEY  != 0) { Keyboard.press(SP${i}_SIP_KEY);  sp${i}Sip  = true; }
-        if ( sp${i}Puff && SP${i}_PUFF_KEY != 0) { Keyboard.release(SP${i}_PUFF_KEY); sp${i}Puff = false; }
-      } else if (v > SP${i}_PUFF_THR) {
-        if (!sp${i}Puff && SP${i}_PUFF_KEY != 0) { Keyboard.press(SP${i}_PUFF_KEY); sp${i}Puff = true; }
-        if ( sp${i}Sip  && SP${i}_SIP_KEY  != 0) { Keyboard.release(SP${i}_SIP_KEY);  sp${i}Sip  = false; }
-      } else {
-        if (sp${i}Sip  && SP${i}_SIP_KEY  != 0) { Keyboard.release(SP${i}_SIP_KEY);  sp${i}Sip  = false; }
-        if (sp${i}Puff && SP${i}_PUFF_KEY != 0) { Keyboard.release(SP${i}_PUFF_KEY); sp${i}Puff = false; }
-      } }\n`;
+      spLoop += `    { bool pressed = (digitalRead(SP${i}_PIN) == LOW);
+      if (pressed && !sp${i}Pressed && SP${i}_KEY != 0) { Keyboard.press(SP${i}_KEY); sp${i}Pressed = true; }
+      if (!pressed && sp${i}Pressed && SP${i}_KEY != 0) { Keyboard.release(SP${i}_KEY); sp${i}Pressed = false; }
+    }\n`;
     });
     spLoop += `  }`;
   }
@@ -402,7 +391,7 @@ bool toggleState[${n}] = {${configured.map(() => "false").join(", ")}};` : "";
   }
 ${btnLedSetup}` : "";
 
-  const allSetupParts = [btnSetup, ledSetup, irSetup, joySetup].filter(Boolean);
+  const allSetupParts = [btnSetup, ledSetup, irSetup, spSetup, joySetup].filter(Boolean);
 
   return `#include <Keyboard.h>
 ${btnSection}

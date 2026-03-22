@@ -67,11 +67,19 @@ export async function compileAndUpload(
 
   // ── Step 1: Compile on backend ───────────────────────────────────────────
   onProgress("Sending code to backend for compilation…");
-  const res = await fetch(`${backendUrl}/api/compile`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sketch, fqbn: "arduino:avr:leonardo" }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${backendUrl}/api/compile`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sketch, fqbn: "arduino:avr:leonardo" }),
+    });
+  } catch {
+    throw new Error(
+      `Cannot reach the compile server at ${backendUrl}. ` +
+      "Make sure the backend is running and NEXT_PUBLIC_BACKEND_URL is set correctly."
+    );
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: "Unknown error" }));
     throw new Error(`Compilation failed: ${err.error}\n${err.log ?? ""}`);

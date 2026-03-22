@@ -561,11 +561,12 @@ function IRSensorCard({ sensor, index, usedPins, onUpdate, onRemove }: {
 
 // ─── Sip & Puff Card ──────────────────────────────────────────────────────────
 
-function SipPuffCard({ sensor, index, usedAnalogPins, onUpdate, onRemove }: {
-  sensor: SipPuffConfig; index: number; usedAnalogPins: number[];
+function SipPuffCard({ sensor, index, usedPins, onUpdate, onRemove }: {
+  sensor: SipPuffConfig; index: number; usedPins: number[];
   onUpdate: (id: string, u: Partial<SipPuffConfig>) => void;
   onRemove: (id: string) => void;
 }) {
+  const availablePins = ALL_PINS.filter((p) => p === sensor.pin || !usedPins.includes(p));
   return (
     <div className="border rounded-xl p-3 flex flex-col gap-2 transition-colors group bg-cyan-950/30 border-cyan-800/50 hover:border-cyan-700/60">
       <div className="flex items-center gap-2">
@@ -582,58 +583,28 @@ function SipPuffCard({ sensor, index, usedAnalogPins, onUpdate, onRemove }: {
         ><Trash2 size={12} /></button>
       </div>
 
-      <AnalogPinSelect label="Pin" value={sensor.analogPin}
-        onChange={(v) => onUpdate(sensor.id, { analogPin: v })}
-        excludePins={usedAnalogPins.filter((p) => p !== sensor.analogPin)}
-      />
-
-      {/* Sip key + threshold */}
-      <div className="flex flex-col gap-1.5 pl-8">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-cyan-400 font-semibold w-8">Sip</span>
-          <div className="flex-1"><KeyCaptureInput value={sensor.sipKey} display={sensor.sipDisplay}
-            onChange={(k, d) => onUpdate(sensor.id, { sipKey: k, sipDisplay: d })}
-            onClear={() => onUpdate(sensor.id, { sipKey: "", sipDisplay: "" })}
-          /></div>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-cyan-600 w-8">thr</span>
-          <input type="range" min={0} max={512} value={sensor.sipThreshold}
-            onChange={(e) => onUpdate(sensor.id, { sipThreshold: parseInt(e.target.value) })}
-            className="flex-1 accent-cyan-500 h-1"
-          />
-          <span className="text-[10px] text-gray-500 font-mono w-8 text-right">{sensor.sipThreshold}</span>
+      <div className="flex gap-2 items-center">
+        <label className="text-[10px] text-gray-500 uppercase tracking-wider w-6 flex-shrink-0">Pin</label>
+        <div className="relative" style={{ width: 68 }}>
+          <select value={sensor.pin}
+            onChange={(e) => onUpdate(sensor.id, { pin: parseInt(e.target.value) })}
+            className="w-full appearance-none bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-cyan-500 transition-colors cursor-pointer pr-5"
+          >
+            {availablePins.map((p) => <option key={p} value={p}>D{p}</option>)}
+          </select>
+          <ChevronDown size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
         </div>
       </div>
 
-      {/* Puff key + threshold */}
-      <div className="flex flex-col gap-1.5 pl-8">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-sky-400 font-semibold w-8">Puff</span>
-          <div className="flex-1"><KeyCaptureInput value={sensor.puffKey} display={sensor.puffDisplay}
-            onChange={(k, d) => onUpdate(sensor.id, { puffKey: k, puffDisplay: d })}
-            onClear={() => onUpdate(sensor.id, { puffKey: "", puffDisplay: "" })}
-          /></div>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-sky-600 w-8">thr</span>
-          <input type="range" min={512} max={1023} value={sensor.puffThreshold}
-            onChange={(e) => onUpdate(sensor.id, { puffThreshold: parseInt(e.target.value) })}
-            className="flex-1 accent-sky-500 h-1"
+      <div className="flex gap-2 items-center">
+        <label className="text-[10px] text-gray-500 uppercase tracking-wider w-6 flex-shrink-0">Key</label>
+        <div className="flex-1">
+          <KeyCaptureInput value={sensor.key} display={sensor.keyDisplay}
+            onChange={(k, d) => onUpdate(sensor.id, { key: k, keyDisplay: d })}
+            onClear={() => onUpdate(sensor.id, { key: "", keyDisplay: "" })}
           />
-          <span className="text-[10px] text-gray-500 font-mono w-8 text-right">{sensor.puffThreshold}</span>
         </div>
       </div>
-      <p className="text-[10px] text-cyan-600/70 pl-8">Sip = inhale (low pressure) · Puff = exhale (high pressure)</p>
-      <WiringPanel
-        wires={[
-          { label: "VCC", to: "5V", color: "#f87171" },
-          { label: "GND", to: "GND", color: "#9ca3af" },
-          { label: "OUT/Vout", to: `A${sensor.analogPin}`, color: "#22d3ee" },
-        ]}
-        docsUrl="https://www.arduino.cc/reference/en/language/functions/analog-io/analogread/"
-        docsLabel="Arduino analogRead() docs"
-      />
     </div>
   );
 }
@@ -797,7 +768,7 @@ function LiveWiringDiagram({ buttons, portInputs, leds, irSensors, sipPuffs, joy
     addA(j.yPin, trunc((j.name || "Joystick") + " VRy"), "#c084fc");
     if (j.buttonPin >= 0) addD(j.buttonPin, trunc((j.name || "Joystick") + " SW"), "#818cf8");
   });
-  sipPuffs.forEach((s) => addA(s.analogPin, trunc(s.name || "Sip & Puff"), "#22d3ee"));
+  sipPuffs.forEach((s) => addD(s.pin, trunc(s.name || "Sip & Puff"), "#22d3ee"));
 
   const hasAny = right.length > 0 || left.length > 0 || leds.enabled;
 
@@ -976,9 +947,7 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
   const leftConns: LeftConn[] = [];
 
   sipPuffs.forEach((s) => {
-    if (ANALOG_PINS.includes(s.analogPin)) {
-      leftConns.push({ pinY: analogPinY(s.analogPin), color: "#22d3ee", label: s.name.slice(0, 15), type: "sipPuff" });
-    }
+    rightConns.push({ pinY: digitalPinY(s.pin), color: "#22d3ee", label: s.name.slice(0, 15) || "Sip & Puff", type: "button" });
   });
 
   joysticks.forEach((j) => {
@@ -1809,11 +1778,11 @@ export default function Home() {
     ...portInputs.map((p) => p.pin),
     ...portInputs.filter((p) => p.ledPin >= 0).map((p) => p.ledPin),
     ...irSensors.map((s) => s.pin),
+    ...sipPuffs.map((s) => s.pin),
     ...joysticks.filter((j) => j.buttonPin >= 0).map((j) => j.buttonPin),
     ...(leds.enabled ? [leds.onPin, leds.offPin] : []),
   ];
   const usedAnalogPins = [
-    ...sipPuffs.map((s) => s.analogPin),
     ...joysticks.flatMap((j) => [j.xPin, j.yPin]),
   ];
 
@@ -1848,8 +1817,8 @@ export default function Home() {
 
   // Sip & puff
   const addSipPuff = () => {
-    const ap = ANALOG_PINS.find((p) => !usedAnalogPins.includes(p)) ?? 0;
-    setSipPuffs((prev) => [...prev, { id: generateId(), name: "", analogPin: ap, sipKey: "", sipDisplay: "", puffKey: "", puffDisplay: "", sipThreshold: 300, puffThreshold: 700 }]);
+    const dp = ALL_PINS.find((p) => !usedPins.includes(p)) ?? 2;
+    setSipPuffs((prev) => [...prev, { id: generateId(), name: "", pin: dp, key: "", keyDisplay: "" }]);
   };
   const updateSipPuff = (id: string, u: Partial<SipPuffConfig>) =>
     setSipPuffs((prev) => prev.map((s) => (s.id === id ? { ...s, ...u } : s)));
@@ -2367,7 +2336,7 @@ export default function Home() {
                   ))}
                   {sipPuffs.map((s, i) => (
                     <div key={s.id} className="sm:col-span-2 lg:col-span-1">
-                      <SipPuffCard sensor={s} index={i} usedAnalogPins={usedAnalogPins}
+                      <SipPuffCard sensor={s} index={i} usedPins={usedPins}
                         onUpdate={updateSipPuff} onRemove={removeSipPuff} />
                     </div>
                   ))}
@@ -2397,7 +2366,6 @@ export default function Home() {
                     <option value="sip-puff">Sip &amp; Puff</option>
                     <option value="ir-sensor">IR Sensor</option>
                     <option value="joystick">Joystick</option>
-                    <option value="port">Back Panel Port</option>
                   </select>
                   <ChevronDown size={10} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
                 </div>
