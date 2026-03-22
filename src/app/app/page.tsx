@@ -269,7 +269,7 @@ function SketchModal({ code, onClose }: { code: string; onClose: () => void }) {
           <div className="flex items-center gap-2">
             <Terminal size={14} className="text-green-400" />
             <span className="text-sm font-semibold text-gray-200">Arduino Sketch</span>
-            <span className="text-xs text-gray-500">— paste this into Arduino IDE</span>
+            <span className="text-xs text-gray-500">— copy or use Compile &amp; Upload</span>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={copy}
@@ -286,7 +286,7 @@ function SketchModal({ code, onClose }: { code: string; onClose: () => void }) {
           <pre className="text-xs font-mono text-gray-300 leading-relaxed whitespace-pre">{code}</pre>
         </div>
         <div className="px-5 py-3 border-t border-gray-800 flex items-center justify-between">
-          <p className="text-xs text-gray-500">1. Copy Code → 2. Open Arduino IDE → 3. Paste → 4. Upload</p>
+          <p className="text-xs text-gray-500">Copy and paste into Arduino IDE, or use Compile &amp; Upload to flash directly from Chrome/Edge.</p>
           <button onClick={copy}
             className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${copied ? "bg-green-600 text-white" : "bg-blue-600 hover:bg-blue-500 text-white"}`}
           >
@@ -994,7 +994,7 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
   const analogPinY = (pin: number) => BY + 291 + pin * 34;
 
   // Collect all right-side (digital) connections
-  type RightConn = { pinY: number; color: string; label: string; type: "button" | "power" | "port" | "led" | "ir" | "swclick" };
+  type RightConn = { pinY: number; color: string; label: string; type: "button" | "power" | "port" | "led" | "ir" | "swclick" | "sipPuff" };
   const rightConns: RightConn[] = [];
 
   buttons.forEach((b) => {
@@ -1050,7 +1050,7 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
   const leftConns: LeftConn[] = [];
 
   sipPuffs.forEach((s) => {
-    rightConns.push({ pinY: digitalPinY(s.pin), color: "#22d3ee", label: s.name.slice(0, 15) || "Sip & Puff", type: "button" });
+    rightConns.push({ pinY: digitalPinY(s.pin), color: "#22d3ee", label: s.name.slice(0, 15) || "Sip & Puff", type: "sipPuff" });
   });
 
   joysticks.forEach((j) => {
@@ -1471,6 +1471,7 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
                   {conn.type === "led" && <LedIcon cx={RCX} cy={cy} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
                   {conn.type === "ir" && <IrIcon cx={RCX} cy={cy} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
                   {conn.type === "swclick" && <SwClickIcon cx={RCX} cy={cy} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
+                  {conn.type === "sipPuff" && <SipPuffIcon cx={RCX} cy={cy} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
                   {/* Label */}
                   <text x={RCX + 28} y={cy + 4} fontFamily="sans-serif" fontSize="9" fill={color} textAnchor="start">
                     {conn.label}
@@ -1616,8 +1617,8 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
             },
             sipPuff: {
               title: "Sip & Puff Sensor",
-              desc: "A pressure transducer that detects breath. Sipping (inhale) and puffing (exhale) generate different analog voltage levels.",
-              wiring: "OUT → analog pin (A0–A5). Needs +5V (VCC) and GND. The sketch reads the voltage to detect sip vs puff.",
+              desc: "A pressure-activated digital switch. When the user sips or puffs, the output goes LOW, sending the assigned key. Uses INPUT_PULLUP — no external resistor needed.",
+              wiring: "OUT → digital pin. Needs +5V (VCC) and GND. The sketch uses digitalRead() — active LOW (triggered when output goes LOW).",
             },
             joystickX: {
               title: "Joystick X-Axis (VRx)",
@@ -1964,15 +1965,16 @@ export default function Home() {
     else if (addInputType === "port") addPort();
   };
 
-  const handleWebSerialUpload = async () => {
+  const handleWebSerialUpload = async (forceNewPort = false) => {
     setWsUploading(true);
     setWsLog([]);
     const log = (msg: string) => setWsLog((p) => [...p, msg]);
     try {
       const sketch = generateSketch(buttons, leds, portInputs, irSensors, sipPuffs, joysticks);
-      await compileAndUpload(BACKEND_URL, sketch, log);
+      await compileAndUpload(BACKEND_URL, sketch, log, forceNewPort);
     } catch (e) {
-      log(`Error: ${e instanceof Error ? e.message : String(e)}`);
+      const msg = e instanceof Error ? e.message : String(e);
+      log(`✗ ${msg}`);
     } finally {
       setWsUploading(false);
     }
@@ -2257,10 +2259,8 @@ export default function Home() {
               <div className="max-w-[1400px] mx-auto flex items-center gap-3">
                 <Terminal size={13} className="text-amber-400 flex-shrink-0" />
                 <p className="text-xs text-amber-300 flex-1 min-w-0">
-                  <span className="font-semibold">Need Arduino IDE?</span>
-                  {" "}Download it free at{" "}
-                  <a href="https://www.arduino.cc/en/software" target="_blank" rel="noreferrer" className="underline text-amber-200 hover:text-white">arduino.cc/en/software</a>
-                  {" "}— use it to paste and upload the code this app generates.
+                  <span className="font-semibold">No Arduino IDE needed.</span>
+                  {" "}Click <span className="font-semibold text-amber-200">Compile &amp; Upload</span> above to flash directly from Chrome or Edge via USB — or copy the sketch to use with your own tools.
                 </p>
                 <button
                   onClick={() => { setShowSetupBanner(false); localStorage.setItem("arduino_cli_dismissed", "1"); }}
@@ -2303,17 +2303,28 @@ export default function Home() {
                 >
                   <Zap size={13} /> Wiring
                 </button>
-                <button onClick={handleWebSerialUpload} disabled={wsUploading}
+                <button onClick={() => handleWebSerialUpload(false)} disabled={wsUploading}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-green-700 to-teal-700 hover:from-green-600 hover:to-teal-600 disabled:opacity-50 text-white font-semibold text-xs transition-all"
                 >
-                  {wsUploading ? <><Loader2 size={13} className="animate-spin" /> Uploading…</> : <><Upload size={13} /> Compile &amp; Upload via USB</>}
+                  {wsUploading ? <><Loader2 size={13} className="animate-spin" /> Uploading…</> : <><Upload size={13} /> Compile &amp; Upload</>}
+                </button>
+                <button onClick={() => handleWebSerialUpload(true)} disabled={wsUploading}
+                  title="Change which port to upload to"
+                  className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-gray-700 bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-gray-400 hover:text-gray-200 text-xs transition-all"
+                >
+                  <RefreshCw size={12} /> Change Port
                 </button>
                 <span className="text-[10px] text-gray-600 ml-auto hidden sm:block">Chrome / Edge only</span>
               </div>
               {wsLog.length > 0 && (
-                <div className="mt-2 bg-gray-950 border border-gray-800 rounded-xl p-2.5 max-h-24 overflow-y-auto">
+                <div className="mt-2 bg-gray-950 border border-gray-800 rounded-xl p-2.5 max-h-32 overflow-y-auto">
                   {wsLog.map((line, i) => (
-                    <p key={i} className={`text-[11px] font-mono ${line.startsWith("Error") || line.startsWith("✗") ? "text-red-400" : line.startsWith("✓") ? "text-green-400" : "text-gray-400"}`}>{line}</p>
+                    <p key={i} className={`text-[11px] font-mono whitespace-pre-wrap ${
+                      line.startsWith("✗") ? "text-red-400" :
+                      line.startsWith("✓") ? "text-green-400" :
+                      line.includes("failed") || line.includes("Failed") ? "text-red-400" :
+                      "text-gray-400"
+                    }`}>{line}</p>
                   ))}
                 </div>
               )}
