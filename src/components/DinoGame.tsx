@@ -196,7 +196,7 @@ function rnd(min: number, max: number) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function DinoGame({ jumpKeys }: { jumpKeys: string[] }) {
+export default function DinoGame({ jumpKeys, onGameOver }: { jumpKeys: string[]; onGameOver?: (score: number) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stateRef = useRef<State>(mkState());
   const duckRef = useRef(false);
@@ -205,12 +205,16 @@ export default function DinoGame({ jumpKeys }: { jumpKeys: string[] }) {
   const [displayScore, setDisplayScore] = useState(0);
   const [isDead, setIsDead] = useState(false);
   const [started, setStarted] = useState(false);
+  const onGameOverRef = useRef(onGameOver);
+  useEffect(() => { onGameOverRef.current = onGameOver; }, [onGameOver]);
+  const reportedRef = useRef(false);
 
   const doJump = useCallback(() => {
     const s = stateRef.current;
     if (s.crashed) {
       stateRef.current = mkState(s.highScore);
       duckRef.current = false; speedDropRef.current = false;
+      reportedRef.current = false;
       setIsDead(false); setStarted(true);
       return;
     }
@@ -322,7 +326,9 @@ export default function DinoGame({ jumpKeys }: { jumpKeys: string[] }) {
           const obsBox = { x: obs.x + 2, y: obsY + 4, w: obsW - 4, h: obsH - 6 };
           if (dinoBox.x < obsBox.x + obsBox.w && dinoBox.x + dinoBox.w > obsBox.x &&
               dinoBox.y < obsBox.y + obsBox.h && dinoBox.y + dinoBox.h > obsBox.y) {
-            s.crashed = true; setIsDead(true); break;
+            s.crashed = true; setIsDead(true);
+            if (!reportedRef.current) { reportedRef.current = true; onGameOverRef.current?.(s.score); }
+            break;
           }
         }
         setDisplayScore(s.score);

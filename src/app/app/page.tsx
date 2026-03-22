@@ -17,6 +17,7 @@ import DinoGame from "@/components/DinoGame";
 import SnakeGame from "@/components/SnakeGame";
 import PongGame from "@/components/PongGame";
 import DeviceMockup from "@/components/DeviceMockup";
+import ControllerMockup from "@/components/ControllerMockup";
 import { arduinoToBrowserKey } from "@/lib/keymap";
 import {
   supabase,
@@ -30,8 +31,10 @@ import {
   deleteUser,
   isAdmin,
   ADMIN_USERNAME,
+  submitDinoScore,
+  getTopDinoScores,
 } from "@/lib/supabase";
-import type { SaveSlot, AppUser, AdminSettings } from "@/lib/supabase";
+import type { SaveSlot, AppUser, AdminSettings, DinoScore } from "@/lib/supabase";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
 const ALL_PINS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
@@ -1737,7 +1740,9 @@ export default function Home() {
   const [currentSaveId, setCurrentSaveId] = useState<string | null>(null);
   const [currentSaveName, setCurrentSaveName] = useState("My Setup");
   const [showSaveMenu, setShowSaveMenu] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const [selectedGame, setSelectedGame] = useState<"dino" | "snake" | "pong">("dino");
+  const [dinoLeaderboard, setDinoLeaderboard] = useState<DinoScore[]>([]);
   const [irSensors, setIrSensors] = useState<IRSensorConfig[]>([]);
   const [sipPuffs, setSipPuffs] = useState<SipPuffConfig[]>([]);
   const [joysticks, setJoysticks] = useState<JoystickConfig[]>([]);
@@ -1746,6 +1751,9 @@ export default function Home() {
   const [addInputType, setAddInputType] = useState("micro-switch");
   const [wsLog, setWsLog] = useState<string[]>([]);
   const [wsUploading, setWsUploading] = useState(false);
+  const [showPortMenu, setShowPortMenu] = useState(false);
+  const [grantedPorts, setGrantedPorts] = useState<{ label: string; index: number }[]>([]);
+  const portMenuRef = useRef<HTMLDivElement>(null);
   const [selectedInputId, setSelectedInputId] = useState<string | null>(null);
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const [deleteConfirmUserId, setDeleteConfirmUserId] = useState<string | null>(null);
@@ -1754,6 +1762,7 @@ export default function Home() {
 
   const logEndRef = useRef<HTMLDivElement>(null);
   const saveMenuRef = useRef<HTMLDivElement>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [uploadLog]);
   useEffect(() => { fetchPorts(); }, []);
@@ -1763,6 +1772,19 @@ export default function Home() {
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, [showSaveMenu]);
+  useEffect(() => {
+    if (!showPortMenu) return;
+    const h = (e: MouseEvent) => { if (!portMenuRef.current?.contains(e.target as Node)) setShowPortMenu(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [showPortMenu]);
+
+  useEffect(() => {
+    if (!showExportMenu) return;
+    const h = (e: MouseEvent) => { if (!exportMenuRef.current?.contains(e.target as Node)) setShowExportMenu(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, [showExportMenu]);
 
   // ── Auth: restore from localStorage on mount, subscribe to admin settings ──
   useEffect(() => {
@@ -2010,6 +2032,37 @@ export default function Home() {
     }
   };
 
+  const handleDinoGameOver = useCallback(async (score: number) => {
+    if (!appUser || score === 0) return;
+    await submitDinoScore(appUser.username, score);
+    const top = await getTopDinoScores(3);
+    setDinoLeaderboard(top);
+  }, [appUser]);
+
+  // Load leaderboard once on mount
+  useEffect(() => {
+    getTopDinoScores(3).then(setDinoLeaderboard).catch(() => {});
+  }, []);
+
+  const openPortMenu = async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const serial = (navigator as any).serial;
+    if (!serial) { setShowPortMenu(true); setGrantedPorts([]); return; }
+    try {
+      const ports = await serial.getPorts();
+      const labels = ports.map((p: { getInfo?: () => { usbVendorId?: number; usbProductId?: number } }, i: number) => {
+        const info = p.getInfo?.() ?? {};
+        const vid = info.usbVendorId;
+        const isArduino = vid === 0x2341 || vid === 0x1B4F || vid === 0x239A;
+        return { label: isArduino ? `Arduino (port ${i + 1})` : `USB device (port ${i + 1})`, index: i };
+      });
+      setGrantedPorts(labels);
+    } catch {
+      setGrantedPorts([]);
+    }
+    setShowPortMenu(true);
+  };
+
   const jumpKeys = useMemo(
     () => [...buttons, ...portInputs].filter((b) => b.arduinoKey).map((b) => b.arduinoKey),
     [buttons, portInputs]
@@ -2201,16 +2254,36 @@ export default function Home() {
                     </div>
                   )}
                 </div>
-                {saving && <span className="text-[10px] text-gray-600 hidden sm:block">saving…</span>}
-                {!saving && <span className="text-[10px] text-green-600 hidden sm:block">saved</span>}
-                {/* Download / Import */}
-                <button onClick={downloadSetup} title="Download setup as file"
-                  className="p-1.5 rounded-lg border border-gray-700 bg-gray-800/60 hover:bg-gray-700 text-gray-400 hover:text-gray-100 transition-all"
-                ><Download size={13} /></button>
-                <label title="Import setup from file" className="p-1.5 rounded-lg border border-gray-700 bg-gray-800/60 hover:bg-gray-700 text-gray-400 hover:text-gray-100 transition-all cursor-pointer">
-                  <Upload size={13} />
-                  <input type="file" accept=".json" className="hidden" onChange={importSetup} />
-                </label>
+                {/* Save status badge */}
+                <span className={["flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border transition-all",
+                  saving
+                    ? "text-amber-400 border-amber-800/50 bg-amber-900/20"
+                    : "text-green-500 border-green-800/40 bg-green-900/10"
+                ].join(" ")}>
+                  {saving ? <><Loader2 size={9} className="animate-spin" /> Saving…</> : <><CheckCircle2 size={9} /> Saved</>}
+                </span>
+                {/* Export / Import combined */}
+                <div className="relative" ref={exportMenuRef}>
+                  <button
+                    onClick={() => setShowExportMenu((v) => !v)}
+                    title="Export or import setup"
+                    className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-gray-700 bg-gray-800/60 hover:bg-gray-700 text-gray-400 hover:text-gray-100 transition-all text-[10px] font-medium"
+                  >
+                    <Download size={12} /> <span className="hidden sm:inline">Export / Import</span>
+                  </button>
+                  {showExportMenu && (
+                    <div className="absolute right-0 top-full mt-1 w-40 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-[200] overflow-hidden">
+                      <button
+                        onClick={() => { downloadSetup(); setShowExportMenu(false); }}
+                        className="flex items-center gap-2 w-full px-3 py-2.5 text-xs text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
+                      ><Download size={11} /> Export as JSON</button>
+                      <label className="flex items-center gap-2 w-full px-3 py-2.5 text-xs text-gray-300 hover:bg-gray-800 hover:text-white transition-colors cursor-pointer border-t border-gray-800">
+                        <Upload size={11} /> Import from JSON
+                        <input type="file" accept=".json" className="hidden" onChange={(e) => { importSetup(e); setShowExportMenu(false); }} />
+                      </label>
+                    </div>
+                  )}
+                </div>
                 <div className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-800/60 border border-gray-700 rounded-xl">
                   <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
                     <span className="text-white text-[9px] font-bold">
@@ -2338,12 +2411,36 @@ export default function Home() {
                 >
                   {wsUploading ? <><Loader2 size={13} className="animate-spin" /> Uploading…</> : <><Upload size={13} /> Compile &amp; Upload</>}
                 </button>
-                <button onClick={() => handleWebSerialUpload(true)} disabled={wsUploading}
-                  title="Change which port to upload to"
-                  className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-gray-700 bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-gray-400 hover:text-gray-200 text-xs transition-all"
-                >
-                  <RefreshCw size={12} /> Change Port
-                </button>
+                <div className="relative" ref={portMenuRef}>
+                  <button onClick={openPortMenu} disabled={wsUploading}
+                    title="Select which port to upload to"
+                    className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-gray-700 bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-gray-400 hover:text-gray-200 text-xs transition-all"
+                  >
+                    <Usb size={12} /> Board <ChevronDown size={10} />
+                  </button>
+                  {showPortMenu && (
+                    <div className="absolute left-0 top-full mt-1 w-52 bg-gray-900 border border-gray-700 rounded-xl shadow-xl z-50 py-1 overflow-hidden">
+                      {grantedPorts.length > 0 && (
+                        <>
+                          <div className="px-3 py-1.5 text-[10px] text-gray-500 uppercase tracking-wider font-semibold">Connected boards</div>
+                          {grantedPorts.map((p) => (
+                            <button key={p.index} onClick={() => { setShowPortMenu(false); handleWebSerialUpload(false); }}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-200 hover:bg-gray-800 transition-colors text-left"
+                            >
+                              <Usb size={11} className="text-green-400 flex-shrink-0" /> {p.label}
+                            </button>
+                          ))}
+                          <div className="border-t border-gray-800 my-1" />
+                        </>
+                      )}
+                      <button onClick={() => { setShowPortMenu(false); handleWebSerialUpload(true); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-blue-400 hover:bg-gray-800 transition-colors text-left"
+                      >
+                        <Plus size={11} className="flex-shrink-0" /> Add / change board…
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <span className="text-[10px] text-gray-600 ml-auto hidden sm:block">Chrome / Edge only</span>
               </div>
               {wsLog.length > 0 && (
@@ -2571,39 +2668,63 @@ export default function Home() {
                   </span>
                 </div>
                 <div className="p-4">
-                  {selectedGame === "dino" && <DinoGame jumpKeys={jumpKeys} />}
+                  {selectedGame === "dino" && <DinoGame jumpKeys={jumpKeys} onGameOver={handleDinoGameOver} />}
                   {selectedGame === "snake" && <SnakeGame joystickMaps={joystickMaps} />}
                   {selectedGame === "pong" && <PongGame joystickMaps={joystickMaps[0] ? { up: [joystickMaps[0].up], down: [joystickMaps[0].down] } : undefined} />}
                 </div>
               </div>
 
               {/* Game selector */}
-              <div className="w-44 flex-shrink-0 bg-gray-900 border border-gray-800 rounded-2xl p-3 flex flex-col gap-2">
-                <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide px-1 mb-1">Games</p>
-                {(
-                  [
-                    { id: "dino",  label: "Dino Game", emoji: "🦕", hint: "↑ jump  ↓ duck" },
-                    { id: "snake", label: "Snake",     emoji: "🐍", hint: "Arrow keys / WASD" },
-                    { id: "pong",  label: "Pong",      emoji: "🏓", hint: "W/S or ↑/↓" },
-                  ] as const
-                ).map((g) => (
-                  <button
-                    key={g.id}
-                    onClick={() => setSelectedGame(g.id)}
-                    className={[
-                      "w-full text-left px-3 py-2.5 rounded-xl transition-all",
-                      selectedGame === g.id
-                        ? "bg-purple-600/20 border border-purple-600/40 text-purple-300"
-                        : "border border-transparent hover:bg-gray-800 text-gray-400 hover:text-gray-200",
-                    ].join(" ")}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-base leading-none">{g.emoji}</span>
-                      <span className="text-xs font-medium">{g.label}</span>
-                    </div>
-                    <p className="text-[10px] text-gray-600 mt-1 pl-6">{g.hint}</p>
-                  </button>
-                ))}
+              <div className="w-44 flex-shrink-0 flex flex-col gap-3">
+                <div className="bg-gray-900 border border-gray-800 rounded-2xl p-3 flex flex-col gap-2">
+                  <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide px-1 mb-1">Games</p>
+                  {(
+                    [
+                      { id: "dino",  label: "Dino Game", emoji: "🦕", hint: "↑ jump  ↓ duck" },
+                      { id: "snake", label: "Snake",     emoji: "🐍", hint: "Arrow keys / WASD" },
+                      { id: "pong",  label: "Pong",      emoji: "🏓", hint: "W/S or ↑/↓" },
+                    ] as const
+                  ).map((g) => (
+                    <button
+                      key={g.id}
+                      onClick={() => setSelectedGame(g.id)}
+                      className={[
+                        "w-full text-left px-3 py-2.5 rounded-xl transition-all",
+                        selectedGame === g.id
+                          ? "bg-purple-600/20 border border-purple-600/40 text-purple-300"
+                          : "border border-transparent hover:bg-gray-800 text-gray-400 hover:text-gray-200",
+                      ].join(" ")}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-base leading-none">{g.emoji}</span>
+                        <span className="text-xs font-medium">{g.label}</span>
+                      </div>
+                      <p className="text-[10px] text-gray-600 mt-1 pl-6">{g.hint}</p>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Dino leaderboard */}
+                {selectedGame === "dino" && (
+                  <div className="bg-gray-900 border border-gray-800 rounded-2xl p-3">
+                    <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide px-1 mb-2">Top Scores</p>
+                    {dinoLeaderboard.length === 0 ? (
+                      <p className="text-[11px] text-gray-600 px-1">No scores yet</p>
+                    ) : (
+                      <ol className="flex flex-col gap-1.5">
+                        {dinoLeaderboard.map((entry, i) => (
+                          <li key={entry.username} className="flex items-center gap-2 px-1">
+                            <span className={`text-[11px] font-bold w-4 flex-shrink-0 ${i === 0 ? "text-yellow-400" : i === 1 ? "text-gray-400" : "text-amber-700"}`}>
+                              {i === 0 ? "🥇" : i === 1 ? "🥈" : "🥉"}
+                            </span>
+                            <span className="text-[11px] text-gray-300 truncate flex-1">{entry.username}</span>
+                            <span className="text-[11px] font-mono text-purple-300 flex-shrink-0">{entry.score}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -2615,6 +2736,16 @@ export default function Home() {
                 <span className="text-xs text-gray-600">click or press keys to test</span>
               </div>
               <DeviceMockup buttons={buttons} leds={leds} ports={portInputs} />
+            </div>
+
+            {/* ── Controller Mockup ── */}
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Gamepad2 size={14} className="text-purple-400" />
+                <h2 className="text-sm font-semibold text-gray-200">Controller View</h2>
+                <span className="text-xs text-gray-600">buttons light up when pressed</span>
+              </div>
+              <ControllerMockup buttons={buttons} ports={portInputs} joysticks={joysticks} />
             </div>
 
           </div>

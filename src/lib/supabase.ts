@@ -144,3 +144,43 @@ export async function deleteUser(userId: string): Promise<void> {
   await supabase.from("user_configs").delete().eq("user_id", userId);
   await supabase.from("app_users").delete().eq("id", userId);
 }
+
+// ── Dino Leaderboard ────────────────────────────────────────────────────────
+// Required SQL (run once in Supabase SQL editor):
+//
+// CREATE TABLE public.dino_scores (
+//   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+//   username text NOT NULL,
+//   score int NOT NULL,
+//   updated_at timestamptz DEFAULT now()
+// );
+// CREATE UNIQUE INDEX dino_scores_username_idx ON public.dino_scores (username);
+// ALTER TABLE public.dino_scores ENABLE ROW LEVEL SECURITY;
+// CREATE POLICY "public read"   ON public.dino_scores FOR SELECT USING (true);
+// CREATE POLICY "public insert" ON public.dino_scores FOR INSERT WITH CHECK (true);
+// CREATE POLICY "public update" ON public.dino_scores FOR UPDATE USING (true);
+
+export type DinoScore = { username: string; score: number };
+
+export async function submitDinoScore(username: string, score: number): Promise<void> {
+  // Upsert: only update if new score is higher
+  const { data: existing } = await supabase
+    .from("dino_scores")
+    .select("score")
+    .eq("username", username)
+    .maybeSingle();
+  if (existing && existing.score >= score) return;
+  await supabase.from("dino_scores").upsert(
+    { username, score, updated_at: new Date().toISOString() },
+    { onConflict: "username" }
+  );
+}
+
+export async function getTopDinoScores(limit = 3): Promise<DinoScore[]> {
+  const { data } = await supabase
+    .from("dino_scores")
+    .select("username, score")
+    .order("score", { ascending: false })
+    .limit(limit);
+  return (data as DinoScore[]) ?? [];
+}
