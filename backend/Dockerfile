@@ -9,9 +9,9 @@ RUN apt-get update && apt-get install -y curl tar && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY package*.json ./
+COPY backend/package*.json ./
 RUN npm ci --omit=dev
-COPY server.js ./
+COPY backend/server.js ./
 
 EXPOSE 3001
 CMD ["node", "server.js"]
