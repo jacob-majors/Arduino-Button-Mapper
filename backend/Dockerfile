@@ -1,9 +1,10 @@
 FROM node:20-slim
 
-# Force cache bust on every push so Railway always re-runs core install
-ARG CACHEBUST=3
+# Force cache bust
+ARG CACHEBUST=4
 
-# Install arduino-cli + arduino:avr core (Keyboard.h lives inside that core)
+# arduino:avr 1.8.6+ no longer bundles Keyboard.h inside the platform —
+# it must be installed as a separate library.
 RUN apt-get update && apt-get install -y --no-install-recommends curl tar ca-certificates && \
     curl -fsSL https://downloads.arduino.cc/arduino-cli/arduino-cli_latest_Linux_64bit.tar.gz \
       | tar -xz -C /usr/local/bin arduino-cli && \
@@ -11,9 +12,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl tar ca-cer
     arduino-cli config init && \
     arduino-cli core update-index && \
     arduino-cli core install arduino:avr && \
-    # Hard fail if Keyboard.h is missing after install
-    find /root/.arduino15/packages/arduino/hardware/avr -name "Keyboard.h" | grep -q Keyboard.h && \
-    echo "✓ Keyboard.h present" && \
+    arduino-cli lib install "Keyboard" "Mouse" "HID" && \
+    find /root/.arduino15/libraries/Keyboard -name "Keyboard.h" | grep -q . && \
+    echo "✓ Keyboard.h verified" && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

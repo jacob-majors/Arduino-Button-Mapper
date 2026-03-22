@@ -261,13 +261,13 @@ app.post('/api/upload', async (req, res) => {
 function ensureAvrCore(cli) {
   return new Promise((resolve) => {
     if (!cli) return resolve();
-    exec(`find /root/.arduino15/packages/arduino/hardware/avr -name "Keyboard.h" 2>/dev/null`, (err, stdout) => {
+    exec(`find /root/.arduino15/libraries/Keyboard /root/.arduino15/packages/arduino/hardware/avr -name "Keyboard.h" 2>/dev/null`, (err, stdout) => {
       if (stdout && stdout.trim()) {
         console.log('✓ arduino:avr core already installed (Keyboard.h found)');
         return resolve();
       }
       console.log('⚠ Keyboard.h not found — installing arduino:avr core now…');
-      exec(`"${cli}" core update-index && "${cli}" core install arduino:avr`, { timeout: 300000 }, (err2, stdout2, stderr2) => {
+      exec(`"${cli}" core update-index && "${cli}" core install arduino:avr && "${cli}" lib install "Keyboard" "Mouse" "HID"`, { timeout: 300000 }, (err2, stdout2, stderr2) => {
         if (err2) {
           console.error('✗ Failed to install arduino:avr core:', stderr2 || err2.message);
         } else {
