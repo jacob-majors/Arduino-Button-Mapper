@@ -2209,50 +2209,41 @@ export default function Home() {
             </div>
           )}
 
-          <div className="flex-1 overflow-hidden">
-          <div className="h-full max-w-[1400px] mx-auto px-4 sm:px-6 py-4 grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="flex-1 overflow-hidden flex flex-col">
+          <div className="h-full max-w-[1400px] mx-auto px-4 sm:px-6 py-4 w-full flex flex-col gap-4">
 
-            {/* Left column: Port + LEDs + Upload */}
-            <div className="flex flex-col gap-3 overflow-y-auto pr-1">
-
-              {/* Get Code */}
-              {adminSettings.show_upload && <section className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex-shrink-0">
-                <div className="flex items-center gap-2 mb-3">
+            {/* Top bar: Get Code */}
+            {adminSettings.show_upload && <section className="bg-gray-900 border border-gray-800 rounded-2xl px-4 py-3 flex-shrink-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1.5 mr-1">
                   <Code size={13} className="text-green-400" />
-                  <h2 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Get Code</h2>
+                  <span className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Get Code</span>
                 </div>
-                <div className="flex gap-2 mb-3">
-                  <button onClick={openSketch}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-semibold text-sm transition-all shadow-lg shadow-blue-900/30"
-                  >
-                    <Code size={14} /> View &amp; Copy Sketch
-                  </button>
-                  <button onClick={() => setShowWiring(true)}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-yellow-700/50 bg-yellow-950/30 hover:bg-yellow-900/30 text-xs text-yellow-300 hover:text-yellow-100 transition-all"
-                  >
-                    <Zap size={13} /> Wiring
-                  </button>
+                <button onClick={openSketch}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-semibold text-xs transition-all shadow-lg shadow-blue-900/30"
+                >
+                  <Code size={13} /> View &amp; Copy Sketch
+                </button>
+                <button onClick={() => setShowWiring(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-yellow-700/50 bg-yellow-950/30 hover:bg-yellow-900/30 text-xs text-yellow-300 hover:text-yellow-100 transition-all"
+                >
+                  <Zap size={13} /> Wiring
+                </button>
+                <button onClick={handleWebSerialUpload} disabled={wsUploading}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-green-700 to-teal-700 hover:from-green-600 hover:to-teal-600 disabled:opacity-50 text-white font-semibold text-xs transition-all"
+                >
+                  {wsUploading ? <><Loader2 size={13} className="animate-spin" /> Uploading…</> : <><Upload size={13} /> Compile &amp; Upload via USB</>}
+                </button>
+                <span className="text-[10px] text-gray-600 ml-auto hidden sm:block">Chrome / Edge only</span>
+              </div>
+              {wsLog.length > 0 && (
+                <div className="mt-2 bg-gray-950 border border-gray-800 rounded-xl p-2.5 max-h-24 overflow-y-auto">
+                  {wsLog.map((line, i) => (
+                    <p key={i} className={`text-[11px] font-mono ${line.startsWith("Error") || line.startsWith("✗") ? "text-red-400" : line.startsWith("✓") ? "text-green-400" : "text-gray-400"}`}>{line}</p>
+                  ))}
                 </div>
-                {/* Web Serial compile & upload */}
-                <div className="border-t border-gray-800 pt-3">
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-semibold text-gray-300">Compile &amp; Upload</span>
-                    <span className="text-[10px] text-gray-600">Chrome / Edge only · requires local backend</span>
-                  </div>
-                  <button onClick={handleWebSerialUpload} disabled={wsUploading}
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-green-700 to-teal-700 hover:from-green-600 hover:to-teal-600 disabled:opacity-50 text-white font-semibold text-sm transition-all w-full justify-center"
-                  >
-                    {wsUploading ? <><Loader2 size={14} className="animate-spin" /> Uploading…</> : <><Upload size={14} /> Compile &amp; Upload via USB</>}
-                  </button>
-                  {wsLog.length > 0 && (
-                    <div className="mt-2 bg-gray-950 border border-gray-800 rounded-xl p-2.5 max-h-28 overflow-y-auto">
-                      {wsLog.map((line, i) => (
-                        <p key={i} className={`text-[11px] font-mono ${line.startsWith("Error") || line.startsWith("✗") ? "text-red-400" : line.startsWith("✓") ? "text-green-400" : "text-gray-400"}`}>{line}</p>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </section>}
+              )}
+            </section>}
 
               {/* LED Config — hidden per user request, state kept for sketch generation */}
               {false && adminSettings.show_leds && <section className="bg-gray-900 border border-gray-800 border-l-2 border-l-yellow-800 rounded-2xl p-4 flex-shrink-0">
@@ -2360,10 +2351,8 @@ export default function Home() {
                 </div>
               </section>}
 
-            </div>
-
-            {/* Right column: All Inputs */}
-            {adminSettings.show_buttons && <section className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex flex-col overflow-hidden">
+            {/* Inputs — full width below */}
+            {adminSettings.show_buttons && <section className="bg-gray-900 border border-gray-800 rounded-2xl p-4 flex flex-col flex-1 min-h-0">
               <div className="flex items-center justify-between mb-3 flex-shrink-0">
                 <div className="flex items-center gap-2">
                   <Pencil size={13} className="text-purple-400" />
@@ -2374,39 +2363,41 @@ export default function Home() {
                 </span>
               </div>
 
-              {/* Unified input list */}
-              <div className="flex-1 overflow-y-auto flex flex-col gap-2 min-h-0">
-                {buttons.map((btn, i) => (
-                  <ButtonCard key={btn.id} button={btn} index={i} usedPins={usedPins}
-                    onUpdate={updateButton} onRemove={removeButton} typeLabel="Switch" />
-                ))}
-                {portInputs.map((p, i) => (
-                  <ButtonCard key={p.id} button={p} index={i} usedPins={usedPins}
-                    onUpdate={updatePort} onRemove={removePort} typeLabel="Port" />
-                ))}
-                {irSensors.map((s, i) => (
-                  <IRSensorCard key={s.id} sensor={s} index={i} usedPins={usedPins}
-                    onUpdate={updateIR} onRemove={removeIR} />
-                ))}
-                {sipPuffs.map((s, i) => (
-                  <SipPuffCard key={s.id} sensor={s} index={i} usedAnalogPins={usedAnalogPins}
-                    onUpdate={updateSipPuff} onRemove={removeSipPuff} />
-                ))}
-                {joysticks.map((j, i) => (
-                  <JoystickCard key={j.id} joy={j} index={i} usedPins={usedPins} usedAnalogPins={usedAnalogPins}
-                    onUpdate={updateJoystick} onRemove={removeJoystick} />
-                ))}
-                {buttons.length + portInputs.length + irSensors.length + sipPuffs.length + joysticks.length === 0 && (
-                  <div className="flex flex-col items-center justify-center py-10 text-gray-700">
-                    <Plus size={24} className="mb-2 opacity-30" />
-                    <p className="text-xs">No inputs yet — add one below</p>
-                  </div>
-                )}
+              {/* Unified input list — responsive grid */}
+              <div className="flex-1 overflow-y-auto min-h-0">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+                  {buttons.map((btn, i) => (
+                    <ButtonCard key={btn.id} button={btn} index={i} usedPins={usedPins}
+                      onUpdate={updateButton} onRemove={removeButton} typeLabel="Switch" />
+                  ))}
+                  {portInputs.map((p, i) => (
+                    <ButtonCard key={p.id} button={p} index={i} usedPins={usedPins}
+                      onUpdate={updatePort} onRemove={removePort} typeLabel="Port" />
+                  ))}
+                  {irSensors.map((s, i) => (
+                    <IRSensorCard key={s.id} sensor={s} index={i} usedPins={usedPins}
+                      onUpdate={updateIR} onRemove={removeIR} />
+                  ))}
+                  {sipPuffs.map((s, i) => (
+                    <SipPuffCard key={s.id} sensor={s} index={i} usedAnalogPins={usedAnalogPins}
+                      onUpdate={updateSipPuff} onRemove={removeSipPuff} />
+                  ))}
+                  {joysticks.map((j, i) => (
+                    <JoystickCard key={j.id} joy={j} index={i} usedPins={usedPins} usedAnalogPins={usedAnalogPins}
+                      onUpdate={updateJoystick} onRemove={removeJoystick} />
+                  ))}
+                  {buttons.length + portInputs.length + irSensors.length + sipPuffs.length + joysticks.length === 0 && (
+                    <div className="col-span-full flex flex-col items-center justify-center py-10 text-gray-700">
+                      <Plus size={24} className="mb-2 opacity-30" />
+                      <p className="text-xs">No inputs yet — add one below</p>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Add input row */}
               <div className="mt-3 flex gap-2 flex-shrink-0">
-                <div className="relative flex-1">
+                <div className="relative flex-1 max-w-xs">
                   <select value={addInputType} onChange={(e) => setAddInputType(e.target.value)}
                     className="w-full appearance-none bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-xs text-gray-300 focus:outline-none cursor-pointer pr-6"
                   >
