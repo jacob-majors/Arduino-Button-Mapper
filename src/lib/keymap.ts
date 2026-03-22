@@ -38,7 +38,8 @@ export interface ButtonConfig {
   keyDisplay: string;
   arduinoKey: string;
   mode: ButtonMode;
-  ledPin: number;  // -1 = no LED
+  ledPin: number;        // -1 = no LED
+  ledMode: "active" | "always";  // active = on while pressed/toggled, always = always on
 }
 
 export interface LedConfig {
@@ -61,6 +62,8 @@ export interface IRSensorConfig {
   arduinoKey: string;
   mode: "momentary" | "toggle";
   activeHigh: boolean;   // true = trigger when pin reads HIGH (some modules invert)
+  ledPin: number;        // -1 = no LED
+  ledMode: "active" | "always";
 }
 
 /** Analog sip-and-puff sensor — sip and puff map to separate keys */
@@ -70,6 +73,8 @@ export interface SipPuffConfig {
   pin: number;           // digital pin (2–13)
   key: string;
   keyDisplay: string;
+  ledPin: number;        // -1 = no LED
+  ledMode: "active" | "always";
 }
 
 /** Analog joystick (X/Y axes) with optional digital click button */
@@ -87,6 +92,8 @@ export interface JoystickConfig {
   deadzone: number;      // 0–512; default 200
   invertX: boolean;
   invertY: boolean;
+  ledPin: number;        // -1 = no LED
+  ledMode: "active" | "always";  // active = on while any axis moves or btn pressed
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -189,6 +196,9 @@ export function generateSketch(
     const irCmt   = irSensors
       .map((s, i) => `// IR ${i + 1}${s.name ? `: ${s.name}` : ""} — Pin ${s.pin} active ${s.activeHigh ? "HIGH" : "LOW"}`)
       .join("\n");
+    const hasIrLed = irSensors.some((s) => (s.ledPin ?? -1) >= 0);
+    const irLedPinsArr = irSensors.map((s) => s.ledPin ?? -1).join(", ");
+    const irLedModesArr = irSensors.map((s) => s.ledMode === "always" ? "1" : "0").join(", ");
 
     irGlobals = `
 ${irCmt}
@@ -198,13 +208,18 @@ const int irKeys[${m}] = {${irKeys}};
 const int irModes[${m}] = {${irModes}}; // 0=momentary 1=toggle
 const bool irActiveHigh[${m}] = {${irAH}};
 bool lastIRState[${m}];
-bool irToggleState[${m}] = {${irSensors.map(() => "false").join(", ")}};
+bool irToggleState[${m}] = {${irSensors.map(() => "false").join(", ")}};${hasIrLed ? `
+const int irLedPins[${m}] = {${irLedPinsArr}};
+const int irLedModes[${m}] = {${irLedModesArr}}; // 0=active 1=always` : ""}
 `;
 
     irSetup = `  for (int i = 0; i < numIR; i++) {
     pinMode(irPins[i], INPUT);
-    lastIRState[i] = irActiveHigh[i] ? LOW : HIGH; // start inactive
-  }`;
+    lastIRState[i] = irActiveHigh[i] ? LOW : HIGH;
+  }${hasIrLed ? `
+  for (int i = 0; i < numIR; i++) {
+    if (irLedPins[i] >= 0) { pinMode(irLedPins[i], OUTPUT); digitalWrite(irLedPins[i], irLedModes[i] == 1 ? HIGH : LOW); }
+  }` : ""}`;
 
     irLoop = `  // ── IR sensors
   if (systemActive) {
@@ -220,7 +235,8 @@ bool irToggleState[${m}] = {${irSensors.map(() => "false").join(", ")}};
           if (irToggleState[i]) Keyboard.press(irKeys[i]); else Keyboard.release(irKeys[i]);
         }
         lastIRState[i] = raw;
-      }
+      }${hasIrLed ? `
+      if (irLedPins[i] >= 0 && irLedModes[i] == 0) digitalWrite(irLedPins[i], now ? HIGH : LOW);` : ""}
     }
   }`;
   }
@@ -244,12 +260,18 @@ bool irToggleState[${m}] = {${irSensors.map(() => "false").join(", ")}};
     });
 
     spSetup = sipPuffs.map((s, i) => `  pinMode(SP${i}_PIN, INPUT_PULLUP);`).join("\n");
+    const spLedSetup = sipPuffs.filter((s) => (s.ledPin ?? -1) >= 0).map((s) => `  pinMode(${s.ledPin}, OUTPUT); digitalWrite(${s.ledPin}, ${s.ledMode === "always" ? "HIGH" : "LOW"});`).join("\n");
+    if (spLedSetup) spSetup += "\n" + spLedSetup;
 
     spLoop = `  // ── Sip & puff\n  if (systemActive) {\n`;
     sipPuffs.forEach((s, i) => {
+      const hasLed = (s.ledPin ?? -1) >= 0;
+      const ledPin = s.ledPin ?? -1;
+      const alwaysOn = s.ledMode === "always";
       spLoop += `    { bool pressed = (digitalRead(SP${i}_PIN) == LOW);
       if (pressed && !sp${i}Pressed && SP${i}_KEY != 0) { Keyboard.press(SP${i}_KEY); sp${i}Pressed = true; }
-      if (!pressed && sp${i}Pressed && SP${i}_KEY != 0) { Keyboard.release(SP${i}_KEY); sp${i}Pressed = false; }
+      if (!pressed && sp${i}Pressed && SP${i}_KEY != 0) { Keyboard.release(SP${i}_KEY); sp${i}Pressed = false; }${hasLed ? `
+      digitalWrite(${ledPin}, ${alwaysOn ? "HIGH" : "pressed ? HIGH : LOW"});` : ""}
     }\n`;
     });
     spLoop += `  }`;
@@ -278,6 +300,7 @@ bool irToggleState[${m}] = {${irSensors.map(() => "false").join(", ")}};
       joyGlobals += `const int JOY${i}_LEFT  = ${keyLiteral(j.leftKey)};\n`;
       joyGlobals += `const int JOY${i}_RIGHT = ${keyLiteral(j.rightKey)};\n`;
       joyGlobals += `bool joy${i}U=false, joy${i}D=false, joy${i}L=false, joy${i}R=false;\n`;
+      if ((j.ledPin ?? -1) >= 0) joyGlobals += `const int JOY${i}_LED = ${j.ledPin};\nconst int JOY${i}_LED_MODE = ${j.ledMode === "always" ? "1" : "0"}; // 0=active 1=always\n`;
 
       if (j.buttonPin >= 0 && j.buttonKey) {
         joyGlobals += `const int JOY${i}_BTN = ${j.buttonPin};\n`;
@@ -290,6 +313,8 @@ bool irToggleState[${m}] = {${irSensors.map(() => "false").join(", ")}};
     if (joyBtnSetups.length > 0) {
       joySetup = joyBtnSetups.join("\n");
     }
+    const joyLedSetup = joysticks.filter((j) => (j.ledPin ?? -1) >= 0).map((j) => `  pinMode(${j.ledPin}, OUTPUT); digitalWrite(${j.ledPin}, ${j.ledMode === "always" ? "HIGH" : "LOW"});`).join("\n");
+    if (joyLedSetup) joySetup = (joySetup ? joySetup + "\n" : "") + joyLedSetup;
 
     joyLoop = `  // ── Joysticks\n  if (systemActive) {\n`;
     joysticks.forEach((j, i) => {
@@ -318,7 +343,9 @@ bool irToggleState[${m}] = {${irSensors.map(() => "false").join(", ")}};
       } else {
         if (joy${i}L && JOY${i}_LEFT  != 0) { Keyboard.release(JOY${i}_LEFT);  joy${i}L=false; }
         if (joy${i}R && JOY${i}_RIGHT != 0) { Keyboard.release(JOY${i}_RIGHT); joy${i}R=false; }
-      }${hasBtn ? `
+      }${(j.ledPin ?? -1) >= 0 ? `
+      if (JOY${i}_LED_MODE == 1) digitalWrite(JOY${i}_LED, HIGH);
+      else { bool active = joy${i}U || joy${i}D || joy${i}L || joy${i}R; digitalWrite(JOY${i}_LED, active ? HIGH : LOW); }` : ""}${hasBtn ? `
       // Click button
       bool bs = digitalRead(JOY${i}_BTN);
       if (bs != joy${i}BtnLast) { delay(20); bs = digitalRead(JOY${i}_BTN); }

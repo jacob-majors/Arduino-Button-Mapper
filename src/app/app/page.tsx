@@ -95,19 +95,96 @@ function KeyCaptureInput({ value, display, onChange, onClear }: {
   );
 }
 
+// ─── LED Panel ────────────────────────────────────────────────────────────────
+
+const LED_MODES = [
+  { value: "active", label: "While Active", desc: "On when input is pressed/triggered" },
+  { value: "always", label: "Always On", desc: "LED stays on constantly" },
+];
+
+function LedPanel({ ledPin, ledMode, usedPins, onUpdate }: {
+  ledPin: number;
+  ledMode: "active" | "always";
+  usedPins: number[];
+  onUpdate: (pin: number, mode: "active" | "always") => void;
+}) {
+  const availablePins = ALL_PINS.filter((p) => p === ledPin || !usedPins.includes(p));
+
+  if (ledPin < 0) {
+    const nextPin = availablePins[0] ?? -1;
+    return (
+      <div className="mt-2 pt-2 border-t border-gray-700/50">
+        <button
+          onClick={(e) => { e.stopPropagation(); if (nextPin >= 0) onUpdate(nextPin, "active"); }}
+          disabled={nextPin < 0}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border border-dashed border-gray-600 hover:border-yellow-600/60 hover:bg-yellow-950/20 text-gray-500 hover:text-yellow-400 text-[11px] transition-all disabled:opacity-30 w-full justify-center"
+        >
+          <Lightbulb size={11} /> Add LED
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-2 pt-2 border-t border-yellow-900/30" onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-center gap-1.5 mb-2">
+        <div className="w-2 h-2 rounded-full bg-yellow-400 shadow-[0_0_5px_rgba(251,191,36,0.8)]" />
+        <span className="text-[10px] font-semibold text-yellow-400 uppercase tracking-wider">LED</span>
+        <button
+          onClick={() => onUpdate(-1, "active")}
+          className="ml-auto p-0.5 text-gray-600 hover:text-red-400 transition-colors"
+        ><X size={10} /></button>
+      </div>
+      <div className="flex gap-2 items-center mb-2">
+        <label className="text-[10px] text-gray-500 uppercase tracking-wider w-6 flex-shrink-0">Pin</label>
+        <div className="relative" style={{ width: 68 }}>
+          <select value={ledPin}
+            onChange={(e) => onUpdate(parseInt(e.target.value), ledMode)}
+            className="w-full appearance-none bg-yellow-950/20 border border-yellow-700/40 rounded-lg px-2 py-1.5 text-xs text-yellow-300 focus:outline-none cursor-pointer pr-5"
+          >
+            {availablePins.map((p) => <option key={p} value={p}>D{p}</option>)}
+          </select>
+          <ChevronDown size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
+        </div>
+      </div>
+      <div className="flex rounded-lg overflow-hidden border border-gray-700">
+        {LED_MODES.map((m) => (
+          <button key={m.value}
+            onClick={() => onUpdate(ledPin, m.value as "active" | "always")}
+            className={[
+              "flex-1 py-1.5 text-[10px] font-medium transition-colors",
+              ledMode === m.value ? "bg-yellow-700 text-white" : "bg-gray-900 text-gray-500 hover:text-gray-300",
+            ].join(" ")}
+            title={m.desc}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Button / Port Card ───────────────────────────────────────────────────────
 
-function ButtonCard({ button, index, usedPins, onUpdate, onRemove, typeLabel }: {
+function ButtonCard({ button, index, usedPins, onUpdate, onRemove, typeLabel, isSelected, onSelect }: {
   button: ButtonConfig; index: number; usedPins: number[];
   onUpdate: (id: string, updates: Partial<ButtonConfig>) => void;
   onRemove: (id: string) => void;
   typeLabel?: string;
+  isSelected?: boolean;
+  onSelect?: (id: string | null) => void;
 }) {
   const availablePins = ALL_PINS.filter((p) => p === button.pin || !usedPins.includes(p));
   const isPort = typeLabel === "Port";
 
   return (
-    <div className="border rounded-xl p-3 flex flex-col gap-2 transition-colors group bg-gray-800/50 border-gray-700/80 hover:border-gray-600/80">
+    <div
+      className={["border rounded-xl p-3 flex flex-col gap-2 transition-colors group cursor-pointer",
+        isSelected ? "bg-gray-800 border-blue-600/50" : "bg-gray-800/50 border-gray-700/80 hover:border-gray-600/80"
+      ].join(" ")}
+      onClick={() => onSelect?.(isSelected ? null : button.id)}
+    >
       {/* Header */}
       <div className="flex items-center gap-2">
         {typeLabel && (
@@ -152,34 +229,14 @@ function ButtonCard({ button, index, usedPins, onUpdate, onRemove, typeLabel }: 
         </div>
       </div>
 
-      {/* LED pin */}
-      <div className="flex gap-2 items-center">
-        <label className="text-[10px] text-gray-500 uppercase tracking-wider flex-shrink-0 flex items-center gap-1">
-          <Lightbulb size={9} className={(button.ledPin ?? -1) >= 0 ? "text-yellow-400" : "text-gray-600"} />
-          <span className={(button.ledPin ?? -1) >= 0 ? "text-yellow-500" : ""}>LED</span>
-        </label>
-        <div className="relative" style={{ width: 68 }}>
-          <select
-            value={button.ledPin ?? -1}
-            onChange={(e) => onUpdate(button.id, { ledPin: parseInt(e.target.value) })}
-            className={[
-              "w-full appearance-none border rounded-lg px-2 py-1.5 text-xs focus:outline-none transition-colors cursor-pointer pr-5",
-              (button.ledPin ?? -1) >= 0
-                ? "bg-yellow-950/30 border-yellow-700/50 text-yellow-300"
-                : "bg-gray-900 border-gray-700 text-gray-500",
-            ].join(" ")}
-          >
-            <option value={-1}>None</option>
-            {ALL_PINS.filter((p) => p === button.ledPin || !usedPins.includes(p)).map((p) => (
-              <option key={p} value={p}>D{p}</option>
-            ))}
-          </select>
-          <ChevronDown size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
-        </div>
-        {(button.ledPin ?? -1) >= 0 && (
-          <span className="text-[10px] text-yellow-700">{button.mode === "toggle" ? "on = toggled" : "on = held"}</span>
-        )}
-      </div>
+      {isSelected && (
+        <LedPanel
+          ledPin={button.ledPin ?? -1}
+          ledMode={button.ledMode ?? "active"}
+          usedPins={usedPins}
+          onUpdate={(pin, mode) => onUpdate(button.id, { ledPin: pin, ledMode: mode })}
+        />
+      )}
     </div>
   );
 }
@@ -484,14 +541,21 @@ function AnalogPinSelect({ value, onChange, label, excludePins }: {
 
 // ─── IR Sensor Card ───────────────────────────────────────────────────────────
 
-function IRSensorCard({ sensor, index, usedPins, onUpdate, onRemove }: {
+function IRSensorCard({ sensor, index, usedPins, onUpdate, onRemove, isSelected, onSelect }: {
   sensor: IRSensorConfig; index: number; usedPins: number[];
   onUpdate: (id: string, u: Partial<IRSensorConfig>) => void;
   onRemove: (id: string) => void;
+  isSelected?: boolean;
+  onSelect?: (id: string | null) => void;
 }) {
   const availablePins = ALL_PINS.filter((p) => p === sensor.pin || !usedPins.includes(p));
   return (
-    <div className="border rounded-xl p-3 flex flex-col gap-2 transition-colors group bg-emerald-950/30 border-emerald-800/50 hover:border-emerald-700/60">
+    <div
+      className={["border rounded-xl p-3 flex flex-col gap-2 transition-colors group cursor-pointer",
+        isSelected ? "bg-emerald-950/50 border-blue-600/50" : "bg-emerald-950/30 border-emerald-800/50 hover:border-emerald-700/60"
+      ].join(" ")}
+      onClick={() => onSelect?.(isSelected ? null : sensor.id)}
+    >
       <div className="flex items-center gap-2">
         <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 border bg-emerald-500/20 border-emerald-500/40">
           <span className="text-emerald-400 text-[9px] font-bold">IR</span>
@@ -555,20 +619,35 @@ function IRSensorCard({ sensor, index, usedPins, onUpdate, onRemove }: {
         docsUrl="https://www.arduino.cc/reference/en/language/functions/digital-io/digitalread/"
         docsLabel="Arduino digitalRead() docs"
       />
+      {isSelected && (
+        <LedPanel
+          ledPin={sensor.ledPin ?? -1}
+          ledMode={sensor.ledMode ?? "active"}
+          usedPins={usedPins}
+          onUpdate={(pin, mode) => onUpdate(sensor.id, { ledPin: pin, ledMode: mode })}
+        />
+      )}
     </div>
   );
 }
 
 // ─── Sip & Puff Card ──────────────────────────────────────────────────────────
 
-function SipPuffCard({ sensor, index, usedPins, onUpdate, onRemove }: {
+function SipPuffCard({ sensor, index, usedPins, onUpdate, onRemove, isSelected, onSelect }: {
   sensor: SipPuffConfig; index: number; usedPins: number[];
   onUpdate: (id: string, u: Partial<SipPuffConfig>) => void;
   onRemove: (id: string) => void;
+  isSelected?: boolean;
+  onSelect?: (id: string | null) => void;
 }) {
   const availablePins = ALL_PINS.filter((p) => p === sensor.pin || !usedPins.includes(p));
   return (
-    <div className="border rounded-xl p-3 flex flex-col gap-2 transition-colors group bg-cyan-950/30 border-cyan-800/50 hover:border-cyan-700/60">
+    <div
+      className={["border rounded-xl p-3 flex flex-col gap-2 transition-colors group cursor-pointer",
+        isSelected ? "bg-cyan-950/50 border-blue-600/50" : "bg-cyan-950/30 border-cyan-800/50 hover:border-cyan-700/60"
+      ].join(" ")}
+      onClick={() => onSelect?.(isSelected ? null : sensor.id)}
+    >
       <div className="flex items-center gap-2">
         <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 border bg-cyan-500/20 border-cyan-500/40">
           <Wind size={9} className="text-cyan-400" />
@@ -605,16 +684,26 @@ function SipPuffCard({ sensor, index, usedPins, onUpdate, onRemove }: {
           />
         </div>
       </div>
+      {isSelected && (
+        <LedPanel
+          ledPin={sensor.ledPin ?? -1}
+          ledMode={sensor.ledMode ?? "active"}
+          usedPins={usedPins}
+          onUpdate={(pin, mode) => onUpdate(sensor.id, { ledPin: pin, ledMode: mode })}
+        />
+      )}
     </div>
   );
 }
 
 // ─── Joystick Card ────────────────────────────────────────────────────────────
 
-function JoystickCard({ joy, index, usedPins, usedAnalogPins, onUpdate, onRemove }: {
+function JoystickCard({ joy, index, usedPins, usedAnalogPins, onUpdate, onRemove, isSelected, onSelect }: {
   joy: JoystickConfig; index: number; usedPins: number[]; usedAnalogPins: number[];
   onUpdate: (id: string, u: Partial<JoystickConfig>) => void;
   onRemove: (id: string) => void;
+  isSelected?: boolean;
+  onSelect?: (id: string | null) => void;
 }) {
   const availableDigital = ALL_PINS.filter((p) => p === joy.buttonPin || !usedPins.includes(p));
   const dirs: { label: string; key: keyof JoystickConfig; display: keyof JoystickConfig }[] = [
@@ -625,7 +714,12 @@ function JoystickCard({ joy, index, usedPins, usedAnalogPins, onUpdate, onRemove
   ];
 
   return (
-    <div className="border rounded-xl p-3 flex flex-col gap-2 transition-colors group bg-violet-950/30 border-violet-800/50 hover:border-violet-700/60">
+    <div
+      className={["border rounded-xl p-3 flex flex-col gap-2 transition-colors group cursor-pointer",
+        isSelected ? "bg-violet-950/50 border-blue-600/50" : "bg-violet-950/30 border-violet-800/50 hover:border-violet-700/60"
+      ].join(" ")}
+      onClick={() => onSelect?.(isSelected ? null : joy.id)}
+    >
       <div className="flex items-center gap-2">
         <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 border bg-violet-500/20 border-violet-500/40">
           <Joystick size={9} className="text-violet-400" />
@@ -719,6 +813,14 @@ function JoystickCard({ joy, index, usedPins, usedAnalogPins, onUpdate, onRemove
         docsUrl="https://www.arduino.cc/reference/en/language/functions/analog-io/analogread/"
         docsLabel="Arduino analogRead() docs"
       />
+      {isSelected && (
+        <LedPanel
+          ledPin={joy.ledPin ?? -1}
+          ledMode={joy.ledMode ?? "active"}
+          usedPins={usedPins}
+          onUpdate={(pin, mode) => onUpdate(joy.id, { ledPin: pin, ledMode: mode })}
+        />
+      )}
     </div>
   );
 }
@@ -1569,7 +1671,7 @@ export default function Home() {
   const [ports, setPorts] = useState<Port[]>([]);
   const [selectedPort, setSelectedPort] = useState("");
   const [buttons, setButtons] = useState<ButtonConfig[]>([
-    { id: generateId(), name: "", pin: 2, keyDisplay: "", arduinoKey: "", mode: "momentary", ledPin: -1 },
+    { id: generateId(), name: "", pin: 2, keyDisplay: "", arduinoKey: "", mode: "momentary", ledPin: -1, ledMode: "active" },
   ]);
   const [portInputs, setPortInputs] = useState<PortConfig[]>([]);
   const [leds, setLeds] = useState<LedConfig>({ enabled: false, onPin: 11, offPin: 12 });
@@ -1612,6 +1714,7 @@ export default function Home() {
   const [addInputType, setAddInputType] = useState("micro-switch");
   const [wsLog, setWsLog] = useState<string[]>([]);
   const [wsUploading, setWsUploading] = useState(false);
+  const [selectedInputId, setSelectedInputId] = useState<string | null>(null);
 
   const logEndRef = useRef<HTMLDivElement>(null);
   const saveMenuRef = useRef<HTMLDivElement>(null);
@@ -1789,13 +1892,13 @@ export default function Home() {
   const addButton = () => {
     if (buttons.length >= 12) return;
     const next = ALL_PINS.find((p) => !usedPins.includes(p)) ?? 2;
-    setButtons((prev) => [...prev, { id: generateId(), name: "", pin: next, keyDisplay: "", arduinoKey: "", mode: "momentary", ledPin: -1 }]);
+    setButtons((prev) => [...prev, { id: generateId(), name: "", pin: next, keyDisplay: "", arduinoKey: "", mode: "momentary", ledPin: -1, ledMode: "active" }]);
   };
 
   const addPort = () => {
     if (portInputs.length >= 4) return;
     const next = ALL_PINS.find((p) => !usedPins.includes(p)) ?? 2;
-    setPortInputs((prev) => [...prev, { id: generateId(), name: "", pin: next, keyDisplay: "", arduinoKey: "", mode: "momentary", ledPin: -1 }]);
+    setPortInputs((prev) => [...prev, { id: generateId(), name: "", pin: next, keyDisplay: "", arduinoKey: "", mode: "momentary", ledPin: -1, ledMode: "active" }]);
   };
 
   const updateButton = (id: string, updates: Partial<ButtonConfig>) =>
@@ -1809,7 +1912,7 @@ export default function Home() {
   // IR sensors
   const addIR = () => {
     const pin = ALL_PINS.find((p) => !usedPins.includes(p)) ?? 2;
-    setIrSensors((prev) => [...prev, { id: generateId(), name: "", pin, keyDisplay: "", arduinoKey: "", mode: "momentary", activeHigh: false }]);
+    setIrSensors((prev) => [...prev, { id: generateId(), name: "", pin, keyDisplay: "", arduinoKey: "", mode: "momentary", activeHigh: false, ledPin: -1, ledMode: "active" }]);
   };
   const updateIR = (id: string, u: Partial<IRSensorConfig>) =>
     setIrSensors((prev) => prev.map((s) => (s.id === id ? { ...s, ...u } : s)));
@@ -1818,7 +1921,7 @@ export default function Home() {
   // Sip & puff
   const addSipPuff = () => {
     const dp = ALL_PINS.find((p) => !usedPins.includes(p)) ?? 2;
-    setSipPuffs((prev) => [...prev, { id: generateId(), name: "", pin: dp, key: "", keyDisplay: "" }]);
+    setSipPuffs((prev) => [...prev, { id: generateId(), name: "", pin: dp, key: "", keyDisplay: "", ledPin: -1, ledMode: "active" }]);
   };
   const updateSipPuff = (id: string, u: Partial<SipPuffConfig>) =>
     setSipPuffs((prev) => prev.map((s) => (s.id === id ? { ...s, ...u } : s)));
@@ -1837,6 +1940,7 @@ export default function Home() {
       leftKey: "KEY_LEFT_ARROW", leftDisplay: "Arrow Left",
       rightKey: "KEY_RIGHT_ARROW", rightDisplay: "Arrow Right",
       buttonKey: "", buttonDisplay: "", deadzone: 200, invertX: false, invertY: false,
+      ledPin: -1, ledMode: "active",
     }]);
   };
   const updateJoystick = (id: string, u: Partial<JoystickConfig>) =>
@@ -1847,7 +1951,7 @@ export default function Home() {
     if (addInputType === "micro-switch") addButton();
     else if (addInputType === "toggle-switch") {
       const next = ALL_PINS.find((p) => !usedPins.includes(p)) ?? 2;
-      setButtons((prev) => [...prev, { id: generateId(), name: "", pin: next, keyDisplay: "", arduinoKey: "", mode: "toggle", ledPin: -1 }]);
+      setButtons((prev) => [...prev, { id: generateId(), name: "", pin: next, keyDisplay: "", arduinoKey: "", mode: "toggle", ledPin: -1, ledMode: "active" }]);
     }
     else if (addInputType === "sip-puff") addSipPuff();
     else if (addInputType === "ir-sensor") addIR();
@@ -1900,7 +2004,7 @@ export default function Home() {
   const createNewSave = () => {
     setCurrentSaveId(null);
     setCurrentSaveName("New Setup");
-    setButtons([{ id: generateId(), name: "", pin: 2, keyDisplay: "", arduinoKey: "", mode: "momentary", ledPin: -1 }]);
+    setButtons([{ id: generateId(), name: "", pin: 2, keyDisplay: "", arduinoKey: "", mode: "momentary", ledPin: -1, ledMode: "active" }]);
     setPortInputs([]); setLeds({ enabled: false, onPin: 11, offPin: 12 });
     setIrSensors([]); setSipPuffs([]); setJoysticks([]);
     setShowSaveMenu(false);
@@ -2322,28 +2426,33 @@ export default function Home() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 min-w-0">
                   {buttons.map((btn, i) => (
                     <ButtonCard key={btn.id} button={btn} index={i} usedPins={usedPins}
-                      onUpdate={updateButton} onRemove={removeButton} typeLabel="Switch" />
+                      onUpdate={updateButton} onRemove={removeButton} typeLabel="Switch"
+                      isSelected={selectedInputId === btn.id} onSelect={setSelectedInputId} />
                   ))}
                   {portInputs.map((p, i) => (
                     <ButtonCard key={p.id} button={p} index={i} usedPins={usedPins}
-                      onUpdate={updatePort} onRemove={removePort} typeLabel="Port" />
+                      onUpdate={updatePort} onRemove={removePort} typeLabel="Port"
+                      isSelected={selectedInputId === p.id} onSelect={setSelectedInputId} />
                   ))}
                   {irSensors.map((s, i) => (
                     <div key={s.id} className="sm:col-span-2 lg:col-span-1">
                       <IRSensorCard sensor={s} index={i} usedPins={usedPins}
-                        onUpdate={updateIR} onRemove={removeIR} />
+                        onUpdate={updateIR} onRemove={removeIR}
+                        isSelected={selectedInputId === s.id} onSelect={setSelectedInputId} />
                     </div>
                   ))}
                   {sipPuffs.map((s, i) => (
                     <div key={s.id} className="sm:col-span-2 lg:col-span-1">
                       <SipPuffCard sensor={s} index={i} usedPins={usedPins}
-                        onUpdate={updateSipPuff} onRemove={removeSipPuff} />
+                        onUpdate={updateSipPuff} onRemove={removeSipPuff}
+                        isSelected={selectedInputId === s.id} onSelect={setSelectedInputId} />
                     </div>
                   ))}
                   {joysticks.map((j, i) => (
                     <div key={j.id} className="sm:col-span-2">
                       <JoystickCard joy={j} index={i} usedPins={usedPins} usedAnalogPins={usedAnalogPins}
-                        onUpdate={updateJoystick} onRemove={removeJoystick} />
+                        onUpdate={updateJoystick} onRemove={removeJoystick}
+                        isSelected={selectedInputId === j.id} onSelect={setSelectedInputId} />
                     </div>
                   ))}
                   {buttons.length + portInputs.length + irSensors.length + sipPuffs.length + joysticks.length === 0 && (
