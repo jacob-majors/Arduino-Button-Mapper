@@ -33,12 +33,99 @@ import {
   ADMIN_USERNAME,
   submitDinoScore,
   getTopDinoScores,
+  saveSharedSetup,
+  loadSharedSetup,
 } from "@/lib/supabase";
 import type { SaveSlot, AppUser, AdminSettings, DinoScore } from "@/lib/supabase";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
 const ALL_PINS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
 const ANALOG_PINS = [0, 1, 2, 3, 4, 5]; // A0–A5
+
+// ─── Board Templates ──────────────────────────────────────────────────────────
+const BOARD_TEMPLATES = [
+  {
+    id: "one-switch",
+    label: "One-Switch",
+    emoji: "🟢",
+    desc: "Single button → Space. Great for accessibility switches.",
+    buttons: [{ id: "t1", name: "Switch", pin: 2, keyDisplay: "Space", arduinoKey: " ", mode: "momentary" as const, ledPin: -1, ledMode: "active" as const }],
+    portInputs: [], irSensors: [], sipPuffs: [], joysticks: [],
+    leds: { enabled: false, onPin: 11, offPin: 12 },
+  },
+  {
+    id: "4btn-gaming",
+    label: "4-Button Pad",
+    emoji: "🎮",
+    desc: "A / B / X / Y face buttons on pins 2–5.",
+    buttons: [
+      { id: "t1", name: "A", pin: 2, keyDisplay: "Z", arduinoKey: "z", mode: "momentary" as const, ledPin: -1, ledMode: "active" as const },
+      { id: "t2", name: "B", pin: 3, keyDisplay: "X", arduinoKey: "x", mode: "momentary" as const, ledPin: -1, ledMode: "active" as const },
+      { id: "t3", name: "X", pin: 4, keyDisplay: "A", arduinoKey: "a", mode: "momentary" as const, ledPin: -1, ledMode: "active" as const },
+      { id: "t4", name: "Y", pin: 5, keyDisplay: "S", arduinoKey: "s", mode: "momentary" as const, ledPin: -1, ledMode: "active" as const },
+    ],
+    portInputs: [], irSensors: [], sipPuffs: [], joysticks: [],
+    leds: { enabled: false, onPin: 11, offPin: 12 },
+  },
+  {
+    id: "arrow-keys",
+    label: "Arrow Keys",
+    emoji: "⬆️",
+    desc: "4 buttons mapped to arrow keys on pins 2–5.",
+    buttons: [
+      { id: "t1", name: "Up",    pin: 2, keyDisplay: "↑", arduinoKey: "KEY_UP_ARROW",    mode: "momentary" as const, ledPin: -1, ledMode: "active" as const },
+      { id: "t2", name: "Down",  pin: 3, keyDisplay: "↓", arduinoKey: "KEY_DOWN_ARROW",  mode: "momentary" as const, ledPin: -1, ledMode: "active" as const },
+      { id: "t3", name: "Left",  pin: 4, keyDisplay: "←", arduinoKey: "KEY_LEFT_ARROW",  mode: "momentary" as const, ledPin: -1, ledMode: "active" as const },
+      { id: "t4", name: "Right", pin: 5, keyDisplay: "→", arduinoKey: "KEY_RIGHT_ARROW", mode: "momentary" as const, ledPin: -1, ledMode: "active" as const },
+    ],
+    portInputs: [], irSensors: [], sipPuffs: [], joysticks: [],
+    leds: { enabled: false, onPin: 11, offPin: 12 },
+  },
+  {
+    id: "joystick-wasd",
+    label: "Joystick WASD",
+    emoji: "🕹️",
+    desc: "Analog joystick → WASD + Space jump.",
+    buttons: [
+      { id: "t1", name: "Jump", pin: 2, keyDisplay: "Space", arduinoKey: " ", mode: "momentary" as const, ledPin: -1, ledMode: "active" as const },
+    ],
+    portInputs: [], irSensors: [], sipPuffs: [],
+    joysticks: [{
+      id: "tj1", name: "Stick", xPin: 0, yPin: 1, buttonPin: -1,
+      upKey: "w", upDisplay: "W", downKey: "s", downDisplay: "S",
+      leftKey: "a", leftDisplay: "A", rightKey: "d", rightDisplay: "D",
+      buttonKey: "", buttonDisplay: "", deadzone: 200, invertX: false, invertY: false,
+      ledPin: -1, ledMode: "active" as const,
+    }],
+    leds: { enabled: false, onPin: 11, offPin: 12 },
+  },
+  {
+    id: "sip-puff",
+    label: "Sip & Puff",
+    emoji: "💨",
+    desc: "Sip = Left Arrow, Puff = Right Arrow. Mouth-operated switch.",
+    buttons: [],
+    portInputs: [], irSensors: [],
+    sipPuffs: [{ id: "tsp1", name: "Sip & Puff", pin: 2, key: "KEY_LEFT_ARROW", keyDisplay: "←", ledPin: -1, ledMode: "active" as const }],
+    joysticks: [],
+    leds: { enabled: false, onPin: 11, offPin: 12 },
+  },
+  {
+    id: "media",
+    label: "Media Keys",
+    emoji: "🎵",
+    desc: "5 buttons: Play, Vol+, Vol–, Next, Prev.",
+    buttons: [
+      { id: "t1", name: "Play/Pause", pin: 2, keyDisplay: "Space", arduinoKey: " ",         mode: "momentary" as const, ledPin: -1, ledMode: "active" as const },
+      { id: "t2", name: "Vol +",      pin: 3, keyDisplay: "↑",     arduinoKey: "KEY_UP_ARROW",    mode: "momentary" as const, ledPin: -1, ledMode: "active" as const },
+      { id: "t3", name: "Vol –",      pin: 4, keyDisplay: "↓",     arduinoKey: "KEY_DOWN_ARROW",  mode: "momentary" as const, ledPin: -1, ledMode: "active" as const },
+      { id: "t4", name: "Next",       pin: 5, keyDisplay: "→",     arduinoKey: "KEY_RIGHT_ARROW", mode: "momentary" as const, ledPin: -1, ledMode: "active" as const },
+      { id: "t5", name: "Prev",       pin: 6, keyDisplay: "←",     arduinoKey: "KEY_LEFT_ARROW",  mode: "momentary" as const, ledPin: -1, ledMode: "active" as const },
+    ],
+    portInputs: [], irSensors: [], sipPuffs: [], joysticks: [],
+    leds: { enabled: false, onPin: 11, offPin: 12 },
+  },
+];
 
 interface Port { path: string; description: string; }
 interface LogLine { type: string; data: string; }
@@ -1741,6 +1828,9 @@ export default function Home() {
   const [currentSaveName, setCurrentSaveName] = useState("My Setup");
   const [showSaveMenu, setShowSaveMenu] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [sharingLink, setSharingLink] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
   const [selectedGame, setSelectedGame] = useState<"dino" | "snake" | "pong">("dino");
   const [dinoLeaderboard, setDinoLeaderboard] = useState<DinoScore[]>([]);
   const [irSensors, setIrSensors] = useState<IRSensorConfig[]>([]);
@@ -1754,6 +1844,8 @@ export default function Home() {
   const [showPortMenu, setShowPortMenu] = useState(false);
   const [grantedPorts, setGrantedPorts] = useState<{ label: string; index: number }[]>([]);
   const portMenuRef = useRef<HTMLDivElement>(null);
+  const [serialLog, setSerialLog] = useState<{ key: string; time: string }[]>([]);
+  const serialLogRef = useRef<HTMLDivElement>(null);
   const [selectedInputId, setSelectedInputId] = useState<string | null>(null);
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const [deleteConfirmUserId, setDeleteConfirmUserId] = useState<string | null>(null);
@@ -1765,6 +1857,20 @@ export default function Home() {
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { logEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [uploadLog]);
+  useEffect(() => { if (serialLogRef.current) serialLogRef.current.scrollTop = serialLogRef.current.scrollHeight; }, [serialLog]);
+  // Global key listener for the serial/input monitor — always active so Arduino input is captured
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Ignore modifier-only, ignore keys that are part of the app UI (e.g. text inputs)
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      const label = e.key === " " ? "SPACE" : e.key.length > 1 ? e.key.toUpperCase().replace("ARROW", "").replace("KEY", "") : e.key.toUpperCase();
+      const time = new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      setSerialLog((p) => [...p.slice(-299), { key: label, time }]);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
   useEffect(() => { fetchPorts(); }, []);
   useEffect(() => {
     if (!showSaveMenu) return;
@@ -1785,6 +1891,27 @@ export default function Home() {
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, [showExportMenu]);
+
+  // ── Load shared setup from URL (?share=<id>) ────────────────────────────────
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const shareId = params.get("share");
+    if (!shareId) return;
+    loadSharedSetup(shareId).then((result) => {
+      if (!result) return;
+      const { name, config: cfg } = result;
+      if (cfg.buttons)    setButtons(cfg.buttons as ButtonConfig[]);
+      if (cfg.portInputs) setPortInputs(cfg.portInputs as PortConfig[]);
+      if (cfg.leds)       setLeds(cfg.leds as LedConfig);
+      if (cfg.irSensors)  setIrSensors(cfg.irSensors as IRSensorConfig[]);
+      if (cfg.sipPuffs)   setSipPuffs(cfg.sipPuffs as SipPuffConfig[]);
+      if (cfg.joysticks)  setJoysticks(cfg.joysticks as JoystickConfig[]);
+      setCurrentSaveName(name);
+      // Clean the URL without a full reload
+      window.history.replaceState({}, "", "/app");
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Auth: restore from localStorage on mount, subscribe to admin settings ──
   useEffect(() => {
@@ -2110,6 +2237,32 @@ export default function Home() {
     }
   };
 
+  const applyTemplate = (t: typeof BOARD_TEMPLATES[number]) => {
+    setButtons(t.buttons as ButtonConfig[]);
+    setPortInputs(t.portInputs as PortConfig[]);
+    setLeds(t.leds as LedConfig);
+    setIrSensors(t.irSensors as IRSensorConfig[]);
+    setSipPuffs(t.sipPuffs as SipPuffConfig[]);
+    setJoysticks(t.joysticks as JoystickConfig[]);
+    setCurrentSaveName(t.label);
+    setShowTemplates(false);
+  };
+
+  const copyShareLink = async () => {
+    setSharingLink(true);
+    try {
+      const cfg = { buttons, portInputs, leds, irSensors, sipPuffs, joysticks };
+      const id = await saveSharedSetup(currentSaveName, cfg);
+      const base = "https://arduino.jacobmajors.com";
+      const url = `${base}/share/${id}`;
+      await navigator.clipboard.writeText(url);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 3000);
+    } catch { /* ignore */ } finally {
+      setSharingLink(false);
+    }
+  };
+
   const downloadSetup = () => {
     const cfg = { buttons, portInputs, leds, irSensors, sipPuffs, joysticks };
     const blob = new Blob([JSON.stringify({ name: currentSaveName, config: cfg }, null, 2)], { type: "application/json" });
@@ -2272,10 +2425,18 @@ export default function Home() {
                     <Download size={12} /> <span className="hidden sm:inline">Export / Import</span>
                   </button>
                   {showExportMenu && (
-                    <div className="absolute right-0 top-full mt-1 w-40 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-[200] overflow-hidden">
+                    <div className="absolute right-0 top-full mt-1 w-48 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl z-[200] overflow-hidden">
+                      <button
+                        onClick={() => { copyShareLink(); setShowExportMenu(false); }}
+                        disabled={sharingLink}
+                        className="flex items-center gap-2 w-full px-3 py-2.5 text-xs text-blue-300 hover:bg-gray-800 hover:text-blue-100 transition-colors disabled:opacity-50"
+                      >
+                        {copiedLink ? <CheckCircle2 size={11} className="text-green-400" /> : <ExternalLink size={11} />}
+                        {copiedLink ? "Link copied!" : sharingLink ? "Generating…" : "Copy share link"}
+                      </button>
                       <button
                         onClick={() => { downloadSetup(); setShowExportMenu(false); }}
-                        className="flex items-center gap-2 w-full px-3 py-2.5 text-xs text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
+                        className="flex items-center gap-2 w-full px-3 py-2.5 text-xs text-gray-300 hover:bg-gray-800 hover:text-white transition-colors border-t border-gray-800"
                       ><Download size={11} /> Export as JSON</button>
                       <label className="flex items-center gap-2 w-full px-3 py-2.5 text-xs text-gray-300 hover:bg-gray-800 hover:text-white transition-colors cursor-pointer border-t border-gray-800">
                         <Upload size={11} /> Import from JSON
@@ -2456,6 +2617,34 @@ export default function Home() {
                 </div>
               )}
             </section>}
+
+            {/* ── Board Templates ── */}
+            <section className="bg-gray-900 border border-gray-800 rounded-2xl px-4 py-3 flex-shrink-0">
+              <button
+                onClick={() => setShowTemplates((v) => !v)}
+                className="flex items-center gap-2 w-full text-left"
+              >
+                <Gamepad2 size={13} className="text-violet-400" />
+                <span className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Templates</span>
+                <span className="text-[10px] text-gray-600 ml-1">start from a preset</span>
+                <ChevronDown size={12} className={`ml-auto text-gray-600 transition-transform ${showTemplates ? "rotate-180" : ""}`} />
+              </button>
+              {showTemplates && (
+                <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+                  {BOARD_TEMPLATES.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => applyTemplate(t)}
+                      className="flex flex-col items-start gap-1 p-3 rounded-xl border border-gray-700 bg-gray-800/60 hover:bg-gray-700/80 hover:border-violet-700/50 transition-all text-left group"
+                    >
+                      <span className="text-xl leading-none">{t.emoji}</span>
+                      <span className="text-xs font-semibold text-gray-200 group-hover:text-violet-200 transition-colors">{t.label}</span>
+                      <span className="text-[10px] text-gray-500 leading-tight">{t.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
 
               {/* LED Config — hidden per user request, state kept for sketch generation */}
               {false && adminSettings.show_leds && <section className="bg-gray-900 border border-gray-800 border-l-2 border-l-yellow-800 rounded-2xl p-4 flex-shrink-0">
@@ -2746,6 +2935,35 @@ export default function Home() {
                 <span className="text-xs text-gray-600">buttons light up when pressed</span>
               </div>
               <ControllerMockup buttons={buttons} ports={portInputs} joysticks={joysticks} />
+            </div>
+
+            {/* ── Serial Monitor ── */}
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Terminal size={14} className="text-green-400" />
+                <h2 className="text-sm font-semibold text-gray-200">Input Monitor</h2>
+                <span className="text-xs text-gray-600">every key press from your controller shows here</span>
+                <button
+                  onClick={() => setSerialLog([])}
+                  className="ml-auto text-[10px] text-gray-600 hover:text-red-400 transition-colors px-2 py-0.5 rounded border border-gray-800 hover:border-red-900"
+                >Clear</button>
+              </div>
+              <div
+                ref={serialLogRef}
+                className="bg-gray-950 border border-gray-800 rounded-xl p-3 h-40 overflow-y-auto font-mono text-xs"
+              >
+                {serialLog.length === 0 ? (
+                  <p className="text-gray-700 select-none">Waiting for input… press any key or use your Arduino controller</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {serialLog.map((entry, i) => (
+                      <span key={i} title={entry.time}
+                        className="inline-flex items-center px-2 py-0.5 rounded-md bg-green-950/60 border border-green-800/40 text-green-300 text-[11px] font-mono"
+                      >{entry.key}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
           </div>

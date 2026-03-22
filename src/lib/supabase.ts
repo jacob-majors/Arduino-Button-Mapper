@@ -145,6 +145,40 @@ export async function deleteUser(userId: string): Promise<void> {
   await supabase.from("app_users").delete().eq("id", userId);
 }
 
+// ── Setup Sharing ────────────────────────────────────────────────────────────
+// Required SQL (run once in Supabase SQL editor):
+//
+// CREATE TABLE public.shared_setups (
+//   id text PRIMARY KEY,
+//   config jsonb NOT NULL,
+//   name text NOT NULL DEFAULT 'Shared Setup',
+//   created_at timestamptz DEFAULT now()
+// );
+// ALTER TABLE public.shared_setups ENABLE ROW LEVEL SECURITY;
+// CREATE POLICY "public read"   ON public.shared_setups FOR SELECT USING (true);
+// CREATE POLICY "public insert" ON public.shared_setups FOR INSERT WITH CHECK (true);
+
+function randomShareId(): string {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  return Array.from({ length: 18 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+}
+
+export async function saveSharedSetup(name: string, config: UserConfig): Promise<string> {
+  const id = randomShareId();
+  await supabase.from("shared_setups").insert({ id, name, config });
+  return id;
+}
+
+export async function loadSharedSetup(id: string): Promise<{ name: string; config: UserConfig } | null> {
+  const { data } = await supabase
+    .from("shared_setups")
+    .select("name, config")
+    .eq("id", id)
+    .maybeSingle();
+  if (!data) return null;
+  return { name: data.name as string, config: data.config as UserConfig };
+}
+
 // ── Dino Leaderboard ────────────────────────────────────────────────────────
 // Required SQL (run once in Supabase SQL editor):
 //
