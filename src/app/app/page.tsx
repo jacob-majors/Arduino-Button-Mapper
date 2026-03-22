@@ -1064,6 +1064,27 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
 
   const hasAny = rightConns.length > 0 || leftConns.length > 0;
 
+  // ── Spread component positions so they don't overlap ─────────────────────
+  // Returns adjusted Y values with at least minGap between each centre.
+  function spreadYPositions(pinYs: number[], minGap: number): number[] {
+    if (pinYs.length === 0) return [];
+    const order = pinYs.map((y, i) => ({ y, i })).sort((a, b) => a.y - b.y);
+    // Forward pass: push down if too close
+    for (let k = 1; k < order.length; k++) {
+      if (order[k].y < order[k - 1].y + minGap) order[k].y = order[k - 1].y + minGap;
+    }
+    // Backward pass: pull up to centre the group without bunching at bottom
+    for (let k = order.length - 2; k >= 0; k--) {
+      if (order[k].y > order[k + 1].y - minGap) order[k].y = order[k + 1].y - minGap;
+    }
+    const out = new Array(pinYs.length);
+    order.forEach(({ y, i }) => { out[i] = y; });
+    return out;
+  }
+
+  const rightCompY = spreadYPositions(rightConns.map((c) => c.pinY), 72);
+  const leftCompY  = spreadYPositions(leftConns.map((c) => c.pinY), 72);
+
   // Left power pin labels/colors
   const leftPowerPins = [
     { label: "NC",    color: "#374151" },
@@ -1442,69 +1463,78 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
 
             {/* ── Wires + Components RIGHT side ── */}
             {rightConns.map((conn, idx) => {
-              const cy = conn.pinY;
+              const py = conn.pinY;          // pin position on the board header
+              const ky = rightCompY[idx];    // spread component position
               const color = conn.color;
+              // Bezier control points: exit board horizontally then curve to component
+              const wireEnd = RCX - 30;
+              const curveR = `M 530 ${py} C 600 ${py} 600 ${ky} ${wireEnd} ${ky}`;
+              // For LED: resistor sits at midpoint Y between pin and component
+              const resY = Math.round((py + ky) / 2);
+              const wireEndRes1 = 562;
+              const wireEndRes2 = 588;
+              const curveR1 = `M 530 ${py} C 580 ${py} 555 ${resY} ${wireEndRes1} ${resY}`;
+              const curveR2 = `M ${wireEndRes2} ${resY} C 615 ${resY} 620 ${ky} ${wireEnd} ${ky}`;
               return (
                 <g key={`rc${idx}`}>
-                  {/* Dashed signal wire (split around resistor for LEDs) */}
+                  {/* Curved signal wire (split around resistor for LEDs) */}
                   {conn.type === "led" ? (
                     <>
-                      <line x1={520} y1={cy} x2={562} y2={cy} stroke={color} strokeWidth="1.5" strokeDasharray="5 3" opacity={0.8} />
-                      <line x1={588} y1={cy} x2={630} y2={cy} stroke={color} strokeWidth="1.5" strokeDasharray="5 3" opacity={0.8} />
-                      <ResistorIcon cx={575} cy={cy} onClick={() => setShowResistorInfo((v) => !v)} />
+                      <path d={curveR1} stroke={color} strokeWidth="1.5" strokeDasharray="5 3" fill="none" opacity={0.85} />
+                      <path d={curveR2} stroke={color} strokeWidth="1.5" strokeDasharray="5 3" fill="none" opacity={0.85} />
+                      <ResistorIcon cx={575} cy={resY} onClick={() => setShowResistorInfo((v) => !v)} />
                     </>
                   ) : (
-                    <line x1={520} y1={cy} x2={630} y2={cy} stroke={color} strokeWidth="1.5" strokeDasharray="5 3" opacity={0.8} />
+                    <path d={curveR} stroke={color} strokeWidth="1.5" strokeDasharray="5 3" fill="none" opacity={0.85} />
                   )}
                   {/* VCC stub */}
                   {showVCC && connNeedsVCC(conn.type) && (
-                    <line x1={RCX + 28} y1={cy - 8} x2={845} y2={cy - 8} stroke="#f87171" strokeWidth="1" strokeDasharray="4 3" opacity={0.6} />
+                    <line x1={RCX + 28} y1={ky - 8} x2={845} y2={ky - 8} stroke="#f87171" strokeWidth="1" strokeDasharray="4 3" opacity={0.6} />
                   )}
                   {/* GND stub */}
                   {showGND && connNeedsGND(conn.type) && (
-                    <line x1={RCX + 28} y1={cy + 8} x2={860} y2={cy + 8} stroke="#6b7280" strokeWidth="1" strokeDasharray="4 3" opacity={0.6} />
+                    <line x1={RCX + 28} y1={ky + 8} x2={860} y2={ky + 8} stroke="#6b7280" strokeWidth="1" strokeDasharray="4 3" opacity={0.6} />
                   )}
-                  {/* Component icon */}
-                  {conn.type === "button" && <ButtonIcon cx={RCX} cy={cy} color={color} isPower={false} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
-                  {conn.type === "power" && <ButtonIcon cx={RCX} cy={cy} color={color} isPower={true} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
-                  {conn.type === "port" && <PortIcon cx={RCX} cy={cy} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
-                  {conn.type === "led" && <LedIcon cx={RCX} cy={cy} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
-                  {conn.type === "ir" && <IrIcon cx={RCX} cy={cy} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
-                  {conn.type === "swclick" && <SwClickIcon cx={RCX} cy={cy} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
-                  {conn.type === "sipPuff" && <SipPuffIcon cx={RCX} cy={cy} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
+                  {/* Component icon at spread position */}
+                  {conn.type === "button"  && <ButtonIcon cx={RCX} cy={ky} color={color} isPower={false} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
+                  {conn.type === "power"   && <ButtonIcon cx={RCX} cy={ky} color={color} isPower={true}  onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
+                  {conn.type === "port"    && <PortIcon   cx={RCX} cy={ky} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
+                  {conn.type === "led"     && <LedIcon    cx={RCX} cy={ky} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
+                  {conn.type === "ir"      && <IrIcon     cx={RCX} cy={ky} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
+                  {conn.type === "swclick" && <SwClickIcon cx={RCX} cy={ky} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
+                  {conn.type === "sipPuff" && <SipPuffIcon cx={RCX} cy={ky} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
                   {/* Label */}
-                  <text x={RCX + 28} y={cy + 4} fontFamily="sans-serif" fontSize="9" fill={color} textAnchor="start">
-                    {conn.label}
-                  </text>
+                  <text x={RCX + 30} y={ky + 4} fontFamily="sans-serif" fontSize="9" fill={color} textAnchor="start">{conn.label}</text>
                 </g>
               );
             })}
 
             {/* ── Wires + Components LEFT side ── */}
             {leftConns.map((conn, idx) => {
-              const cy = conn.pinY;
+              const py = conn.pinY;
+              const ky = leftCompY[idx];
               const color = conn.color;
+              const wireEnd = LCX + 30;
+              const curveL = `M 335 ${py} C 265 ${py} 265 ${ky} ${wireEnd} ${ky}`;
               return (
                 <g key={`lc${idx}`}>
-                  {/* Dashed signal wire */}
-                  <line x1={337} y1={cy} x2={215} y2={cy} stroke={color} strokeWidth="1.5" strokeDasharray="5 3" opacity={0.8} />
+                  {/* Curved signal wire */}
+                  <path d={curveL} stroke={color} strokeWidth="1.5" strokeDasharray="5 3" fill="none" opacity={0.85} />
                   {/* VCC stub */}
                   {showVCC && connNeedsVCC(conn.type) && (
-                    <line x1={LCX - 28} y1={cy - 8} x2={50} y2={cy - 8} stroke="#f87171" strokeWidth="1" strokeDasharray="4 3" opacity={0.6} />
+                    <line x1={LCX - 28} y1={ky - 8} x2={50} y2={ky - 8} stroke="#f87171" strokeWidth="1" strokeDasharray="4 3" opacity={0.6} />
                   )}
                   {/* GND stub */}
                   {showGND && connNeedsGND(conn.type) && (
-                    <line x1={LCX - 28} y1={cy + 8} x2={35} y2={cy + 8} stroke="#6b7280" strokeWidth="1" strokeDasharray="4 3" opacity={0.6} />
+                    <line x1={LCX - 28} y1={ky + 8} x2={35} y2={ky + 8} stroke="#6b7280" strokeWidth="1" strokeDasharray="4 3" opacity={0.6} />
                   )}
-                  {/* Component icon */}
-                  {conn.type === "sipPuff" && <SipPuffIcon cx={LCX} cy={cy} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
+                  {/* Component icon at spread position */}
+                  {conn.type === "sipPuff" && <SipPuffIcon cx={LCX} cy={ky} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
                   {(conn.type === "joystickX" || conn.type === "joystickY") && (
-                    <JoystickAxisIcon cx={LCX} cy={cy} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />
+                    <JoystickAxisIcon cx={LCX} cy={ky} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />
                   )}
                   {/* Label */}
-                  <text x={LCX - 28} y={cy + 4} fontFamily="sans-serif" fontSize="9" fill={color} textAnchor="end">
-                    {conn.label}
-                  </text>
+                  <text x={LCX - 30} y={ky + 4} fontFamily="sans-serif" fontSize="9" fill={color} textAnchor="end">{conn.label}</text>
                 </g>
               );
             })}
