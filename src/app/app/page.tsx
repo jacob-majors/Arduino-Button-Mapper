@@ -1847,6 +1847,7 @@ export default function Home() {
   const portMenuRef = useRef<HTMLDivElement>(null);
   const [serialLog, setSerialLog] = useState<{ key: string; time: string }[]>([]);
   const serialLogRef = useRef<HTMLDivElement>(null);
+  const [showSerialMonitor, setShowSerialMonitor] = useState(true);
   const [selectedInputId, setSelectedInputId] = useState<string | null>(null);
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const [deleteConfirmUserId, setDeleteConfirmUserId] = useState<string | null>(null);
@@ -2175,6 +2176,7 @@ export default function Home() {
   }, []);
 
   const openPortMenu = async () => {
+    setShowExportMenu(false);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const serial = (navigator as any).serial;
     if (!serial) { setShowPortMenu(true); setGrantedPorts([]); return; }
@@ -2421,7 +2423,7 @@ export default function Home() {
                 {/* Export / Import combined */}
                 <div className="relative" ref={exportMenuRef}>
                   <button
-                    onClick={() => setShowExportMenu((v) => !v)}
+                    onClick={() => { setShowPortMenu(false); setShowExportMenu((v) => !v); }}
                     title="Export or import setup"
                     className="flex items-center gap-1 px-2 py-1.5 rounded-lg border border-gray-700 bg-gray-800/60 hover:bg-gray-700 text-gray-400 hover:text-gray-100 transition-all text-[10px] font-medium"
                   >
@@ -2820,7 +2822,6 @@ export default function Home() {
                     { type: "joystick",      label: "Joystick",      icon: <Joystick size={13} />,  color: "hover:bg-violet-600/20 hover:border-violet-500/50 hover:text-violet-300" },
                     { type: "ir-sensor",     label: "IR Sensor",     icon: <Radio size={13} />,     color: "hover:bg-green-600/20 hover:border-green-500/50 hover:text-green-300" },
                     { type: "sip-puff",      label: "Sip & Puff",    icon: <Wind size={13} />,      color: "hover:bg-cyan-600/20 hover:border-cyan-500/50 hover:text-cyan-300"  },
-                    { type: "port",          label: "3.5mm Port",    icon: <Usb size={13} />,       color: "hover:bg-orange-600/20 hover:border-orange-500/50 hover:text-orange-300" },
                   ] as const).map(({ type, label, icon, color }) => (
                     <button key={type}
                       onClick={() => addInputByType(type)}
@@ -2930,6 +2931,18 @@ export default function Home() {
                       {v === "mockup" ? "Mockup" : v === "inputs" ? "All Inputs" : "Controller"}
                     </button>
                   ))}
+                  <button
+                    onClick={() => setShowSerialMonitor((s) => !s)}
+                    title={showSerialMonitor ? "Hide Serial Monitor" : "Show Serial Monitor"}
+                    className={["ml-auto flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all",
+                      showSerialMonitor
+                        ? "bg-green-600/20 border border-green-600/40 text-green-400"
+                        : "text-gray-500 hover:text-gray-300 hover:bg-gray-800 border border-transparent",
+                    ].join(" ")}
+                  >
+                    <Terminal size={11} />
+                    Serial
+                  </button>
                 </div>
                 <div className="p-5">
                   {deviceView === "mockup" && <DeviceMockup buttons={buttons} leds={leds} ports={portInputs} />}
@@ -2981,27 +2994,35 @@ export default function Home() {
           </div>
 
           {/* ── Serial Monitor sidebar ── */}
-          <div className="w-72 flex-shrink-0 border-l border-gray-800 bg-black flex flex-col">
-            <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-800 bg-gray-950 flex-shrink-0">
-              <Terminal size={12} className="text-green-400" />
-              <span className="text-[11px] font-semibold text-green-400 font-mono tracking-wide uppercase">Serial Monitor</span>
-              <button onClick={() => setSerialLog([])}
-                className="ml-auto text-[10px] text-gray-700 hover:text-red-400 transition-colors font-mono"
-              >[CLR]</button>
+          {showSerialMonitor && (
+            <div className="w-72 flex-shrink-0 border-l border-gray-800 bg-black flex flex-col">
+              <div className="flex items-center gap-2 px-3 py-2.5 border-b border-gray-800 bg-gray-950 flex-shrink-0">
+                <Terminal size={12} className="text-green-400" />
+                <span className="text-[11px] font-semibold text-green-400 font-mono tracking-wide uppercase">Serial Monitor</span>
+                <button onClick={() => setSerialLog([])}
+                  className="ml-auto text-[10px] text-gray-700 hover:text-red-400 transition-colors font-mono"
+                >[CLR]</button>
+                <button onClick={() => setShowSerialMonitor(false)}
+                  className="text-gray-700 hover:text-gray-400 transition-colors ml-1"
+                  title="Close Serial Monitor"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+              <div ref={serialLogRef} className="flex-1 overflow-y-auto p-3 font-mono text-[11px] leading-5">
+                {serialLog.length === 0 ? (
+                  <p className="text-gray-700">{">"} waiting for input_</p>
+                ) : (
+                  serialLog.map((entry, i) => (
+                    <div key={i} className="flex gap-2 hover:bg-green-950/10">
+                      <span className="text-gray-600 flex-shrink-0 select-none">[{entry.time}]</span>
+                      <span className="text-green-400">{entry.key}</span>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
-            <div ref={serialLogRef} className="flex-1 overflow-y-auto p-3 font-mono text-[11px] leading-5">
-              {serialLog.length === 0 ? (
-                <p className="text-gray-700">{">"} waiting for input_</p>
-              ) : (
-                serialLog.map((entry, i) => (
-                  <div key={i} className="flex gap-2 hover:bg-green-950/10">
-                    <span className="text-gray-600 flex-shrink-0 select-none">[{entry.time}]</span>
-                    <span className="text-green-400">{entry.key}</span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+          )}
 
         </div>
       )}
