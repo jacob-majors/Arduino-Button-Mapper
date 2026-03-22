@@ -46,11 +46,20 @@ const ANALOG_PINS = [0, 1, 2, 3, 4, 5]; // A0–A5
 const BOARD_TEMPLATES = [
   {
     id: "one-switch",
-    label: "One-Switch",
-    emoji: "🟢",
-    desc: "Single button → Space. Great for accessibility switches.",
-    buttons: [{ id: "t1", name: "Switch", pin: 2, keyDisplay: "Space", arduinoKey: " ", mode: "momentary" as const, ledPin: -1, ledMode: "active" as const }],
-    portInputs: [], irSensors: [], sipPuffs: [], joysticks: [],
+    label: "Project 1",
+    emoji: "🎯",
+    desc: "Micro Switch → Space, Joystick → WASD, IR Sensor → E, Sip & Puff → F.",
+    buttons: [{ id: "t1", name: "Micro Switch", pin: 2, keyDisplay: "Space", arduinoKey: " ", mode: "momentary" as const, ledPin: -1, ledMode: "active" as const }],
+    portInputs: [],
+    irSensors: [{ id: "ti1", name: "IR Sensor", pin: 6, keyDisplay: "E", arduinoKey: "e", mode: "momentary" as const, activeHigh: false, ledPin: -1, ledMode: "active" as const }],
+    sipPuffs: [{ id: "tsp1", name: "Sip & Puff", pin: 7, key: "f", keyDisplay: "F", ledPin: -1, ledMode: "active" as const }],
+    joysticks: [{
+      id: "tj1", name: "Joystick", xPin: 0, yPin: 1, buttonPin: -1,
+      upKey: "w", upDisplay: "W", downKey: "s", downDisplay: "S",
+      leftKey: "a", leftDisplay: "A", rightKey: "d", rightDisplay: "D",
+      buttonKey: "", buttonDisplay: "", deadzone: 200, invertX: false, invertY: false,
+      ledPin: -1, ledMode: "active" as const,
+    }],
     leds: { enabled: false, onPin: 11, offPin: 12 },
   },
   {
@@ -2759,7 +2768,6 @@ export default function Home() {
                 <div className="flex flex-wrap justify-center gap-2">
                   {([
                     { type: "micro-switch",  label: "Micro Switch",  icon: <Keyboard size={13} />,  color: "hover:bg-blue-600/20 hover:border-blue-500/50 hover:text-blue-300"  },
-                    { type: "toggle-switch", label: "Toggle Switch", icon: <RotateCcw size={13} />, color: "hover:bg-sky-600/20 hover:border-sky-500/50 hover:text-sky-300"    },
                     { type: "joystick",      label: "Joystick",      icon: <Joystick size={13} />,  color: "hover:bg-violet-600/20 hover:border-violet-500/50 hover:text-violet-300" },
                     { type: "ir-sensor",     label: "IR Sensor",     icon: <Radio size={13} />,     color: "hover:bg-green-600/20 hover:border-green-500/50 hover:text-green-300" },
                     { type: "sip-puff",      label: "Sip & Puff",    icon: <Wind size={13} />,      color: "hover:bg-cyan-600/20 hover:border-cyan-500/50 hover:text-cyan-300"  },
