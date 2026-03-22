@@ -105,15 +105,21 @@ export async function upsertSave(
       .update({ name, config, updated_at: new Date().toISOString() })
       .eq("id", id)
       .eq("user_id", userId);
-    if (!error) return id;
-    // Error on update — fall through to create a new record
+    if (error) {
+      console.error("[upsertSave] update error:", error);
+    } else {
+      return id;
+    }
   }
   const { data, error } = await supabase
     .from("user_configs")
     .insert({ user_id: userId, name, config })
     .select("id")
     .single();
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error("[upsertSave] insert error:", error);
+    throw new Error(error.message);
+  }
   return data?.id ?? "";
 }
 

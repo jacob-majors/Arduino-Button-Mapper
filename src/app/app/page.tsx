@@ -2066,7 +2066,8 @@ export default function Home() {
           setSaves((prev) => prev.map((s) => s.id === newId ? { ...s, name: currentSaveName, config: cfg, updated_at: new Date().toISOString() } : s));
         }
         setHasSaved(true);
-      } catch {
+      } catch (err) {
+        console.error("[save] upsertSave failed:", err);
         setSaveError(true);
       } finally {
         setSaving(false);
