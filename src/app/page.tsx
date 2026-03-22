@@ -1,13 +1,13 @@
 "use client";
 import Link from "next/link";
-import { Code, Zap, Download, Keyboard, Gamepad2, Lightbulb, ArrowRight, Github } from "lucide-react";
+import { Code, Zap, Upload, Keyboard, Gamepad2, Lightbulb, ArrowRight, Wind, Radio, Joystick } from "lucide-react";
 
 const steps = [
   {
     number: "01",
     icon: <Keyboard size={22} className="text-blue-400" />,
-    title: "Configure Your Buttons",
-    desc: "Add buttons and assign each one a pin number and a key binding. Set up LEDs, joysticks, IR sensors, and port inputs — all from one screen.",
+    title: "Configure Your Inputs",
+    desc: "Add micro switches, toggle switches, joysticks, IR sensors, or sip & puff sensors. Assign each one a pin and a key binding — all from one screen.",
   },
   {
     number: "02",
@@ -17,19 +17,27 @@ const steps = [
   },
   {
     number: "03",
-    icon: <Download size={22} className="text-green-400" />,
-    title: "Paste & Upload",
-    desc: "Open Arduino IDE, paste the code, and upload to your board. Your Arduino is now a custom keyboard or controller.",
+    icon: <Upload size={22} className="text-green-400" />,
+    title: "Upload to Your Board",
+    desc: "Paste the code into Arduino IDE and upload — or use the built-in \"Compile & Upload via USB\" button in Chrome to flash your board directly from the browser. No installation needed.",
   },
 ];
 
 const features = [
+  { icon: <Keyboard size={16} className="text-blue-400" />, label: "Multiple Input Types", desc: "Micro switches, toggle switches, joysticks, IR sensors, and sip & puff sensors all supported." },
+  { icon: <Upload size={16} className="text-green-400" />, label: "One-Click Upload", desc: "Compile & flash directly from Chrome or Edge via Web Serial — no Arduino IDE or local software required." },
   { icon: <Zap size={16} className="text-yellow-400" />, label: "Wiring Diagram", desc: "Visual guide showing exactly how to wire every component to your board." },
-  { icon: <Gamepad2 size={16} className="text-violet-400" />, label: "Built-in Tester", desc: "Test your button mappings live in the browser before uploading anything." },
-  { icon: <Lightbulb size={16} className="text-amber-400" />, label: "LED Support", desc: "Add per-button LEDs that light up on press, or a power indicator LED." },
-  { icon: <Download size={16} className="text-blue-400" />, label: "Share Setups", desc: "Download your config as a file and send it to anyone — they import it in one click." },
-  { icon: <Code size={16} className="text-green-400" />, label: "Clean Code Output", desc: "Generated sketches are readable, debounced, and ready to upload without editing." },
-  { icon: <Keyboard size={16} className="text-pink-400" />, label: "Any Key Binding", desc: "Map buttons to letters, numbers, function keys, arrows, modifiers, and more." },
+  { icon: <Gamepad2 size={16} className="text-violet-400" />, label: "Built-in Tester", desc: "Test your button mappings live in the browser — play Dino, Snake, or Pong with your controller." },
+  { icon: <Lightbulb size={16} className="text-amber-400" />, label: "Per-Button LEDs", desc: "Assign an LED to any input that lights up when pressed or toggled." },
+  { icon: <Code size={16} className="text-pink-400" />, label: "Clean Code Output", desc: "Generated sketches are readable, debounced, and ready to upload without editing." },
+];
+
+const inputTypes = [
+  { icon: <Keyboard size={14} className="text-blue-400" />, label: "Micro Switch" },
+  { icon: <Keyboard size={14} className="text-sky-400" />, label: "Toggle Switch" },
+  { icon: <Joystick size={14} className="text-violet-400" />, label: "Joystick" },
+  { icon: <Radio size={14} className="text-green-400" />, label: "IR Sensor" },
+  { icon: <Wind size={14} className="text-cyan-400" />, label: "Sip & Puff" },
 ];
 
 export default function LandingPage() {
@@ -61,10 +69,20 @@ export default function LandingPage() {
         <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight mb-6 bg-gradient-to-br from-white via-gray-200 to-gray-400 bg-clip-text text-transparent leading-tight">
           Turn your Arduino into<br />a custom controller
         </h1>
-        <p className="text-lg text-gray-400 max-w-2xl mb-10 leading-relaxed">
-          Map buttons to any key, generate clean Arduino code instantly, and paste it into Arduino IDE.
+        <p className="text-lg text-gray-400 max-w-2xl mb-6 leading-relaxed">
+          Map any input to any key, generate clean Arduino code instantly, and upload straight from your browser.
           No programming knowledge needed.
         </p>
+
+        {/* Input type pills */}
+        <div className="flex flex-wrap items-center justify-center gap-2 mb-10">
+          {inputTypes.map((t) => (
+            <span key={t.label} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-800 border border-gray-700 text-xs text-gray-300">
+              {t.icon} {t.label}
+            </span>
+          ))}
+        </div>
+
         <div className="flex flex-col sm:flex-row items-center gap-3">
           <Link
             href="/app"
@@ -72,7 +90,7 @@ export default function LandingPage() {
           >
             Start Building <ArrowRight size={16} />
           </Link>
-          <p className="text-xs text-gray-600">Free · No account required to get started</p>
+          <p className="text-xs text-gray-600">Free · No account required</p>
         </div>
       </section>
 
@@ -122,7 +140,7 @@ export default function LandingPage() {
         <div className="bg-gradient-to-br from-blue-950/60 to-purple-950/60 border border-blue-800/40 rounded-3xl p-10 flex flex-col items-center text-center gap-5">
           <h2 className="text-3xl font-extrabold">Ready to build?</h2>
           <p className="text-gray-400 max-w-md text-sm leading-relaxed">
-            Jump straight in — no account needed. Create an account when you want to save and share your setup.
+            Jump straight in — no account needed. Sign up when you want to save and share your setup.
           </p>
           <Link
             href="/app"
@@ -144,7 +162,7 @@ export default function LandingPage() {
             <h3 className="text-lg font-bold text-white mb-2">Jacob Majors</h3>
             <p className="text-sm text-gray-400 leading-relaxed max-w-lg">
               A tool built for creating custom Arduino-based accessibility controllers and gaming peripherals.
-              Designed to make it easy for anyone to map buttons, generate clean code, and get their hardware working — no programming knowledge required.
+              Configure your inputs, generate code, and flash your board — all from the browser, with nothing to install.
             </p>
           </div>
         </div>
