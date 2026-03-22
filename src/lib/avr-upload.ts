@@ -78,7 +78,7 @@ export async function compileAndUpload(
   const serial = (navigator as any).serial;
 
   // ── Step 1: Compile on backend ───────────────────────────────────────────
-  onProgress("Compiling sketch on server…");
+  onProgress("Compiling sketch on server… (no Arduino needed for this step)");
   let res: Response;
   try {
     res = await fetch(`${backendUrl}/api/compile`, {
@@ -95,18 +95,29 @@ export async function compileAndUpload(
   if (!res.ok) {
     const contentType = res.headers.get("content-type") ?? "";
     const text = await res.text().catch(() => "");
-    // If the server returned HTML it's the wrong URL (hitting Vercel instead of Railway)
+    // Hitting Vercel frontend instead of Railway backend → HTML response
     if (contentType.includes("text/html") || text.trimStart().startsWith("<!")) {
       throw new Error(
         `Wrong server — got a webpage instead of the compile API.\n` +
-        `The backend URL is set to: ${backendUrl}\n` +
-        `This looks like your Vercel frontend, not the Railway compile server.\n` +
+        `Backend URL is: ${backendUrl}\n` +
         `Fix: set NEXT_PUBLIC_BACKEND_URL to your Railway URL and redeploy on Vercel.`
       );
     }
-    let errMsg = `HTTP ${res.status}`;
-    try { const j = JSON.parse(text); errMsg = j.error ?? errMsg; } catch { errMsg = text.slice(0, 300) || errMsg; }
-    throw new Error(`Compilation failed: ${errMsg}`);
+    // Parse the JSON error from the backend
+    let log = "";
+    try {
+      const j = JSON.parse(text);
+      log = (j.log ?? "").trim();
+    } catch { /* fall through */ }
+
+    if (log) {
+      // Pull out lines that contain "error:" — these are the actual compiler errors
+      const lines = log.split("\n").map((l: string) => l.trim()).filter(Boolean);
+      const errorLines = lines.filter((l: string) => /error:/i.test(l));
+      const shown = (errorLines.length > 0 ? errorLines : lines.slice(-6)).slice(0, 8).join("\n");
+      throw new Error(`Sketch has a compile error:\n${shown}`);
+    }
+    throw new Error(`Compilation failed (HTTP ${res.status})`);
   }
   const { hex } = await res.json();
   onProgress("✓ Compilation successful — connecting to board…");
