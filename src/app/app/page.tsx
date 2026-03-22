@@ -706,7 +706,7 @@ function JoystickCard({ joy, index, usedPins, usedAnalogPins, onUpdate, onRemove
       </div>
 
       {/* Direction keys */}
-      <div className="grid grid-cols-2 gap-1.5 pl-1">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 pl-1">
         {dirs.map(({ label, key, display }) => (
           <div key={String(key)} className="flex items-center gap-1.5">
             <span className="text-[10px] text-violet-400 font-mono w-10 flex-shrink-0">{label}</span>
@@ -2375,16 +2375,22 @@ export default function Home() {
                       onUpdate={updatePort} onRemove={removePort} typeLabel="Port" />
                   ))}
                   {irSensors.map((s, i) => (
-                    <IRSensorCard key={s.id} sensor={s} index={i} usedPins={usedPins}
-                      onUpdate={updateIR} onRemove={removeIR} />
+                    <div key={s.id} className="sm:col-span-2 lg:col-span-1">
+                      <IRSensorCard sensor={s} index={i} usedPins={usedPins}
+                        onUpdate={updateIR} onRemove={removeIR} />
+                    </div>
                   ))}
                   {sipPuffs.map((s, i) => (
-                    <SipPuffCard key={s.id} sensor={s} index={i} usedAnalogPins={usedAnalogPins}
-                      onUpdate={updateSipPuff} onRemove={removeSipPuff} />
+                    <div key={s.id} className="sm:col-span-2 lg:col-span-1">
+                      <SipPuffCard sensor={s} index={i} usedAnalogPins={usedAnalogPins}
+                        onUpdate={updateSipPuff} onRemove={removeSipPuff} />
+                    </div>
                   ))}
                   {joysticks.map((j, i) => (
-                    <JoystickCard key={j.id} joy={j} index={i} usedPins={usedPins} usedAnalogPins={usedAnalogPins}
-                      onUpdate={updateJoystick} onRemove={removeJoystick} />
+                    <div key={j.id} className="sm:col-span-2">
+                      <JoystickCard joy={j} index={i} usedPins={usedPins} usedAnalogPins={usedAnalogPins}
+                        onUpdate={updateJoystick} onRemove={removeJoystick} />
+                    </div>
                   ))}
                   {buttons.length + portInputs.length + irSensors.length + sipPuffs.length + joysticks.length === 0 && (
                     <div className="col-span-full flex flex-col items-center justify-center py-10 text-gray-700">
