@@ -359,10 +359,7 @@ export default function DinoGame({ jumpKeys, onGameOver }: { jumpKeys: string[];
 
   return (
     <div className="flex flex-col items-center gap-2">
-      <div className="flex items-center justify-between w-full px-1">
-        <span className="text-xs text-gray-400 font-mono">
-          {!started ? "waiting" : isDead ? "game over" : "running"}
-        </span>
+      <div className="flex items-center justify-end w-full px-1">
         <span className="text-xs text-gray-400 font-mono">
           {displayScore > 0 ? "" : "↑ jump · ↓ duck"}
         </span>
