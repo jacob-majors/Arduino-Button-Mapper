@@ -298,6 +298,11 @@ function ButtonCard({ button, index, usedPins, onUpdate, onRemove, typeLabel, is
           placeholder={isPort ? `Port ${index + 1}` : `Input ${index + 1}`}
           className="flex-1 bg-transparent text-sm font-semibold text-gray-200 placeholder:text-gray-600 outline-none border-b border-transparent focus:border-gray-600 transition-colors min-w-0"
         />
+        {(button.ledPin ?? -1) >= 0 && (
+          <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-yellow-500/15 border border-yellow-500/30 text-yellow-400 text-[9px] font-semibold flex-shrink-0" title={`LED on D${button.ledPin}`}>
+            <Lightbulb size={8} /> D{button.ledPin}
+          </span>
+        )}
         <button onClick={() => onRemove(button.id)}
           className="p-1 rounded text-gray-700 hover:text-red-400 hover:bg-red-400/10 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0"
         ><Trash2 size={12} /></button>
@@ -665,6 +670,11 @@ function IRSensorCard({ sensor, index, usedPins, onUpdate, onRemove, isSelected,
           placeholder={`IR Sensor ${index + 1}`}
           className="flex-1 bg-transparent text-sm font-semibold text-gray-200 placeholder:text-gray-600 outline-none border-b border-transparent focus:border-gray-600 transition-colors min-w-0"
         />
+        {(sensor.ledPin ?? -1) >= 0 && (
+          <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-yellow-500/15 border border-yellow-500/30 text-yellow-400 text-[9px] font-semibold flex-shrink-0" title={`LED on D${sensor.ledPin}`}>
+            <Lightbulb size={8} /> D{sensor.ledPin}
+          </span>
+        )}
         <button onClick={() => onRemove(sensor.id)}
           className="p-1 rounded text-gray-700 hover:text-red-400 hover:bg-red-400/10 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0"
         ><Trash2 size={12} /></button>
@@ -757,6 +767,11 @@ function SipPuffCard({ sensor, index, usedPins, onUpdate, onRemove, isSelected, 
           placeholder={`Sip & Puff ${index + 1}`}
           className="flex-1 bg-transparent text-sm font-semibold text-gray-200 placeholder:text-gray-600 outline-none border-b border-transparent focus:border-gray-600 transition-colors min-w-0"
         />
+        {(sensor.ledPin ?? -1) >= 0 && (
+          <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-yellow-500/15 border border-yellow-500/30 text-yellow-400 text-[9px] font-semibold flex-shrink-0" title={`LED on D${sensor.ledPin}`}>
+            <Lightbulb size={8} /> D{sensor.ledPin}
+          </span>
+        )}
         <button onClick={() => onRemove(sensor.id)}
           className="p-1 rounded text-gray-700 hover:text-red-400 hover:bg-red-400/10 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0"
         ><Trash2 size={12} /></button>
@@ -829,6 +844,11 @@ function JoystickCard({ joy, index, usedPins, usedAnalogPins, onUpdate, onRemove
           placeholder={`Joystick ${index + 1}`}
           className="flex-1 bg-transparent text-sm font-semibold text-gray-200 placeholder:text-gray-600 outline-none border-b border-transparent focus:border-gray-600 transition-colors min-w-0"
         />
+        {(joy.ledPin ?? -1) >= 0 && (
+          <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-yellow-500/15 border border-yellow-500/30 text-yellow-400 text-[9px] font-semibold flex-shrink-0" title={`LED on D${joy.ledPin}`}>
+            <Lightbulb size={8} /> D{joy.ledPin}
+          </span>
+        )}
         <button onClick={() => onRemove(joy.id)}
           className="p-1 rounded text-gray-700 hover:text-red-400 hover:bg-red-400/10 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0"
         ><Trash2 size={12} /></button>
