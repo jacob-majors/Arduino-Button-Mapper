@@ -1845,6 +1845,7 @@ export default function Home() {
   const [wsLog, setWsLog] = useState<string[]>([]);
   const [wsUploading, setWsUploading] = useState(false);
   const [showPortMenu, setShowPortMenu] = useState(false);
+  const [showPortModal, setShowPortModal] = useState(false);
   const [grantedPorts, setGrantedPorts] = useState<{ label: string; index: number }[]>([]);
   const portMenuRef = useRef<HTMLDivElement>(null);
   const [serialLog, setSerialLog] = useState<{ key: string; time: string }[]>([]);
@@ -2199,7 +2200,7 @@ export default function Home() {
     setShowExportMenu(false);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const serial = (navigator as any).serial;
-    if (!serial) { setShowPortMenu(true); setGrantedPorts([]); return; }
+    if (!serial) { setShowPortModal(true); setGrantedPorts([]); return; }
     try {
       const ports = await serial.getPorts();
       const labels = ports.map((p: { getInfo?: () => { usbVendorId?: number; usbProductId?: number } }, i: number) => {
@@ -2212,7 +2213,7 @@ export default function Home() {
     } catch {
       setGrantedPorts([]);
     }
-    setShowPortMenu(true);
+    setShowPortModal(true);
   };
 
   const jumpKeys = useMemo(
@@ -2620,36 +2621,12 @@ export default function Home() {
                 >
                   {wsUploading ? <><Loader2 size={13} className="animate-spin" /> Uploading…</> : <><Upload size={13} /> Compile &amp; Upload</>}
                 </button>
-                <div className="relative" ref={portMenuRef}>
-                  <button onClick={openPortMenu} disabled={wsUploading}
-                    title="Select which port to upload to"
-                    className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-gray-700 bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-gray-400 hover:text-gray-200 text-xs transition-all"
-                  >
-                    <Usb size={12} /> Board <ChevronDown size={10} />
-                  </button>
-                  {showPortMenu && (
-                    <div className="absolute left-0 top-full mt-1 w-52 bg-gray-900 border border-gray-700 rounded-xl shadow-xl z-[9999] py-1 overflow-hidden">
-                      {grantedPorts.length > 0 && (
-                        <>
-                          <div className="px-3 py-1.5 text-[10px] text-gray-500 uppercase tracking-wider font-semibold">Connected boards</div>
-                          {grantedPorts.map((p) => (
-                            <button key={p.index} onClick={() => { setShowPortMenu(false); handleWebSerialUpload(false); }}
-                              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-200 hover:bg-gray-800 transition-colors text-left"
-                            >
-                              <Usb size={11} className="text-green-400 flex-shrink-0" /> {p.label}
-                            </button>
-                          ))}
-                          <div className="border-t border-gray-800 my-1" />
-                        </>
-                      )}
-                      <button onClick={() => { setShowPortMenu(false); handleWebSerialUpload(true); }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-blue-400 hover:bg-gray-800 transition-colors text-left"
-                      >
-                        <Plus size={11} className="flex-shrink-0" /> Add / change board…
-                      </button>
-                    </div>
-                  )}
-                </div>
+                <button onClick={openPortMenu} disabled={wsUploading}
+                  title="Select board / port"
+                  className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-gray-700 bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-gray-400 hover:text-gray-200 text-xs transition-all"
+                >
+                  <Usb size={12} /> Board <ChevronDown size={10} />
+                </button>
                 <span className="text-[10px] text-gray-600 ml-auto hidden sm:block">Chrome / Edge only</span>
               </div>
               {wsLog.length > 0 && (
@@ -3553,6 +3530,63 @@ export default function Home() {
 
       {/* LED info modal */}
       {showLedInfo && <LedInfoModal onClose={() => setShowLedInfo(false)} />}
+
+      {/* Port selection modal */}
+      {showPortModal && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowPortModal(false)} />
+          <div className="relative w-full max-w-sm bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center gap-2.5 px-5 py-4 border-b border-gray-800">
+              <Usb size={15} className="text-blue-400" />
+              <h2 className="text-sm font-bold text-gray-100">Select Board</h2>
+              <button onClick={() => setShowPortModal(false)} className="ml-auto text-gray-600 hover:text-gray-300 transition-colors">
+                <X size={15} />
+              </button>
+            </div>
+
+            {/* Port list */}
+            <div className="max-h-64 overflow-y-auto">
+              {grantedPorts.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 py-8 px-5 text-center">
+                  <Usb size={24} className="text-gray-700" />
+                  <p className="text-xs text-gray-500">No boards previously connected.</p>
+                  <p className="text-[11px] text-gray-600">Click below to grant access to a port.</p>
+                </div>
+              ) : (
+                <div className="py-1.5">
+                  {grantedPorts.map((p) => (
+                    <button
+                      key={p.index}
+                      onClick={() => { setShowPortModal(false); handleWebSerialUpload(false); }}
+                      className="w-full flex items-center gap-3 px-5 py-3 text-sm text-gray-200 hover:bg-gray-800 transition-colors text-left"
+                    >
+                      <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0 shadow-[0_0_6px_rgba(74,222,128,0.7)]" />
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-4 border-t border-gray-800 flex items-center gap-3">
+              <button
+                onClick={() => { setShowPortModal(false); handleWebSerialUpload(true); }}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors"
+              >
+                <Plus size={14} /> Connect new board…
+              </button>
+              <button
+                onClick={() => setShowPortModal(false)}
+                className="px-4 py-2.5 rounded-xl border border-gray-700 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 text-sm transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Wiring diagram modal */}
       {showWiring && (
