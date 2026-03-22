@@ -1816,12 +1816,14 @@ export default function Home() {
   const [authReady, setAuthReady] = useState(false);
   const [loginUsername, setLoginUsername] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
-  const [adminSettings, setAdminSettings] = useState<AdminSettings>({ show_ports: true, show_leds: true, show_upload: true, show_sensors: true, show_buttons: true });
+  const [adminSettings, setAdminSettings] = useState<AdminSettings>({ show_ports: true, show_leds: true, show_upload: true, show_sensors: true, show_buttons: true, show_games: true, show_wiring: true, show_controller: true, maintenance_mode: false, welcome_message: "" });
   const [allUsers, setAllUsers] = useState<AppUser[]>([]);
   const [shadowUser, setShadowUser] = useState<AppUser | null>(null);
   const [shadowSaves, setShadowSaves] = useState<SaveSlot[]>([]);
   const [shadowSaveIndex, setShadowSaveIndex] = useState(0);
   const [saving,    setSaving]    = useState(false);
+  const [saveError, setSaveError] = useState(false);
+  const [hasSaved,  setHasSaved]  = useState(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [saves, setSaves] = useState<SaveSlot[]>([]);
   const [currentSaveId, setCurrentSaveId] = useState<string | null>(null);
@@ -1950,11 +1952,16 @@ export default function Home() {
     } catch { /* ignore */ }
     getAdminSettings().then((s) => {
       const merged: AdminSettings = {
-        show_ports:   s.show_ports   ?? cached?.show_ports   ?? true,
-        show_leds:    s.show_leds    ?? cached?.show_leds    ?? true,
-        show_upload:  s.show_upload  ?? cached?.show_upload  ?? true,
-        show_sensors: s.show_sensors ?? cached?.show_sensors ?? true,
-        show_buttons: s.show_buttons ?? cached?.show_buttons ?? true,
+        show_ports:        s.show_ports        ?? cached?.show_ports        ?? true,
+        show_leds:         s.show_leds         ?? cached?.show_leds         ?? true,
+        show_upload:       s.show_upload       ?? cached?.show_upload       ?? true,
+        show_sensors:      s.show_sensors      ?? cached?.show_sensors      ?? true,
+        show_buttons:      s.show_buttons      ?? cached?.show_buttons      ?? true,
+        show_games:        s.show_games        ?? cached?.show_games        ?? true,
+        show_wiring:       s.show_wiring       ?? cached?.show_wiring       ?? true,
+        show_controller:   s.show_controller   ?? cached?.show_controller   ?? true,
+        maintenance_mode:  s.maintenance_mode  ?? cached?.maintenance_mode  ?? false,
+        welcome_message:   s.welcome_message   ?? cached?.welcome_message   ?? "",
       };
       setAdminSettings(merged);
       localStorage.setItem("adminSettings", JSON.stringify(merged));
@@ -1968,12 +1975,17 @@ export default function Home() {
         { event: "UPDATE", schema: "public", table: "admin_settings" },
         (payload) => {
           const s = payload.new as AdminSettings;
-          const next = {
-            show_ports: s.show_ports,
-            show_leds: s.show_leds,
-            show_upload: s.show_upload ?? true,
-            show_sensors: s.show_sensors ?? true,
-            show_buttons: s.show_buttons ?? true,
+          const next: AdminSettings = {
+            show_ports:       s.show_ports       ?? true,
+            show_leds:        s.show_leds        ?? true,
+            show_upload:      s.show_upload      ?? true,
+            show_sensors:     s.show_sensors     ?? true,
+            show_buttons:     s.show_buttons     ?? true,
+            show_games:       s.show_games       ?? true,
+            show_wiring:      s.show_wiring      ?? true,
+            show_controller:  s.show_controller  ?? true,
+            maintenance_mode: s.maintenance_mode ?? false,
+            welcome_message:  s.welcome_message  ?? "",
           };
           setAdminSettings(next);
           localStorage.setItem("adminSettings", JSON.stringify(next));
@@ -2029,19 +2041,27 @@ export default function Home() {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
       setSaving(true);
-      const cfg = { buttons, portInputs, leds, irSensors, sipPuffs, joysticks };
-      const newId = await upsertSave(appUser.id, currentSaveId, currentSaveName, cfg);
-      if (newId && newId !== currentSaveId) {
-        setCurrentSaveId(newId);
-        setSaves((prev) => {
-          const exists = prev.find((s) => s.id === newId);
-          if (exists) return prev.map((s) => s.id === newId ? { ...s, name: currentSaveName, config: cfg, updated_at: new Date().toISOString() } : s);
-          return [{ id: newId, name: currentSaveName, config: cfg, updated_at: new Date().toISOString() }, ...prev];
-        });
-      } else if (newId) {
-        setSaves((prev) => prev.map((s) => s.id === newId ? { ...s, name: currentSaveName, config: cfg, updated_at: new Date().toISOString() } : s));
+      setSaveError(false);
+      try {
+        const cfg = { buttons, portInputs, leds, irSensors, sipPuffs, joysticks };
+        const newId = await upsertSave(appUser.id, currentSaveId, currentSaveName, cfg);
+        if (!newId) throw new Error("Save returned no ID");
+        if (newId !== currentSaveId) {
+          setCurrentSaveId(newId);
+          setSaves((prev) => {
+            const exists = prev.find((s) => s.id === newId);
+            if (exists) return prev.map((s) => s.id === newId ? { ...s, name: currentSaveName, config: cfg, updated_at: new Date().toISOString() } : s);
+            return [{ id: newId, name: currentSaveName, config: cfg, updated_at: new Date().toISOString() }, ...prev];
+          });
+        } else {
+          setSaves((prev) => prev.map((s) => s.id === newId ? { ...s, name: currentSaveName, config: cfg, updated_at: new Date().toISOString() } : s));
+        }
+        setHasSaved(true);
+      } catch {
+        setSaveError(true);
+      } finally {
+        setSaving(false);
       }
-      setSaving(false);
     }, 1500);
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
   }, [appUser, buttons, portInputs, leds, irSensors, sipPuffs, joysticks, currentSaveId, currentSaveName]);
@@ -2352,7 +2372,7 @@ export default function Home() {
   return (
     <div className="h-screen bg-gray-950 flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="border-b border-gray-800/80 bg-gray-900/50 backdrop-blur-sm flex-shrink-0">
+      <header className="border-b border-gray-800/80 bg-gray-900/50 backdrop-blur-sm flex-shrink-0 relative z-50">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-2.5 flex items-center gap-4">
           <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg flex-shrink-0">
             <Zap size={14} className="text-white" />
@@ -2416,9 +2436,19 @@ export default function Home() {
                 <span className={["flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full border transition-all",
                   saving
                     ? "text-amber-400 border-amber-800/50 bg-amber-900/20"
-                    : "text-green-500 border-green-800/40 bg-green-900/10"
+                    : saveError
+                    ? "text-red-400 border-red-800/50 bg-red-900/20"
+                    : hasSaved
+                    ? "text-green-500 border-green-800/40 bg-green-900/10"
+                    : "text-gray-600 border-gray-800 bg-gray-900/20"
                 ].join(" ")}>
-                  {saving ? <><Loader2 size={9} className="animate-spin" /> Saving…</> : <><CheckCircle2 size={9} /> Saved</>}
+                  {saving
+                    ? <><Loader2 size={9} className="animate-spin" /> Saving…</>
+                    : saveError
+                    ? <><XCircle size={9} /> Save failed</>
+                    : hasSaved
+                    ? <><CheckCircle2 size={9} /> Saved</>
+                    : <><CheckCircle2 size={9} /> Auto-save</>}
                 </span>
                 {/* Export / Import combined */}
                 <div className="relative" ref={exportMenuRef}>
@@ -2517,6 +2547,19 @@ export default function Home() {
           </div>
         </div>
       </header>
+
+      {/* Maintenance banner */}
+      {adminSettings.maintenance_mode && appUser && !isAdmin(appUser.username) && (
+        <div className="flex-shrink-0 bg-red-950/60 border-b border-red-800/50 px-4 py-2 z-40">
+          <div className="max-w-[1400px] mx-auto flex items-center gap-2">
+            <Settings size={12} className="text-red-400 flex-shrink-0 animate-spin" style={{ animationDuration: "3s" }} />
+            <p className="text-xs text-red-300 flex-1">
+              <span className="font-semibold">Maintenance in progress.</span>{" "}
+              {adminSettings.welcome_message || "The app is temporarily unavailable. Please check back soon."}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ══ CONFIGURE TAB ══════════════════════════════════════════════════ */}
       {tab === "configure" && (
@@ -2847,7 +2890,7 @@ export default function Home() {
             <div className="max-w-4xl mx-auto px-4 sm:px-6 py-5 flex flex-col gap-5">
 
               {/* Game area + selector */}
-              <div className="flex gap-4 items-start">
+              {(adminSettings.show_games ?? true) && <div className="flex gap-4 items-start">
                 {/* Game canvas */}
                 <div className="flex-1 bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden min-w-0">
                   <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-800">
@@ -2912,7 +2955,7 @@ export default function Home() {
                     </div>
                   )}
                 </div>
-              </div>
+              </div>}
 
               {/* Device Tester — tabbed: Mockup / All Inputs / Controller */}
               <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
@@ -2920,7 +2963,7 @@ export default function Home() {
                 <div className="flex items-center gap-1 px-4 py-2.5 border-b border-gray-800 bg-gray-900/80">
                   <Zap size={13} className="text-blue-400 mr-1" />
                   <span className="text-xs font-semibold text-gray-300 uppercase tracking-wider mr-3">Device Tester</span>
-                  {(["mockup", "inputs", "controller"] as const).map((v) => (
+                  {(["mockup", "inputs", "controller"] as const).filter((v) => v !== "controller" || (adminSettings.show_controller ?? true)).map((v) => (
                     <button key={v} onClick={() => setDeviceView(v)}
                       className={["px-3 py-1 rounded-lg text-xs font-medium transition-all",
                         deviceView === v
@@ -3063,11 +3106,14 @@ export default function Home() {
               <p className="text-[11px] text-gray-600 mb-4">Changes take effect instantly for every logged-in user.</p>
               <div className="flex flex-col divide-y divide-gray-800/60">
                 {([
-                  { key: "show_upload" as const, label: "Compile & Upload", desc: "Show the Compile & Upload to Arduino button and upload log", icon: <Upload size={13} className="text-green-400" /> },
-                  { key: "show_buttons" as const, label: "Configure Inputs", desc: "Show the main input configuration panel", icon: <Keyboard size={13} className="text-blue-400" /> },
-                  { key: "show_sensors" as const, label: "Sensors & Joysticks", desc: "Show IR sensor, sip & puff, and joystick input types", icon: <Radio size={13} className="text-emerald-400" /> },
-                  { key: "show_leds" as const, label: "LED Indicators", desc: "Show the LED configuration section", icon: <Lightbulb size={13} className="text-yellow-400" /> },
-                  { key: "show_ports" as const, label: "Back Panel Ports", desc: "Show the 3.5mm port input section", icon: <Usb size={13} className="text-sky-400" /> },
+                  { key: "show_upload"     as const, label: "Compile & Upload",    desc: "Show the Compile & Upload button and upload log",           icon: <Upload size={13} className="text-green-400" /> },
+                  { key: "show_buttons"    as const, label: "Configure Inputs",    desc: "Show the main input configuration panel",                   icon: <Keyboard size={13} className="text-blue-400" /> },
+                  { key: "show_sensors"    as const, label: "Sensors & Joysticks", desc: "Show IR sensor, sip & puff, and joystick input types",      icon: <Radio size={13} className="text-emerald-400" /> },
+                  { key: "show_leds"       as const, label: "LED Indicators",      desc: "Show the LED configuration section",                        icon: <Lightbulb size={13} className="text-yellow-400" /> },
+                  { key: "show_games"      as const, label: "Games Section",       desc: "Show Dino, Snake, and Pong games in the Test tab",          icon: <Gamepad2 size={13} className="text-violet-400" /> },
+                  { key: "show_wiring"     as const, label: "Wiring Diagram",      desc: "Show the live wiring diagram in Configure tab",             icon: <Zap size={13} className="text-orange-400" /> },
+                  { key: "show_controller" as const, label: "Controller View",     desc: "Show the Controller mockup tab in Device Tester",           icon: <Gamepad2 size={13} className="text-pink-400" /> },
+                  { key: "maintenance_mode" as const, label: "Maintenance Mode",   desc: "Show a maintenance banner to all non-admin users",          icon: <Settings size={13} className="text-red-400" /> },
                 ] as { key: keyof AdminSettings; label: string; desc: string; icon: React.ReactNode }[]).map(({ key, label, desc, icon }) => (
                   <div key={key} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
                     <div className="flex items-center gap-2.5">
@@ -3079,19 +3125,37 @@ export default function Home() {
                     </div>
                     <div
                       onClick={async () => {
-                        const next = !adminSettings[key];
+                        const cur = adminSettings[key] as boolean;
+                        const next = !cur;
                         setAdminSettings((s) => { const n = { ...s, [key]: next }; localStorage.setItem("adminSettings", JSON.stringify(n)); return n; });
-                        await updateAdminSettings({ [key]: next });
+                        await updateAdminSettings({ [key]: next } as Partial<AdminSettings>);
                       }}
                       className={["relative w-10 h-6 rounded-full transition-colors cursor-pointer flex-shrink-0 ml-4",
-                        adminSettings[key] ? "bg-blue-600" : "bg-gray-700"].join(" ")}
+                        (adminSettings[key] as boolean) ? "bg-blue-600" : "bg-gray-700"].join(" ")}
                     >
                       <div className={["absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform",
-                        adminSettings[key] ? "translate-x-5" : "translate-x-1"].join(" ")} />
+                        (adminSettings[key] as boolean) ? "translate-x-5" : "translate-x-1"].join(" ")} />
                     </div>
                   </div>
                 ))}
               </div>
+              {/* Maintenance message input */}
+              {adminSettings.maintenance_mode && (
+                <div className="mt-4 pt-4 border-t border-gray-800">
+                  <label className="text-[11px] text-gray-500 mb-1 block">Maintenance message shown to users</label>
+                  <input
+                    type="text"
+                    value={adminSettings.welcome_message ?? ""}
+                    onChange={async (e) => {
+                      const msg = e.target.value;
+                      setAdminSettings((s) => { const n = { ...s, welcome_message: msg }; localStorage.setItem("adminSettings", JSON.stringify(n)); return n; });
+                      await updateAdminSettings({ welcome_message: msg });
+                    }}
+                    placeholder="The app is temporarily unavailable…"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-red-500 transition-colors"
+                  />
+                </div>
+              )}
             </div>
 
             {/* App Config */}

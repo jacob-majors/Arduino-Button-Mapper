@@ -33,6 +33,11 @@ export type AdminSettings = {
   show_upload: boolean;
   show_sensors: boolean;
   show_buttons: boolean;
+  show_games: boolean;
+  show_wiring: boolean;
+  show_controller: boolean;
+  maintenance_mode: boolean;
+  welcome_message: string;
 };
 
 // ── Auth (username-only, no password) ───────────────────────────────────────
@@ -119,10 +124,10 @@ export async function deleteSave(id: string): Promise<void> {
 export async function getAdminSettings(): Promise<AdminSettings> {
   const { data } = await supabase
     .from("admin_settings")
-    .select("show_ports, show_leds")
+    .select("show_ports, show_leds, show_upload, show_sensors, show_buttons, show_games, show_wiring, show_controller, maintenance_mode, welcome_message")
     .eq("id", 1)
     .single();
-  return (data as AdminSettings) ?? { show_ports: true, show_leds: true, show_upload: true, show_sensors: true, show_buttons: true };
+  return (data as AdminSettings) ?? { show_ports: true, show_leds: true, show_upload: true, show_sensors: true, show_buttons: true, show_games: true, show_wiring: true, show_controller: true, maintenance_mode: false, welcome_message: "" };
 }
 
 export async function updateAdminSettings(settings: Partial<AdminSettings>): Promise<void> {
