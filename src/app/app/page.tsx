@@ -5,7 +5,7 @@ import {
   Zap, RefreshCw, Plus, Trash2, X, Upload, ChevronDown,
   Loader2, CheckCircle2, XCircle, Terminal, Usb, Keyboard,
   RotateCcw, Pencil, Gamepad2, Settings, Lightbulb, Power, Code,
-  Info, ExternalLink, Radio, Wind, Joystick, Minimize2, Maximize2, Download,
+  Info, ExternalLink, Radio, Wind, Joystick, Minimize2, Maximize2, Download, Star,
 } from "lucide-react";
 import {
   ButtonConfig, ButtonMode, LedConfig, PortConfig,
@@ -35,8 +35,11 @@ import {
   getTopDinoScores,
   saveSharedSetup,
   loadSharedSetup,
+  loadDbTemplates,
+  upsertDbTemplate,
+  deleteDbTemplate,
 } from "@/lib/supabase";
-import type { SaveSlot, AppUser, AdminSettings, DinoScore } from "@/lib/supabase";
+import type { SaveSlot, AppUser, AdminSettings, DinoScore, DbTemplate } from "@/lib/supabase";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
 const ALL_PINS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
@@ -1103,11 +1106,14 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
   const [showGND, setShowGND] = useState(false);
   const [showResistorInfo, setShowResistorInfo] = useState(false);
   const [componentInfo, setComponentInfo] = useState<{ type: string; label: string } | null>(null);
+  const [boardType, setBoardType] = useState<"leonardo" | "micro">("leonardo");
 
   const connNeedsVCC = (type: string) => ["ir", "sipPuff", "joystickX"].includes(type);
   const connNeedsGND = (type: string) => type !== "joystickY";
 
-  const BX = 345, BY = 65, BW = 170, BH = 560;
+  // Leonardo Micro is narrower/shorter (Pro Micro-like form factor)
+  const isMicro = boardType === "micro";
+  const BX = isMicro ? 355 : 345, BY = 65, BW = isMicro ? 150 : 170, BH = isMicro ? 520 : 560;
 
   const digitalPinY = (pin: number) => BY + 81 + (13 - pin) * 34;
   const analogPinY = (pin: number) => BY + 291 + pin * 34;
@@ -1415,6 +1421,29 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
             <span className="text-sm font-semibold text-gray-200">Wiring Diagram</span>
           </div>
           <div className="flex items-center gap-2">
+            {/* Board selector */}
+            <div className="flex items-center gap-0.5 bg-gray-800 border border-gray-700 rounded-lg p-0.5">
+              <button
+                onClick={() => setBoardType("leonardo")}
+                className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors ${
+                  boardType === "leonardo"
+                    ? "bg-teal-700/80 text-teal-100 shadow"
+                    : "text-gray-500 hover:text-gray-300"
+                }`}
+              >
+                Leonardo
+              </button>
+              <button
+                onClick={() => setBoardType("micro")}
+                className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors ${
+                  boardType === "micro"
+                    ? "bg-teal-700/80 text-teal-100 shadow"
+                    : "text-gray-500 hover:text-gray-300"
+                }`}
+              >
+                Micro
+              </button>
+            </div>
             <button
               onClick={() => setShowVCC((v) => !v)}
               className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors border ${
@@ -1459,54 +1488,129 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
             </defs>
             <rect width="920" height="660" fill="url(#wdgrid)" />
 
-            {/* ── Arduino Leonardo Board ── */}
+            {/* ── Arduino Board ── */}
             {/* Outer PCB */}
             <rect x={BX} y={BY} width={BW} height={BH} rx="8" fill="#00696f" stroke="#004f52" strokeWidth="2" />
-            {/* Inner PCB */}
+            {/* Inner PCB texture */}
             <rect x={BX + 6} y={BY + 6} width={BW - 12} height={BH - 12} rx="6" fill="#00797d" />
+            {/* Silk-screen edge traces */}
+            <rect x={BX + 10} y={BY + 10} width={BW - 20} height={BH - 20} rx="4" fill="none" stroke="#005f62" strokeWidth="0.5" opacity="0.4" />
 
-            {/* USB Micro connector at top */}
-            <rect x={BX + 55} y={BY - 25} width="60" height="30" rx="4" fill="#1f2937" stroke="#374151" strokeWidth="1.5" />
-            <rect x={BX + 62} y={BY - 20} width="46" height="20" rx="2" fill="#111827" />
-            <text x={BX + 85} y={BY - 7} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#4b5563">USB</text>
+            {isMicro ? (
+              <>
+                {/* Leonardo Micro: USB micro connector on the short edge (right side) */}
+                <rect x={BX + BW - 4} y={BY + BH / 2 - 15} width="26" height="30" rx="3" fill="#1f2937" stroke="#374151" strokeWidth="1.5" />
+                <rect x={BX + BW + 2} y={BY + BH / 2 - 10} width="16" height="20" rx="2" fill="#111827" />
+                <text x={BX + BW + 10} y={BY + BH / 2 + 4} textAnchor="middle" fontFamily="monospace" fontSize="6" fill="#4b5563">USB</text>
 
-            {/* ATmega32U4 chip */}
-            <rect x={BX + 40} y={BY + 200} width="90" height="70" rx="4" fill="#111" stroke="#333" strokeWidth="1.5" />
-            <text x={BX + 85} y={BY + 230} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#4b5563">ATmega</text>
-            <text x={BX + 85} y={BY + 242} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#4b5563">32U4</text>
-            {/* Pin stubs left side of chip */}
-            {[0, 1, 2, 3].map((i) => (
-              <line key={`cl${i}`} x1={BX + 40} y1={BY + 215 + i * 14} x2={BX + 34} y2={BY + 215 + i * 14} stroke="#333" strokeWidth="1.5" />
-            ))}
-            {/* Pin stubs right side of chip */}
-            {[0, 1, 2, 3].map((i) => (
-              <line key={`cr${i}`} x1={BX + 130} y1={BY + 215 + i * 14} x2={BX + 136} y2={BY + 215 + i * 14} stroke="#333" strokeWidth="1.5" />
-            ))}
+                {/* ATmega32U4 chip — centered */}
+                <rect x={BX + 25} y={BY + 200} width="100" height="70" rx="4" fill="#111" stroke="#333" strokeWidth="1.5" />
+                <text x={BX + 75} y={BY + 230} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#4b5563">ATmega</text>
+                <text x={BX + 75} y={BY + 242} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#4b5563">32U4</text>
+                {[0, 1, 2, 3].map((i) => (
+                  <line key={`cl${i}`} x1={BX + 25} y1={BY + 215 + i * 14} x2={BX + 18} y2={BY + 215 + i * 14} stroke="#333" strokeWidth="1.5" />
+                ))}
+                {[0, 1, 2, 3].map((i) => (
+                  <line key={`cr${i}`} x1={BX + 125} y1={BY + 215 + i * 14} x2={BX + 132} y2={BY + 215 + i * 14} stroke="#333" strokeWidth="1.5" />
+                ))}
 
-            {/* Reset button */}
-            <circle cx={BX + 22} cy={BY + 60} r="8" fill="#cc2222" stroke="#991111" strokeWidth="1" />
-            <circle cx={BX + 22} cy={BY + 60} r="4" fill="#ff4444" opacity={0.6} />
+                {/* Reset button */}
+                <circle cx={BX + 20} cy={BY + 50} r="7" fill="#cc2222" stroke="#991111" strokeWidth="1" />
+                <circle cx={BX + 20} cy={BY + 50} r="3.5" fill="#ff4444" opacity={0.6} />
 
-            {/* Power LED */}
-            <circle cx={BX + 45} cy={BY + 60} r="4" fill="#00ff88" opacity={0.8} />
+                {/* Power LED */}
+                <circle cx={BX + 40} cy={BY + 50} r="4" fill="#00ff88" opacity={0.8} />
+                {/* TX/RX LEDs */}
+                <circle cx={BX + 55} cy={BY + 50} r="3" fill="#ff9900" opacity={0.8} />
+                <circle cx={BX + 68} cy={BY + 50} r="3" fill="#ff9900" opacity={0.8} />
 
-            {/* Crystal */}
-            <rect x={BX + 62} y={BY + 60} width="18" height="8" rx="2" fill="#c8a800" stroke="#a07800" strokeWidth="1" />
+                {/* Crystal */}
+                <rect x={BX + 80} y={BY + 46} width="16" height="8" rx="2" fill="#c8a800" stroke="#a07800" strokeWidth="1" />
 
-            {/* Mounting holes */}
-            {[
-              [BX + 12, BY + 12], [BX + BW - 12, BY + 12],
-              [BX + 12, BY + BH - 12], [BX + BW - 12, BY + BH - 12],
-            ].map(([hx, hy], i) => (
-              <g key={`mh${i}`}>
-                <circle cx={hx} cy={hy} r="6" fill="#005f62" stroke="#004f52" strokeWidth="1.5" />
-                <circle cx={hx} cy={hy} r="3" fill="#003f42" />
-              </g>
-            ))}
+                {/* No mounting holes on Micro (smaller board) */}
+                {/* Board labels */}
+                <text x={BX + BW / 2} y={BY + 120} textAnchor="middle" fontFamily="monospace" fontSize="9" fill="#004f52" fontWeight="bold" letterSpacing="1">ARDUINO</text>
+                <text x={BX + BW / 2} y={BY + 133} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#004f52" letterSpacing="1">MICRO</text>
+              </>
+            ) : (
+              <>
+                {/* USB Micro-B connector at top */}
+                <rect x={BX + 50} y={BY - 26} width="70" height="32" rx="4" fill="#1f2937" stroke="#374151" strokeWidth="1.5" />
+                <rect x={BX + 57} y={BY - 20} width="56" height="20" rx="2" fill="#111827" />
+                {/* USB pins detail */}
+                {[0, 1, 2, 3, 4].map((i) => (
+                  <rect key={`usb${i}`} x={BX + 59 + i * 10} y={BY - 19} width="6" height="18" rx="1" fill="#1f2937" />
+                ))}
+                <text x={BX + 85} y={BY - 6} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#4b5563">USB</text>
 
-            {/* Board title */}
-            <text x={BX + BW / 2} y={BY + 130} textAnchor="middle" fontFamily="monospace" fontSize="10" fill="#004f52" fontWeight="bold" letterSpacing="2">ARDUINO</text>
-            <text x={BX + BW / 2} y={BY + 145} textAnchor="middle" fontFamily="monospace" fontSize="8" fill="#004f52" letterSpacing="1">LEONARDO</text>
+                {/* ICSP header (6-pin 2×3) */}
+                <rect x={BX + 105} y={BY + 90} width="30" height="20" rx="2" fill="#111827" stroke="#374151" strokeWidth="1" />
+                {[0, 1, 2].map((col) => [0, 1].map((row) => (
+                  <circle key={`icsp${col}${row}`} cx={BX + 112 + col * 9} cy={BY + 96 + row * 8} r="2" fill="#374151" />
+                )))}
+                <text x={BX + 120} y={BY + 122} textAnchor="middle" fontFamily="monospace" fontSize="6" fill="#4b5563">ICSP</text>
+
+                {/* ATmega32U4 chip */}
+                <rect x={BX + 35} y={BY + 200} width="100" height="75" rx="4" fill="#111" stroke="#333" strokeWidth="1.5" />
+                {/* Chip notch */}
+                <path d={`M ${BX + 82} ${BY + 200} a 3 3 0 0 1 6 0`} fill="#222" />
+                <text x={BX + 85} y={BY + 230} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#4b5563">ATmega</text>
+                <text x={BX + 85} y={BY + 242} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#4b5563">32U4</text>
+                {[0, 1, 2, 3].map((i) => (
+                  <line key={`cl${i}`} x1={BX + 35} y1={BY + 215 + i * 14} x2={BX + 28} y2={BY + 215 + i * 14} stroke="#333" strokeWidth="1.5" />
+                ))}
+                {[0, 1, 2, 3].map((i) => (
+                  <line key={`cr${i}`} x1={BX + 135} y1={BY + 215 + i * 14} x2={BX + 142} y2={BY + 215 + i * 14} stroke="#333" strokeWidth="1.5" />
+                ))}
+
+                {/* Reset button */}
+                <circle cx={BX + 22} cy={BY + 65} r="9" fill="#cc2222" stroke="#991111" strokeWidth="1.5" />
+                <circle cx={BX + 22} cy={BY + 65} r="4.5" fill="#ff4444" opacity={0.6} />
+                <text x={BX + 22} y={BY + 83} textAnchor="middle" fontFamily="monospace" fontSize="6" fill="#991111">RST</text>
+
+                {/* Power LED (green) */}
+                <rect x={BX + 48} y={BY + 59} width="8" height="14" rx="2" fill="#00bb66" opacity={0.9} />
+                <ellipse cx={BX + 52} cy={BY + 59} rx="4" ry="3" fill="#00ff88" opacity={0.8} />
+                <text x={BX + 52} y={BY + 82} textAnchor="middle" fontFamily="monospace" fontSize="6" fill="#005f40">PWR</text>
+                {/* TX LED (orange) */}
+                <rect x={BX + 65} y={BY + 59} width="8" height="14" rx="2" fill="#cc6600" opacity={0.9} />
+                <ellipse cx={BX + 69} cy={BY + 59} rx="4" ry="3" fill="#ff9900" opacity={0.8} />
+                <text x={BX + 69} y={BY + 82} textAnchor="middle" fontFamily="monospace" fontSize="6" fill="#995500">TX</text>
+                {/* RX LED (orange) */}
+                <rect x={BX + 80} y={BY + 59} width="8" height="14" rx="2" fill="#cc6600" opacity={0.9} />
+                <ellipse cx={BX + 84} cy={BY + 59} rx="4" ry="3" fill="#ff9900" opacity={0.8} />
+                <text x={BX + 84} y={BY + 82} textAnchor="middle" fontFamily="monospace" fontSize="6" fill="#995500">RX</text>
+
+                {/* Crystal */}
+                <rect x={BX + 100} y={BY + 62} width="22" height="10" rx="3" fill="#c8a800" stroke="#a07800" strokeWidth="1.2" />
+                <line x1={BX + 108} y1={BY + 72} x2={BX + 108} y2={BY + 78} stroke="#a07800" strokeWidth="1.2" />
+                <line x1={BX + 116} y1={BY + 72} x2={BX + 116} y2={BY + 78} stroke="#a07800" strokeWidth="1.2" />
+                <text x={BX + 111} y={BY + 88} textAnchor="middle" fontFamily="monospace" fontSize="6" fill="#a07800">16MHz</text>
+
+                {/* Voltage regulator */}
+                <rect x={BX + 130} y={BY + 160} width="20" height="28" rx="2" fill="#111827" stroke="#374151" strokeWidth="1" />
+                <line x1={BX + 133} y1={BY + 188} x2={BX + 133} y2={BY + 198} stroke="#374151" strokeWidth="1.5" />
+                <line x1={BX + 140} y1={BY + 188} x2={BX + 140} y2={BY + 198} stroke="#374151" strokeWidth="1.5" />
+                <line x1={BX + 147} y1={BY + 188} x2={BX + 147} y2={BY + 198} stroke="#374151" strokeWidth="1.5" />
+                <text x={BX + 140} y={BY + 208} textAnchor="middle" fontFamily="monospace" fontSize="6" fill="#4b5563">5V reg</text>
+
+                {/* Mounting holes */}
+                {([
+                  [BX + 12, BY + 12], [BX + BW - 12, BY + 12],
+                  [BX + 12, BY + BH - 12], [BX + BW - 12, BY + BH - 12],
+                ] as [number, number][]).map(([hx, hy], i) => (
+                  <g key={`mh${i}`}>
+                    <circle cx={hx} cy={hy} r="7" fill="#005f62" stroke="#004f52" strokeWidth="1.5" />
+                    <circle cx={hx} cy={hy} r="4" fill="#003f42" />
+                    <circle cx={hx} cy={hy} r="1.5" fill="#00797d" />
+                  </g>
+                ))}
+
+                {/* Board title */}
+                <text x={BX + BW / 2} y={BY + 140} textAnchor="middle" fontFamily="monospace" fontSize="10" fill="#004f52" fontWeight="bold" letterSpacing="2">ARDUINO</text>
+                <text x={BX + BW / 2} y={BY + 155} textAnchor="middle" fontFamily="monospace" fontSize="8" fill="#004f52" letterSpacing="1">LEONARDO</text>
+              </>
+            )}
 
             {/* ── Right Pin Header Bracket ── */}
             <rect x={515} y={BY + 52} width="10" height="470" fill="#1f2937" stroke="#374151" strokeWidth="1" />
@@ -1847,6 +1951,9 @@ export default function Home() {
   const [loginLoading, setLoginLoading] = useState(false);
   const [adminSettings, setAdminSettings] = useState<AdminSettings>({ show_ports: true, show_leds: true, show_upload: true, show_sensors: true, show_buttons: true, show_games: true, show_wiring: true, show_controller: true, maintenance_mode: false, welcome_message: "" });
   const [allUsers, setAllUsers] = useState<AppUser[]>([]);
+  const [dbTemplates, setDbTemplates] = useState<DbTemplate[]>([]);
+  const [editingTemplate, setEditingTemplate] = useState<string | null>(null);
+  const [deleteConfirmTemplateId, setDeleteConfirmTemplateId] = useState<string | null>(null);
   const [shadowUser, setShadowUser] = useState<AppUser | null>(null);
   const [shadowSaves, setShadowSaves] = useState<SaveSlot[]>([]);
   const [shadowSaveIndex, setShadowSaveIndex] = useState(0);
@@ -1906,6 +2013,7 @@ export default function Home() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
   useEffect(() => { fetchPorts(); }, []);
+  useEffect(() => { loadDbTemplates().then(setDbTemplates); }, []);
   useEffect(() => {
     if (!showSaveMenu) return;
     const h = (e: MouseEvent) => { if (!saveMenuRef.current?.contains(e.target as Node)) { setShowSaveMenu(false); setDeleteConfirmSaveId(null); } };
@@ -2308,15 +2416,21 @@ export default function Home() {
     }
   };
 
-  const applyTemplate = (t: typeof BOARD_TEMPLATES[number]) => {
-    setButtons(t.buttons as ButtonConfig[]);
-    setPortInputs(t.portInputs as PortConfig[]);
-    setLeds(t.leds as LedConfig);
-    setIrSensors(t.irSensors as IRSensorConfig[]);
-    setSipPuffs(t.sipPuffs as SipPuffConfig[]);
-    setJoysticks(t.joysticks as JoystickConfig[]);
+  const applyTemplate = (t: typeof BOARD_TEMPLATES[number] | DbTemplate) => {
+    const cfg = "config" in t ? t.config : t;
+    setButtons((cfg.buttons ?? (t as typeof BOARD_TEMPLATES[number]).buttons ?? []) as ButtonConfig[]);
+    setPortInputs((cfg.portInputs ?? []) as PortConfig[]);
+    setLeds((cfg.leds ?? { enabled: false, onPin: 11, offPin: 12 }) as LedConfig);
+    setIrSensors((cfg.irSensors ?? []) as IRSensorConfig[]);
+    setSipPuffs((cfg.sipPuffs ?? []) as SipPuffConfig[]);
+    setJoysticks((cfg.joysticks ?? []) as JoystickConfig[]);
     setCurrentSaveName(t.label);
     setShowTemplates(false);
+  };
+
+  const saveAsTemplate = async (label: string, config: { buttons: ButtonConfig[]; portInputs: PortConfig[]; leds: LedConfig; irSensors: IRSensorConfig[]; sipPuffs: SipPuffConfig[]; joysticks: JoystickConfig[] }) => {
+    const id = await upsertDbTemplate(null, label, "🎯", "", config as unknown as import("@/lib/supabase").UserConfig);
+    if (id) setDbTemplates((prev) => [...prev, { id, label, emoji: "🎯", description: "", config: config as unknown as import("@/lib/supabase").UserConfig, sort_order: prev.length }]);
   };
 
   const copyShareLink = async () => {
@@ -2482,6 +2596,7 @@ export default function Home() {
             {appUser && isAdmin(appUser.username) && (
               <button onClick={() => {
                 setTab("admin");
+                loadDbTemplates().then(setDbTemplates);
                 loadAllUsers().then(async (users) => {
                   setAllUsers(users);
                   const counts: Record<string, number> = {};
@@ -2607,10 +2722,10 @@ export default function Home() {
               </button>
               {showTemplates && (
                 <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-                  {BOARD_TEMPLATES.map((t) => (
+                  {(dbTemplates.length > 0 ? dbTemplates.map((t) => ({ id: t.id, emoji: t.emoji, label: t.label, desc: t.description, _db: t })) : BOARD_TEMPLATES.map((t) => ({ ...t, desc: t.desc, _db: null as DbTemplate | null }))).map((t) => (
                     <button
                       key={t.id}
-                      onClick={() => applyTemplate(t)}
+                      onClick={() => t._db ? applyTemplate(t._db) : applyTemplate(BOARD_TEMPLATES.find((b) => b.id === t.id)!)}
                       className="flex flex-col items-start gap-1 p-3 rounded-xl border border-gray-700 bg-gray-800/60 hover:bg-gray-700/80 hover:border-violet-700/50 transition-all text-left group"
                     >
                       <span className="text-xl leading-none">{t.emoji}</span>
@@ -3120,6 +3235,83 @@ export default function Home() {
               </div>
             </div>
 
+            {/* Templates */}
+            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Code size={13} className="text-violet-400" />
+                <h3 className="text-xs font-semibold text-gray-200">Templates</h3>
+                <span className="text-[10px] text-gray-600 ml-1">shown in Configure tab</span>
+                <button
+                  onClick={async () => {
+                    const id = await upsertDbTemplate(null, "New Template", "🎯", "", { buttons: [], portInputs: [], leds: { enabled: false, onPin: 11, offPin: 12 }, irSensors: [], sipPuffs: [], joysticks: [] } as unknown as import("@/lib/supabase").UserConfig);
+                    if (id) {
+                      const t: DbTemplate = { id, label: "New Template", emoji: "🎯", description: "", config: { buttons: [], portInputs: [], leds: { enabled: false, onPin: 11, offPin: 12 }, irSensors: [], sipPuffs: [], joysticks: [] } as unknown as import("@/lib/supabase").UserConfig, sort_order: dbTemplates.length };
+                      setDbTemplates((prev) => [...prev, t]);
+                      setEditingTemplate(id);
+                    }
+                  }}
+                  className="ml-auto flex items-center gap-1 px-2.5 py-1 rounded-lg bg-violet-600/20 border border-violet-600/30 text-[11px] text-violet-300 hover:bg-violet-600/30 transition-colors"
+                ><Plus size={11} /> New template</button>
+              </div>
+              {dbTemplates.length === 0 ? (
+                <p className="text-[11px] text-gray-600">No DB templates yet. Create one above or promote a user save below. Until created, the app shows the built-in templates.</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {dbTemplates.map((t) => (
+                    <div key={t.id} className="border border-gray-700 rounded-xl p-3 bg-gray-800/40">
+                      {deleteConfirmTemplateId === t.id ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-red-300 flex-1">Delete "{t.label}"?</span>
+                          <button onClick={async () => { await deleteDbTemplate(t.id); setDbTemplates((p) => p.filter((x) => x.id !== t.id)); setDeleteConfirmTemplateId(null); }} className="px-2 py-1 rounded bg-red-600 hover:bg-red-500 text-[11px] text-white font-medium">Delete</button>
+                          <button onClick={() => setDeleteConfirmTemplateId(null)} className="px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-[11px] text-gray-300">Cancel</button>
+                        </div>
+                      ) : editingTemplate === t.id ? (
+                        <div className="flex flex-col gap-2">
+                          <div className="flex gap-2">
+                            <input
+                              value={t.emoji}
+                              onChange={(e) => setDbTemplates((p) => p.map((x) => x.id === t.id ? { ...x, emoji: e.target.value } : x))}
+                              className="w-12 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:border-violet-500"
+                              maxLength={2}
+                            />
+                            <input
+                              value={t.label}
+                              onChange={(e) => setDbTemplates((p) => p.map((x) => x.id === t.id ? { ...x, label: e.target.value } : x))}
+                              placeholder="Template name"
+                              className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-violet-500"
+                            />
+                          </div>
+                          <input
+                            value={t.description}
+                            onChange={(e) => setDbTemplates((p) => p.map((x) => x.id === t.id ? { ...x, description: e.target.value } : x))}
+                            placeholder="Short description…"
+                            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-violet-500"
+                          />
+                          <div className="flex gap-2 justify-end">
+                            <button
+                              onClick={async () => { await upsertDbTemplate(t.id, t.label, t.emoji, t.description, t.config); setEditingTemplate(null); }}
+                              className="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-[11px] text-white font-medium transition-colors"
+                            >Save</button>
+                            <button onClick={() => setEditingTemplate(null)} className="px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-[11px] text-gray-300 transition-colors">Cancel</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg leading-none">{t.emoji}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-semibold text-gray-200">{t.label}</p>
+                            {t.description && <p className="text-[10px] text-gray-500 truncate">{t.description}</p>}
+                          </div>
+                          <button onClick={() => setEditingTemplate(t.id)} className="p-1.5 rounded-lg text-gray-600 hover:text-violet-400 hover:bg-violet-900/20 transition-colors"><Pencil size={11} /></button>
+                          <button onClick={() => setDeleteConfirmTemplateId(t.id)} className="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-900/20 transition-colors"><Trash2 size={11} /></button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* User Management */}
             <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
               <div className="flex items-center gap-2 mb-4">
@@ -3251,6 +3443,7 @@ export default function Home() {
                                 const sps = (cfg.sipPuffs ?? []) as SipPuffConfig[];
                                 const joys = (cfg.joysticks ?? []) as JoystickConfig[];
                                 return (
+                                  <>
                                   <div className="bg-gray-950 rounded-xl p-3 space-y-3">
                                     <div className="flex items-center gap-3 text-[11px] text-gray-500 flex-wrap">
                                       <span className="text-blue-400 font-semibold">{btns.length} buttons</span>
@@ -3294,6 +3487,21 @@ export default function Home() {
                                       </div>
                                     ))}
                                   </div>
+                                  <div className="pt-2 border-t border-gray-800/60">
+                                    <button
+                                      onClick={async () => {
+                                        const save = shadowSaves[shadowSaveIndex];
+                                        if (!save) return;
+                                        const label = prompt("Template name:", save.name);
+                                        if (!label) return;
+                                        await saveAsTemplate(label, save.config as { buttons: ButtonConfig[]; portInputs: PortConfig[]; leds: LedConfig; irSensors: IRSensorConfig[]; sipPuffs: SipPuffConfig[]; joysticks: JoystickConfig[] });
+                                      }}
+                                      className="flex items-center gap-1.5 text-[11px] text-violet-400 hover:text-violet-300 transition-colors"
+                                    >
+                                      <Star size={11} /> Make template
+                                    </button>
+                                  </div>
+                                  </>
                                 );
                               })()}
                             </div>
