@@ -192,6 +192,49 @@ export async function loadSharedSetup(id: string): Promise<{ name: string; confi
   return { name: data.name as string, config: data.config as UserConfig };
 }
 
+// ── Templates ────────────────────────────────────────────────────────────────
+
+export type DbTemplate = {
+  id: string;
+  label: string;
+  emoji: string;
+  description: string;
+  config: UserConfig;
+  sort_order: number;
+};
+
+export async function loadDbTemplates(): Promise<DbTemplate[]> {
+  const { data } = await supabase
+    .from("templates")
+    .select("id, label, emoji, description, config, sort_order")
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+  return (data as DbTemplate[]) ?? [];
+}
+
+export async function upsertDbTemplate(
+  id: string | null,
+  label: string,
+  emoji: string,
+  description: string,
+  config: UserConfig
+): Promise<string> {
+  if (id) {
+    await supabase.from("templates").update({ label, emoji, description, config }).eq("id", id);
+    return id;
+  }
+  const { data } = await supabase
+    .from("templates")
+    .insert({ label, emoji, description, config })
+    .select("id")
+    .single();
+  return data?.id ?? "";
+}
+
+export async function deleteDbTemplate(id: string): Promise<void> {
+  await supabase.from("templates").delete().eq("id", id);
+}
+
 // ── Dino Leaderboard ────────────────────────────────────────────────────────
 // Required SQL (run once in Supabase SQL editor):
 //
