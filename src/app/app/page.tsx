@@ -2074,6 +2074,7 @@ export default function Home() {
             if (cfg.portInputs) setPortInputs(cfg.portInputs as PortConfig[]);
             if (cfg.leds)       setLeds(cfg.leds as LedConfig);
             if (cfg.irSensors)  setIrSensors(cfg.irSensors as IRSensorConfig[]);
+            if (cfg.sipPuffs)   setSipPuffs(cfg.sipPuffs as SipPuffConfig[]);
             if (cfg.joysticks)  setJoysticks(cfg.joysticks as JoystickConfig[]);
           }
         });
@@ -2153,6 +2154,7 @@ export default function Home() {
         if (cfg.portInputs) setPortInputs(cfg.portInputs as PortConfig[]);
         if (cfg.leds)       setLeds(cfg.leds as LedConfig);
         if (cfg.irSensors)  setIrSensors(cfg.irSensors as IRSensorConfig[]);
+        if (cfg.sipPuffs)   setSipPuffs(cfg.sipPuffs as SipPuffConfig[]);
         if (cfg.joysticks)  setJoysticks(cfg.joysticks as JoystickConfig[]);
       }
       if (isAdmin(u.username)) {
