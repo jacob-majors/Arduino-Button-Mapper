@@ -2796,18 +2796,19 @@ export default function Home() {
             )
           )}
 
+          {/* Wiring icon — just left of the tab group */}
+          <button
+            onClick={() => setShowWiring(true)}
+            title="Wiring diagram"
+            data-tutorial="wiring-btn"
+            className="w-7 h-7 rounded-lg bg-gray-800 border border-gray-700 text-yellow-500 hover:text-yellow-300 hover:border-yellow-700/60 transition-colors flex items-center justify-center flex-shrink-0"
+          ><Zap size={13} /></button>
+
           <div className="flex bg-gray-800/60 border border-gray-700 rounded-xl p-0.5 gap-0.5">
             <button onClick={() => setTab("configure")} data-tutorial="configure-tab"
               className={["flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
                 tab === "configure" ? "bg-gray-700 text-gray-100" : "text-gray-500 hover:text-gray-300"].join(" ")}
             ><Settings size={12} /> Configure</button>
-            {/* Wiring icon — next to Configure */}
-            <button
-              onClick={() => setShowWiring(true)}
-              title="Wiring diagram"
-              data-tutorial="wiring-btn"
-              className={["flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all text-yellow-600 hover:text-yellow-400 hover:bg-yellow-900/20"].join(" ")}
-            ><Zap size={12} /></button>
             <button onClick={() => setTab("remap")} data-tutorial="remap-tab"
               className={["flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
                 tab === "remap" ? "bg-gray-700 text-gray-100" : "text-gray-500 hover:text-gray-300"].join(" ")}
