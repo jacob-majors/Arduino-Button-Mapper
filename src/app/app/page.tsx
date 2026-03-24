@@ -2914,8 +2914,10 @@ export default function Home() {
                 const compileOk  = joined.includes("Compilation successful");
                 const connectOk  = joined.includes("Bootloader:");
                 const flashPct   = (() => {
-                  const m = [...joined.matchAll(/Writing… (\d+)%/g)];
-                  return m.length ? parseInt(m[m.length - 1][1]) : (connectOk ? 0 : null);
+                  const re = /Writing… (\d+)%/g;
+                  let last: RegExpExecArray | null = null, cur: RegExpExecArray | null;
+                  while ((cur = re.exec(joined)) !== null) last = cur;
+                  return last ? parseInt(last[1]) : (connectOk ? 0 : null);
                 })();
                 const flashOk    = joined.includes("Upload complete");
                 const isCompiling  = !compileOk && !failed;
