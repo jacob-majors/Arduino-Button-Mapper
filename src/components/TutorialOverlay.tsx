@@ -365,6 +365,13 @@ export default function TutorialOverlay({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stepIndex]);
 
+  // Esc to close
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onComplete(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onComplete]);
+
   // Re-measure on resize/scroll
   useEffect(() => {
     if (!step.target) return;

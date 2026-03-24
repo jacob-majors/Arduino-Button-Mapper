@@ -3167,7 +3167,8 @@ export default function Home() {
               {/* Add input — centered icon pill buttons */}
               <div className="mt-3 pt-3 border-t border-gray-800 flex-shrink-0">
                 <p className="text-[10px] text-gray-600 uppercase tracking-wider font-semibold text-center mb-2">Add Input</p>
-                <div className="flex flex-wrap justify-center gap-2" data-tutorial="add-input">
+                <div className="flex justify-center">
+                <div className="inline-flex flex-wrap justify-center gap-2" data-tutorial="add-input">
                   {([
                     { type: "micro-switch",  label: "Micro Switch",  icon: <Keyboard size={13} />,  color: "hover:bg-blue-600/20 hover:border-blue-500/50 hover:text-blue-300"  },
                     { type: "joystick",      label: "Joystick",      icon: <Joystick size={13} />,  color: "hover:bg-violet-600/20 hover:border-violet-500/50 hover:text-violet-300" },
@@ -3181,6 +3182,7 @@ export default function Home() {
                       {icon} {label}
                     </button>
                   ))}
+                </div>
                 </div>
               </div>
             </section>}
