@@ -174,7 +174,7 @@ const STEPS = [
     n: "2",
     icon: "🔍",
     title: "Connect & Read",
-    body: "Click the \"Connect & Read\" button below. Your browser will ask you to choose a serial port — select the Arduino from the list.",
+    body: "Click \"Connect & Read\" below. Your browser will ask you to pick a serial port — select the Arduino. It takes about 2 seconds to read.",
   },
   {
     n: "3",
@@ -227,8 +227,8 @@ export default function RemapModal({
       await port.open({ baudRate: 9600 });
       setPhase("reading");
 
-      // Give Arduino a moment to boot if just connected
-      await new Promise((r) => setTimeout(r, 800));
+      // Opening the serial port resets the Arduino (DTR). Wait for it to boot.
+      await new Promise((r) => setTimeout(r, 2000));
 
       // Send REMAP command
       const writer = port.writable!.getWriter();
