@@ -2109,6 +2109,7 @@ export default function Home() {
   const [deleteConfirmUserId, setDeleteConfirmUserId] = useState<string | null>(null);
   const [userSaveCounts, setUserSaveCounts] = useState<Record<string, number>>({});
   const [userSearch, setUserSearch] = useState("");
+  const [adminSubTab, setAdminSubTab] = useState<"settings" | "users">("settings");
 
   const logEndRef = useRef<HTMLDivElement>(null);
   const saveMenuRef = useRef<HTMLDivElement>(null);
@@ -3297,78 +3298,79 @@ export default function Home() {
 
       {/* ══ ADMIN TAB ══════════════════════════════════════════════════════ */}
       {tab === "admin" && appUser && isAdmin(appUser.username) && (
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-3xl mx-auto px-4 sm:px-6 py-5 flex flex-col gap-5">
-
-            {/* Header */}
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
-                <Settings size={15} className="text-amber-400" />
-              </div>
-              <div>
-                <h2 className="text-sm font-bold text-gray-100">Admin Panel</h2>
-                <p className="text-[11px] text-gray-600">{appUser.username} · Full access</p>
-              </div>
-              <div className="ml-auto flex items-center gap-3">
-                <div className="text-right">
-                  <p className="text-[10px] text-gray-600 uppercase tracking-wider">Users</p>
-                  <p className="text-lg font-black text-white leading-none">{allUsers.length}</p>
+        <div className="flex-1 overflow-hidden flex flex-col">
+          {/* Admin sub-nav */}
+          <div className="flex-shrink-0 border-b border-gray-800/80 bg-gray-900/40 px-4 sm:px-6">
+            <div className="max-w-3xl mx-auto flex items-center gap-1 py-2">
+              <div className="flex items-center gap-2 mr-4">
+                <div className="w-6 h-6 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
+                  <Settings size={11} className="text-amber-400" />
                 </div>
-                <div className="text-right">
-                  <p className="text-[10px] text-gray-600 uppercase tracking-wider">Total Saves</p>
-                  <p className="text-lg font-black text-white leading-none">{Object.values(userSaveCounts).reduce((a, b) => a + b, 0)}</p>
-                </div>
+                <span className="text-[11px] font-semibold text-amber-400/80 uppercase tracking-wider">Admin</span>
               </div>
+              {(["settings", "users"] as const).map((st) => (
+                <button key={st} onClick={() => setAdminSubTab(st)}
+                  className={["px-3 py-1.5 rounded-lg text-xs font-medium transition-all capitalize",
+                    adminSubTab === st ? "bg-gray-800 text-gray-100" : "text-gray-500 hover:text-gray-300"].join(" ")}
+                >{st === "users" ? `Users (${allUsers.length})` : "Settings"}</button>
+              ))}
             </div>
+          </div>
 
-            {/* Feature Toggles */}
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-1">
-                <Power size={13} className="text-blue-400" />
-                <h3 className="text-xs font-semibold text-gray-200">Feature Toggles</h3>
-                <span className="ml-auto text-[10px] text-green-500 bg-green-500/10 border border-green-500/20 px-2 py-0.5 rounded-full">Live · Affects all users</span>
-              </div>
-              <p className="text-[11px] text-gray-600 mb-4">Changes take effect instantly for every logged-in user.</p>
-              <div className="flex flex-col divide-y divide-gray-800/60">
-                {([
-                  { key: "show_upload"     as const, label: "Compile & Upload",    desc: "Show the Compile & Upload button and upload log",           icon: <Upload size={13} className="text-green-400" /> },
-                  { key: "show_buttons"    as const, label: "Configure Inputs",    desc: "Show the main input configuration panel",                   icon: <Keyboard size={13} className="text-blue-400" /> },
-                  { key: "show_sensors"    as const, label: "Sensors & Joysticks", desc: "Show IR sensor, sip & puff, and joystick input types",      icon: <Radio size={13} className="text-emerald-400" /> },
-                  { key: "show_leds"       as const, label: "LED Indicators",      desc: "Show the LED configuration section",                        icon: <Lightbulb size={13} className="text-yellow-400" /> },
-                  { key: "show_games"      as const, label: "Games Section",       desc: "Show Dino, Snake, and Pong games in the Test tab",          icon: <Gamepad2 size={13} className="text-violet-400" /> },
-                  { key: "show_wiring"     as const, label: "Wiring Diagram",      desc: "Show the live wiring diagram in Configure tab",             icon: <Zap size={13} className="text-orange-400" /> },
-                  { key: "show_controller" as const, label: "Controller View",     desc: "Show the Controller mockup tab in Device Tester",           icon: <Gamepad2 size={13} className="text-pink-400" /> },
-                  { key: "maintenance_mode" as const, label: "Maintenance Mode",   desc: "Show a maintenance banner to all non-admin users",          icon: <Settings size={13} className="text-red-400" /> },
-                  { key: "show_tutorial"   as const, label: "Interactive Tutorial", desc: "Show the guided tour to users who haven't completed it",    icon: <span className="text-sm font-bold text-violet-400">?</span> },
-                ] as { key: keyof AdminSettings; label: string; desc: string; icon: React.ReactNode }[]).map(({ key, label, desc, icon }) => (
-                  <div key={key} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 rounded-lg bg-gray-800 flex items-center justify-center flex-shrink-0">{icon}</div>
-                      <div>
-                        <span className="text-sm text-gray-200">{label}</span>
-                        <p className="text-[11px] text-gray-600">{desc}</p>
+          <div className="flex-1 overflow-y-auto">
+            <div className="max-w-3xl mx-auto px-4 sm:px-6 py-5 flex flex-col gap-5">
+
+            {/* ── SETTINGS SUB-TAB ── */}
+            {adminSubTab === "settings" && (<>
+
+              {/* Feature Toggles */}
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+                <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-800">
+                  <Power size={13} className="text-blue-400" />
+                  <h3 className="text-xs font-semibold text-gray-200">Feature Visibility</h3>
+                  <span className="ml-auto text-[10px] text-green-500 bg-green-500/10 border border-green-500/20 px-2 py-0.5 rounded-full">Live · Instant for all users</span>
+                </div>
+                <div className="divide-y divide-gray-800/60">
+                  {([
+                    { key: "show_upload"      as const, label: "Compile & Upload",    desc: "Show the upload button and compile log",              icon: <Upload size={13} className="text-green-400" />,    group: "core" },
+                    { key: "show_buttons"     as const, label: "Configure Inputs",    desc: "Show the main input configuration panel",             icon: <Keyboard size={13} className="text-blue-400" />,   group: "core" },
+                    { key: "show_sensors"     as const, label: "Sensors & Joysticks", desc: "Show IR, sip & puff, and joystick input types",       icon: <Radio size={13} className="text-emerald-400" />,   group: "core" },
+                    { key: "show_wiring"      as const, label: "Wiring Diagram",      desc: "Show the wiring diagram icon in the header",          icon: <Zap size={13} className="text-orange-400" />,      group: "core" },
+                    { key: "show_games"       as const, label: "Games Section",       desc: "Show Dino, Snake, and Pong in the Test tab",          icon: <Gamepad2 size={13} className="text-violet-400" />, group: "test" },
+                    { key: "show_controller"  as const, label: "Controller View",     desc: "Show the controller mockup in the Test tab",          icon: <Gamepad2 size={13} className="text-pink-400" />,   group: "test" },
+                    { key: "show_tutorial"    as const, label: "Interactive Tutorial", desc: "Enable the guided tour (guests always see it)",      icon: <Info size={13} className="text-violet-400" />,     group: "ux" },
+                    { key: "maintenance_mode" as const, label: "Maintenance Mode",    desc: "Show a maintenance banner to all non-admin users",    icon: <Settings size={13} className="text-red-400" />,    group: "ux" },
+                  ] as { key: keyof AdminSettings; label: string; desc: string; icon: React.ReactNode; group: string }[]).map(({ key, label, desc, icon }) => (
+                    <div key={key} className="flex items-center justify-between px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-7 h-7 rounded-lg bg-gray-800 flex items-center justify-center flex-shrink-0">{icon}</div>
+                        <div>
+                          <p className="text-sm text-gray-200">{label}</p>
+                          <p className="text-[11px] text-gray-600">{desc}</p>
+                        </div>
                       </div>
+                      <button
+                        onClick={async () => {
+                          const next = !(adminSettings[key] as boolean);
+                          setAdminSettings((s) => { const n = { ...s, [key]: next }; localStorage.setItem("adminSettings", JSON.stringify(n)); return n; });
+                          await updateAdminSettings({ [key]: next } as Partial<AdminSettings>);
+                        }}
+                        className={["relative w-10 h-6 rounded-full transition-colors cursor-pointer flex-shrink-0 ml-6",
+                          (adminSettings[key] as boolean) ? "bg-blue-600" : "bg-gray-700"].join(" ")}
+                      >
+                        <div className={["absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform",
+                          (adminSettings[key] as boolean) ? "translate-x-5" : "translate-x-1"].join(" ")} />
+                      </button>
                     </div>
-                    <div
-                      onClick={async () => {
-                        const cur = adminSettings[key] as boolean;
-                        const next = !cur;
-                        setAdminSettings((s) => { const n = { ...s, [key]: next }; localStorage.setItem("adminSettings", JSON.stringify(n)); return n; });
-                        await updateAdminSettings({ [key]: next } as Partial<AdminSettings>);
-                      }}
-                      className={["relative w-10 h-6 rounded-full transition-colors cursor-pointer flex-shrink-0 ml-4",
-                        (adminSettings[key] as boolean) ? "bg-blue-600" : "bg-gray-700"].join(" ")}
-                    >
-                      <div className={["absolute top-1 w-4 h-4 rounded-full bg-white shadow transition-transform",
-                        (adminSettings[key] as boolean) ? "translate-x-5" : "translate-x-1"].join(" ")} />
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-              {/* Maintenance message input */}
+
+              {/* Conditional extras for toggles */}
               {adminSettings.maintenance_mode && (
-                <div className="mt-4 pt-4 border-t border-gray-800">
-                  <label className="text-[11px] text-gray-500 mb-1 block">Maintenance message shown to users</label>
+                <div className="bg-gray-900 border border-red-900/40 rounded-2xl p-5">
+                  <p className="text-xs font-semibold text-red-400 mb-2">Maintenance Message</p>
+                  <p className="text-[11px] text-gray-600 mb-3">Shown in the banner to all non-admin users while maintenance mode is on.</p>
                   <input
                     type="text"
                     value={adminSettings.welcome_message ?? ""}
@@ -3382,50 +3384,104 @@ export default function Home() {
                   />
                 </div>
               )}
-              {/* Tutorial controls */}
+
               {adminSettings.show_tutorial && (
-                <div className="mt-4 pt-4 border-t border-gray-800 flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs text-gray-400">Tutorial version: <span className="font-mono text-violet-400">{adminSettings.tutorial_version ?? 0}</span></p>
-                    <p className="text-[11px] text-gray-600">Incrementing the version resets the tutorial for all users — they'll see it again on next load.</p>
+                <div className="bg-gray-900 border border-violet-900/40 rounded-2xl p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold text-violet-300 mb-1">Tutorial Version: <span className="font-mono">{adminSettings.tutorial_version ?? 0}</span></p>
+                      <p className="text-[11px] text-gray-600">Increment this to reset the tour for all logged-in users — they'll see it again on next load. Guests always see it.</p>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        const next = (adminSettings.tutorial_version ?? 0) + 1;
+                        setAdminSettings((s) => { const n = { ...s, tutorial_version: next }; localStorage.setItem("adminSettings", JSON.stringify(n)); return n; });
+                        await updateAdminSettings({ tutorial_version: next });
+                      }}
+                      className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-700/40 hover:bg-violet-700/70 border border-violet-600/50 text-violet-200 transition-colors"
+                    >Reset for Everyone</button>
                   </div>
-                  <button
-                    onClick={async () => {
-                      const next = (adminSettings.tutorial_version ?? 0) + 1;
-                      setAdminSettings((s) => { const n = { ...s, tutorial_version: next }; localStorage.setItem("adminSettings", JSON.stringify(n)); return n; });
-                      await updateAdminSettings({ tutorial_version: next });
-                    }}
-                    className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-700/50 hover:bg-violet-700 border border-violet-600/50 text-violet-200 transition-colors"
-                  >Reset for Everyone</button>
                 </div>
               )}
-            </div>
 
-            {/* App Config */}
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Terminal size={13} className="text-purple-400" />
-                <h3 className="text-xs font-semibold text-gray-200">App Configuration</h3>
+              {/* Templates */}
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+                <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-800">
+                  <Code size={13} className="text-violet-400" />
+                  <h3 className="text-xs font-semibold text-gray-200">Templates</h3>
+                  <span className="text-[10px] text-gray-600 ml-1">shown in Configure tab</span>
+                  <button
+                    onClick={async () => {
+                      const id = await upsertDbTemplate(null, "New Template", "🎯", "", { buttons: [], portInputs: [], leds: { enabled: false, onPin: 11, offPin: 12 }, irSensors: [], sipPuffs: [], joysticks: [] } as unknown as import("@/lib/supabase").UserConfig);
+                      if (id) {
+                        const t: DbTemplate = { id, label: "New Template", emoji: "🎯", description: "", config: { buttons: [], portInputs: [], leds: { enabled: false, onPin: 11, offPin: 12 }, irSensors: [], sipPuffs: [], joysticks: [] } as unknown as import("@/lib/supabase").UserConfig, sort_order: dbTemplates.length };
+                        setDbTemplates((prev) => [...prev, t]);
+                        setEditingTemplate(id);
+                      }
+                    }}
+                    className="ml-auto flex items-center gap-1 px-2.5 py-1 rounded-lg bg-violet-600/20 border border-violet-600/30 text-[11px] text-violet-300 hover:bg-violet-600/30 transition-colors"
+                  ><Plus size={11} /> New</button>
+                </div>
+                <div className="p-5">
+                  {dbTemplates.length === 0 ? (
+                    <p className="text-[11px] text-gray-600">No DB templates yet. Create one or promote a user save from the Users tab. Until created, the app uses built-in templates.</p>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      {dbTemplates.map((t) => (
+                        <div key={t.id} className="border border-gray-700 rounded-xl p-3 bg-gray-800/40">
+                          {deleteConfirmTemplateId === t.id ? (
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-red-300 flex-1">Delete &ldquo;{t.label}&rdquo;?</span>
+                              <button onClick={async () => { await deleteDbTemplate(t.id); setDbTemplates((p) => p.filter((x) => x.id !== t.id)); setDeleteConfirmTemplateId(null); }} className="px-2 py-1 rounded bg-red-600 hover:bg-red-500 text-[11px] text-white font-medium">Delete</button>
+                              <button onClick={() => setDeleteConfirmTemplateId(null)} className="px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-[11px] text-gray-300">Cancel</button>
+                            </div>
+                          ) : editingTemplate === t.id ? (
+                            <div className="flex flex-col gap-2">
+                              <div className="flex gap-2">
+                                <input value={t.emoji} onChange={(e) => setDbTemplates((p) => p.map((x) => x.id === t.id ? { ...x, emoji: e.target.value } : x))} className="w-12 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:border-violet-500" maxLength={2} />
+                                <input value={t.label} onChange={(e) => setDbTemplates((p) => p.map((x) => x.id === t.id ? { ...x, label: e.target.value } : x))} placeholder="Template name" className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-violet-500" />
+                              </div>
+                              <input value={t.description} onChange={(e) => setDbTemplates((p) => p.map((x) => x.id === t.id ? { ...x, description: e.target.value } : x))} placeholder="Short description…" className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-violet-500" />
+                              <div className="flex gap-2 justify-end">
+                                <button onClick={async () => { await upsertDbTemplate(t.id, t.label, t.emoji, t.description, t.config); setEditingTemplate(null); }} className="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-[11px] text-white font-medium transition-colors">Save</button>
+                                <button onClick={() => setEditingTemplate(null)} className="px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-[11px] text-gray-300 transition-colors">Cancel</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg leading-none">{t.emoji}</span>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-semibold text-gray-200">{t.label}</p>
+                                {t.description && <p className="text-[10px] text-gray-500 truncate">{t.description}</p>}
+                              </div>
+                              <button onClick={() => setEditingTemplate(t.id)} className="p-1.5 rounded-lg text-gray-600 hover:text-violet-400 hover:bg-violet-900/20 transition-colors"><Pencil size={11} /></button>
+                              <button onClick={() => setDeleteConfirmTemplateId(t.id)} className="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-900/20 transition-colors"><Trash2 size={11} /></button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-              <div className="flex flex-col gap-3">
-                <div className="flex items-start gap-3 p-3 bg-gray-800/50 rounded-xl border border-gray-700/50">
-                  <div>
-                    <p className="text-xs font-medium text-gray-300 mb-0.5">Backend URL</p>
-                    <p className="text-[11px] text-gray-600 mb-1.5">Compile server (Railway). Set via NEXT_PUBLIC_BACKEND_URL in Vercel.</p>
-                    <code className="text-[11px] text-green-400 font-mono bg-gray-950 px-2 py-1 rounded-lg border border-gray-700 break-all">{BACKEND_URL}</code>
-                  </div>
+
+              {/* App Config (read-only info) */}
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+                <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-800">
+                  <Terminal size={13} className="text-purple-400" />
+                  <h3 className="text-xs font-semibold text-gray-200">System Info</h3>
                 </div>
-                <div className="flex items-start gap-3 p-3 bg-gray-800/50 rounded-xl border border-gray-700/50">
-                  <div className="w-full">
-                    <p className="text-xs font-medium text-gray-300 mb-0.5">Arduino Board Target</p>
-                    <p className="text-[11px] text-gray-600 mb-1.5">FQBN used when compiling sketches.</p>
-                    <code className="text-[11px] text-blue-400 font-mono bg-gray-950 px-2 py-1 rounded-lg border border-gray-700">arduino:avr:leonardo</code>
+                <div className="p-5 flex flex-col gap-3">
+                  <div className="p-3 bg-gray-800/50 rounded-xl border border-gray-700/50">
+                    <p className="text-[11px] font-medium text-gray-400 mb-1">Compile Backend</p>
+                    <code className="text-[11px] text-green-400 font-mono break-all">{BACKEND_URL}</code>
                   </div>
-                </div>
-                <div className="flex items-start gap-3 p-3 bg-gray-800/50 rounded-xl border border-gray-700/50">
-                  <div className="w-full">
-                    <p className="text-xs font-medium text-gray-300 mb-0.5">Admin Usernames</p>
-                    <p className="text-[11px] text-gray-600 mb-1.5">Usernames with admin access. Edit in supabase.ts.</p>
+                  <div className="p-3 bg-gray-800/50 rounded-xl border border-gray-700/50">
+                    <p className="text-[11px] font-medium text-gray-400 mb-1">Board FQBN</p>
+                    <code className="text-[11px] text-blue-400 font-mono">arduino:avr:leonardo</code>
+                  </div>
+                  <div className="p-3 bg-gray-800/50 rounded-xl border border-gray-700/50">
+                    <p className="text-[11px] font-medium text-gray-400 mb-1.5">Admin Accounts</p>
                     <div className="flex gap-1.5 flex-wrap">
                       {["jacob.majors", "ramsey.musallam"].map((u) => (
                         <span key={u} className="text-[11px] font-mono text-amber-400 bg-amber-900/20 border border-amber-800/40 px-2 py-0.5 rounded-full">{u}</span>
@@ -3434,287 +3490,175 @@ export default function Home() {
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* Templates */}
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Code size={13} className="text-violet-400" />
-                <h3 className="text-xs font-semibold text-gray-200">Templates</h3>
-                <span className="text-[10px] text-gray-600 ml-1">shown in Configure tab</span>
-                <button
-                  onClick={async () => {
-                    const id = await upsertDbTemplate(null, "New Template", "🎯", "", { buttons: [], portInputs: [], leds: { enabled: false, onPin: 11, offPin: 12 }, irSensors: [], sipPuffs: [], joysticks: [] } as unknown as import("@/lib/supabase").UserConfig);
-                    if (id) {
-                      const t: DbTemplate = { id, label: "New Template", emoji: "🎯", description: "", config: { buttons: [], portInputs: [], leds: { enabled: false, onPin: 11, offPin: 12 }, irSensors: [], sipPuffs: [], joysticks: [] } as unknown as import("@/lib/supabase").UserConfig, sort_order: dbTemplates.length };
-                      setDbTemplates((prev) => [...prev, t]);
-                      setEditingTemplate(id);
-                    }
-                  }}
-                  className="ml-auto flex items-center gap-1 px-2.5 py-1 rounded-lg bg-violet-600/20 border border-violet-600/30 text-[11px] text-violet-300 hover:bg-violet-600/30 transition-colors"
-                ><Plus size={11} /> New template</button>
+            </>)}
+
+            {/* ── USERS SUB-TAB ── */}
+            {adminSubTab === "users" && (<>
+
+              {/* Stats */}
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { label: "Registered Users", value: allUsers.length, color: "text-blue-400" },
+                  { label: "Total Saves", value: Object.values(userSaveCounts).reduce((a, b) => a + b, 0), color: "text-violet-400" },
+                  { label: "Admin Accounts", value: allUsers.filter((u) => isAdmin(u.username)).length, color: "text-amber-400" },
+                ].map((s) => (
+                  <div key={s.label} className="bg-gray-900 border border-gray-800 rounded-2xl p-4 text-center">
+                    <p className={`text-2xl font-black ${s.color} leading-none mb-1`}>{s.value}</p>
+                    <p className="text-[10px] text-gray-600 uppercase tracking-wider">{s.label}</p>
+                  </div>
+                ))}
               </div>
-              {dbTemplates.length === 0 ? (
-                <p className="text-[11px] text-gray-600">No DB templates yet. Create one above or promote a user save below. Until created, the app shows the built-in templates.</p>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  {dbTemplates.map((t) => (
-                    <div key={t.id} className="border border-gray-700 rounded-xl p-3 bg-gray-800/40">
-                      {deleteConfirmTemplateId === t.id ? (
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-red-300 flex-1">Delete "{t.label}"?</span>
-                          <button onClick={async () => { await deleteDbTemplate(t.id); setDbTemplates((p) => p.filter((x) => x.id !== t.id)); setDeleteConfirmTemplateId(null); }} className="px-2 py-1 rounded bg-red-600 hover:bg-red-500 text-[11px] text-white font-medium">Delete</button>
-                          <button onClick={() => setDeleteConfirmTemplateId(null)} className="px-2 py-1 rounded bg-gray-700 hover:bg-gray-600 text-[11px] text-gray-300">Cancel</button>
-                        </div>
-                      ) : editingTemplate === t.id ? (
-                        <div className="flex flex-col gap-2">
-                          <div className="flex gap-2">
-                            <input
-                              value={t.emoji}
-                              onChange={(e) => setDbTemplates((p) => p.map((x) => x.id === t.id ? { ...x, emoji: e.target.value } : x))}
-                              className="w-12 bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-sm text-center focus:outline-none focus:border-violet-500"
-                              maxLength={2}
-                            />
-                            <input
-                              value={t.label}
-                              onChange={(e) => setDbTemplates((p) => p.map((x) => x.id === t.id ? { ...x, label: e.target.value } : x))}
-                              placeholder="Template name"
-                              className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-violet-500"
-                            />
+
+              {/* User list */}
+              <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+                <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-800">
+                  <h3 className="text-xs font-semibold text-gray-200">All Users</h3>
+                  <div className="flex-1 ml-3">
+                    <input
+                      type="text"
+                      placeholder="Search…"
+                      value={userSearch}
+                      onChange={(e) => setUserSearch(e.target.value)}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:border-gray-500"
+                    />
+                  </div>
+                </div>
+
+                {allUsers.length === 0 ? (
+                  <p className="text-xs text-gray-600 p-5">No users yet.</p>
+                ) : (
+                  <div className="divide-y divide-gray-800/60">
+                    {allUsers.filter((u) => !userSearch || u.username.toLowerCase().includes(userSearch.toLowerCase())).map((u) => (
+                      <div key={u.id}>
+                        {/* User row */}
+                        <button
+                          onClick={async () => {
+                            if (expandedUserId === u.id) {
+                              setExpandedUserId(null); setShadowUser(null); setShadowSaves([]);
+                            } else {
+                              setExpandedUserId(u.id); setShadowUser(u);
+                              const saves = await loadAllSaves(u.id);
+                              setShadowSaves(saves); setShadowSaveIndex(0);
+                              setUserSaveCounts((prev) => ({ ...prev, [u.id]: saves.length }));
+                            }
+                          }}
+                          className={["w-full flex items-center gap-3 px-5 py-3 text-left transition-all",
+                            expandedUserId === u.id ? "bg-violet-600/10" : "hover:bg-gray-800/50"].join(" ")}
+                        >
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
+                            <span className="text-white text-xs font-bold">{u.username[0].toUpperCase()}</span>
                           </div>
-                          <input
-                            value={t.description}
-                            onChange={(e) => setDbTemplates((p) => p.map((x) => x.id === t.id ? { ...x, description: e.target.value } : x))}
-                            placeholder="Short description…"
-                            className="w-full bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-violet-500"
-                          />
-                          <div className="flex gap-2 justify-end">
-                            <button
-                              onClick={async () => { await upsertDbTemplate(t.id, t.label, t.emoji, t.description, t.config); setEditingTemplate(null); }}
-                              className="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-[11px] text-white font-medium transition-colors"
-                            >Save</button>
-                            <button onClick={() => setEditingTemplate(null)} className="px-3 py-1.5 rounded-lg bg-gray-700 hover:bg-gray-600 text-[11px] text-gray-300 transition-colors">Cancel</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2">
-                          <span className="text-lg leading-none">{t.emoji}</span>
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs font-semibold text-gray-200">{t.label}</p>
-                            {t.description && <p className="text-[10px] text-gray-500 truncate">{t.description}</p>}
-                          </div>
-                          <button onClick={() => setEditingTemplate(t.id)} className="p-1.5 rounded-lg text-gray-600 hover:text-violet-400 hover:bg-violet-900/20 transition-colors"><Pencil size={11} /></button>
-                          <button onClick={() => setDeleteConfirmTemplateId(t.id)} className="p-1.5 rounded-lg text-gray-600 hover:text-red-400 hover:bg-red-900/20 transition-colors"><Trash2 size={11} /></button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* User Management */}
-            <div className="bg-gray-900 border border-gray-800 rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Gamepad2 size={13} className="text-violet-400" />
-                <h3 className="text-xs font-semibold text-gray-200">User Management</h3>
-                <span className="text-xs text-gray-600 ml-auto">{allUsers.length} registered</span>
-              </div>
-
-              {/* Search */}
-              <div className="relative mb-3">
-                <input
-                  type="text"
-                  placeholder="Search users…"
-                  value={userSearch}
-                  onChange={(e) => setUserSearch(e.target.value)}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:border-gray-500"
-                />
-              </div>
-
-              {allUsers.length === 0 ? (
-                <p className="text-xs text-gray-600">No users yet.</p>
-              ) : (
-                <div className="flex flex-col gap-1">
-                  {allUsers.filter((u) => !userSearch || u.username.toLowerCase().includes(userSearch.toLowerCase())).map((u) => (
-                    <div key={u.id} className="rounded-xl border border-transparent overflow-hidden">
-                      {/* User row */}
-                      <button
-                        onClick={async () => {
-                          if (expandedUserId === u.id) {
-                            setExpandedUserId(null);
-                            setShadowUser(null);
-                            setShadowSaves([]);
-                          } else {
-                            setExpandedUserId(u.id);
-                            setShadowUser(u);
-                            const saves = await loadAllSaves(u.id);
-                            setShadowSaves(saves);
-                            setShadowSaveIndex(0);
-                            setUserSaveCounts((prev) => ({ ...prev, [u.id]: saves.length }));
-                          }
-                        }}
-                        className={[
-                          "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all",
-                          expandedUserId === u.id
-                            ? "bg-violet-600/15 border border-violet-600/30"
-                            : "hover:bg-gray-800/80 border border-transparent",
-                        ].join(" ")}
-                      >
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
-                          <span className="text-white text-xs font-bold">{u.username[0].toUpperCase()}</span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm text-gray-200 font-medium truncate">{u.username}</span>
-                            {isAdmin(u.username) && (
-                              <span className="text-[9px] text-amber-400 bg-amber-900/30 border border-amber-800/40 px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wider">admin</span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-3 mt-0.5">
-                            <span className="text-[11px] text-gray-600">{userSaveCounts[u.id] ?? "…"} saves</span>
-                            {u.created_at && (
-                              <span className="text-[11px] text-gray-700">Joined {new Date(u.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>
-                            )}
-                          </div>
-                        </div>
-                        <ChevronDown size={13} className={["text-gray-600 transition-transform flex-shrink-0", expandedUserId === u.id ? "rotate-180" : ""].join(" ")} />
-                      </button>
-
-                      {/* Expanded user detail */}
-                      {expandedUserId === u.id && (
-                        <div className="px-3 pb-3 pt-1 border-t border-gray-800/60 mx-1">
-                          {/* Delete button */}
-                          {!isAdmin(u.username) && (
-                            <div className="mb-3">
-                              {deleteConfirmUserId === u.id ? (
-                                <div className="flex items-center gap-2 p-2.5 bg-red-950/30 border border-red-800/40 rounded-xl">
-                                  <XCircle size={13} className="text-red-400 flex-shrink-0" />
-                                  <span className="text-xs text-red-300 flex-1">Delete {u.username} and all their saves?</span>
-                                  <button
-                                    onClick={async () => {
-                                      await deleteUser(u.id);
-                                      setAllUsers((prev) => prev.filter((x) => x.id !== u.id));
-                                      setUserSaveCounts((prev) => { const n = { ...prev }; delete n[u.id]; return n; });
-                                      setDeleteConfirmUserId(null);
-                                      setExpandedUserId(null);
-                                    }}
-                                    className="text-[11px] font-semibold text-red-400 bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 px-2.5 py-1 rounded-lg transition-colors"
-                                  >Yes, delete</button>
-                                  <button
-                                    onClick={() => setDeleteConfirmUserId(null)}
-                                    className="text-[11px] text-gray-500 hover:text-gray-300 px-2 py-1 transition-colors"
-                                  >Cancel</button>
-                                </div>
-                              ) : (
-                                <button
-                                  onClick={() => setDeleteConfirmUserId(u.id)}
-                                  className="flex items-center gap-1.5 text-[11px] text-red-500 hover:text-red-400 transition-colors"
-                                >
-                                  <Trash2 size={11} /> Delete user &amp; all saves
-                                </button>
-                              )}
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-gray-200 font-medium truncate">{u.username}</span>
+                              {isAdmin(u.username) && <span className="text-[9px] text-amber-400 bg-amber-900/30 border border-amber-800/40 px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wider">admin</span>}
                             </div>
-                          )}
+                            <div className="flex items-center gap-3 mt-0.5">
+                              <span className="text-[11px] text-gray-600">{userSaveCounts[u.id] ?? "…"} saves</span>
+                              {u.created_at && <span className="text-[11px] text-gray-700">Joined {new Date(u.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>}
+                            </div>
+                          </div>
+                          {/* Tutorial completion badge */}
+                          <span className={["text-[10px] px-2 py-0.5 rounded-full border font-medium flex-shrink-0",
+                            (u as AppUser & { tutorial_completed?: boolean }).tutorial_completed
+                              ? "bg-green-900/30 border-green-700/40 text-green-400"
+                              : "bg-gray-800 border-gray-700 text-gray-600"
+                          ].join(" ")}>
+                            {(u as AppUser & { tutorial_completed?: boolean }).tutorial_completed ? "✓ Tour done" : "Tour pending"}
+                          </span>
+                          <ChevronDown size={13} className={["text-gray-600 transition-transform flex-shrink-0 ml-1", expandedUserId === u.id ? "rotate-180" : ""].join(" ")} />
+                        </button>
 
-                          {/* Saves list */}
-                          {shadowSaves.length === 0 ? (
-                            <p className="text-xs text-gray-700 py-1">No saves yet.</p>
-                          ) : (
-                            <div className="space-y-2">
-                              <p className="text-[10px] text-gray-600 uppercase tracking-wider font-semibold mb-2">Saved configs</p>
-                              {shadowSaves.length > 1 && (
-                                <select
-                                  value={shadowSaveIndex}
-                                  onChange={(e) => setShadowSaveIndex(parseInt(e.target.value))}
-                                  className="w-full appearance-none bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-gray-300 focus:outline-none mb-2"
-                                >
-                                  {shadowSaves.map((s, i) => (
-                                    <option key={s.id} value={i}>{s.name} · {new Date(s.updated_at).toLocaleDateString()}</option>
-                                  ))}
-                                </select>
-                              )}
-                              {(() => {
-                                const save = shadowSaves[shadowSaveIndex];
-                                if (!save) return null;
-                                const cfg = save.config;
-                                const btns = (cfg.buttons ?? []) as ButtonConfig[];
-                                const ports = (cfg.portInputs ?? []) as PortConfig[];
-                                const irs = (cfg.irSensors ?? []) as IRSensorConfig[];
-                                const sps = (cfg.sipPuffs ?? []) as SipPuffConfig[];
-                                const joys = (cfg.joysticks ?? []) as JoystickConfig[];
-                                return (
-                                  <>
-                                  <div className="bg-gray-950 rounded-xl p-3 space-y-3">
-                                    <div className="flex items-center gap-3 text-[11px] text-gray-500 flex-wrap">
-                                      <span className="text-blue-400 font-semibold">{btns.length} buttons</span>
-                                      {ports.length > 0 && <span className="text-sky-400 font-semibold">{ports.length} ports</span>}
-                                      {irs.length > 0 && <span className="text-emerald-400 font-semibold">{irs.length} IR</span>}
-                                      {sps.length > 0 && <span className="text-cyan-400 font-semibold">{sps.length} sip&amp;puff</span>}
-                                      {joys.length > 0 && <span className="text-violet-400 font-semibold">{joys.length} joystick</span>}
-                                      <span className="ml-auto text-gray-700">Updated {new Date(save.updated_at).toLocaleDateString()}</span>
+                        {/* Expanded detail */}
+                        {expandedUserId === u.id && (
+                          <div className="px-5 pb-4 pt-3 bg-gray-950/40 border-t border-gray-800/40">
+                            {/* Delete */}
+                            {!isAdmin(u.username) && (
+                              <div className="mb-3">
+                                {deleteConfirmUserId === u.id ? (
+                                  <div className="flex items-center gap-2 p-2.5 bg-red-950/30 border border-red-800/40 rounded-xl">
+                                    <XCircle size={13} className="text-red-400 flex-shrink-0" />
+                                    <span className="text-xs text-red-300 flex-1">Delete {u.username} and all their saves?</span>
+                                    <button onClick={async () => { await deleteUser(u.id); setAllUsers((p) => p.filter((x) => x.id !== u.id)); setUserSaveCounts((p) => { const n = { ...p }; delete n[u.id]; return n; }); setDeleteConfirmUserId(null); setExpandedUserId(null); }} className="text-[11px] font-semibold text-red-400 bg-red-900/40 hover:bg-red-900/60 border border-red-700/50 px-2.5 py-1 rounded-lg transition-colors">Yes, delete</button>
+                                    <button onClick={() => setDeleteConfirmUserId(null)} className="text-[11px] text-gray-500 hover:text-gray-300 px-2 py-1 transition-colors">Cancel</button>
+                                  </div>
+                                ) : (
+                                  <button onClick={() => setDeleteConfirmUserId(u.id)} className="flex items-center gap-1.5 text-[11px] text-red-500 hover:text-red-400 transition-colors">
+                                    <Trash2 size={11} /> Delete user &amp; all saves
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                            {/* Saves */}
+                            {shadowSaves.length === 0 ? (
+                              <p className="text-xs text-gray-700 py-1">No saves yet.</p>
+                            ) : (
+                              <div className="space-y-2">
+                                <p className="text-[10px] text-gray-600 uppercase tracking-wider font-semibold mb-2">Saved configs</p>
+                                {shadowSaves.length > 1 && (
+                                  <select value={shadowSaveIndex} onChange={(e) => setShadowSaveIndex(parseInt(e.target.value))} className="w-full appearance-none bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-gray-300 focus:outline-none mb-2">
+                                    {shadowSaves.map((s, i) => <option key={s.id} value={i}>{s.name} · {new Date(s.updated_at).toLocaleDateString()}</option>)}
+                                  </select>
+                                )}
+                                {(() => {
+                                  const save = shadowSaves[shadowSaveIndex];
+                                  if (!save) return null;
+                                  const cfg = save.config;
+                                  const btns = (cfg.buttons ?? []) as ButtonConfig[];
+                                  const irs = (cfg.irSensors ?? []) as IRSensorConfig[];
+                                  const sps = (cfg.sipPuffs ?? []) as SipPuffConfig[];
+                                  const joys = (cfg.joysticks ?? []) as JoystickConfig[];
+                                  return (
+                                    <>
+                                    <div className="bg-gray-950 rounded-xl p-3 space-y-3">
+                                      <div className="flex items-center gap-3 text-[11px] text-gray-500 flex-wrap">
+                                        <span className="text-blue-400 font-semibold">{btns.length} buttons</span>
+                                        {irs.length > 0 && <span className="text-emerald-400 font-semibold">{irs.length} IR</span>}
+                                        {sps.length > 0 && <span className="text-cyan-400 font-semibold">{sps.length} sip&amp;puff</span>}
+                                        {joys.length > 0 && <span className="text-violet-400 font-semibold">{joys.length} joystick</span>}
+                                        <span className="ml-auto text-gray-700">Updated {new Date(save.updated_at).toLocaleDateString()}</span>
+                                      </div>
+                                      {btns.map((b) => (
+                                        <div key={b.id} className="flex items-center gap-2 text-xs">
+                                          <span className="font-mono text-blue-400 w-8 flex-shrink-0">D{b.pin}</span>
+                                          <span className="text-gray-400 truncate flex-1">{b.name || "(unnamed)"}</span>
+                                          <span className="text-gray-600 font-mono text-[11px]">{b.keyDisplay || b.arduinoKey || "—"}</span>
+                                          <span className={`text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 ${b.mode === "power" ? "bg-amber-900/40 text-amber-400" : "bg-gray-800 text-gray-500"}`}>{b.mode}</span>
+                                        </div>
+                                      ))}
+                                      {irs.map((ir) => <div key={ir.id} className="flex items-center gap-2 text-xs"><span className="font-mono text-emerald-400 w-8 flex-shrink-0">D{ir.pin}</span><span className="text-gray-400 truncate flex-1">{ir.name || "IR Sensor"}</span><span className="text-gray-600 font-mono text-[11px]">{ir.keyDisplay || "—"}</span></div>)}
+                                      {sps.map((sp) => <div key={sp.id} className="flex items-center gap-2 text-xs"><span className="font-mono text-cyan-400 w-8 flex-shrink-0">D{sp.pin}</span><span className="text-gray-400 truncate flex-1">Sip &amp; Puff</span><span className="text-gray-600 font-mono text-[11px]">{sp.keyDisplay || "—"}</span></div>)}
+                                      {joys.map((j) => <div key={j.id} className="flex items-center gap-2 text-xs"><span className="font-mono text-violet-400 w-8 flex-shrink-0">A{j.xPin}</span><span className="text-gray-400 truncate flex-1">Joystick</span><span className="text-gray-600 text-[11px]">↑{j.upKey} ↓{j.downKey} ←{j.leftKey} →{j.rightKey}</span></div>)}
                                     </div>
-                                    {btns.length > 0 && (
-                                      <div className="flex flex-col gap-1">
-                                        {btns.map((b) => (
-                                          <div key={b.id} className="flex items-center gap-2 text-xs">
-                                            <span className="font-mono text-blue-400 w-8 flex-shrink-0">D{b.pin}</span>
-                                            <span className="text-gray-400 truncate flex-1">{b.name || "(unnamed)"}</span>
-                                            <span className="text-gray-600 font-mono text-[11px]">{b.keyDisplay || b.arduinoKey || "—"}</span>
-                                            <span className={`text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 ${b.mode === "power" ? "bg-amber-900/40 text-amber-400" : "bg-gray-800 text-gray-500"}`}>{b.mode}</span>
-                                          </div>
-                                        ))}
-                                      </div>
-                                    )}
-                                    {irs.map((ir) => (
-                                      <div key={ir.id} className="flex items-center gap-2 text-xs">
-                                        <span className="font-mono text-emerald-400 w-8 flex-shrink-0">D{ir.pin}</span>
-                                        <span className="text-gray-400 truncate flex-1">{ir.name || "IR Sensor"}</span>
-                                        <span className="text-gray-600 font-mono text-[11px]">{ir.keyDisplay || "—"}</span>
-                                      </div>
-                                    ))}
-                                    {sps.map((sp) => (
-                                      <div key={sp.id} className="flex items-center gap-2 text-xs">
-                                        <span className="font-mono text-cyan-400 w-8 flex-shrink-0">D{sp.pin}</span>
-                                        <span className="text-gray-400 truncate flex-1">Sip &amp; Puff</span>
-                                        <span className="text-gray-600 font-mono text-[11px]">{sp.keyDisplay || "—"}</span>
-                                      </div>
-                                    ))}
-                                    {joys.map((j) => (
-                                      <div key={j.id} className="flex items-center gap-2 text-xs">
-                                        <span className="font-mono text-violet-400 w-8 flex-shrink-0">A{j.xPin}</span>
-                                        <span className="text-gray-400 truncate flex-1">Joystick</span>
-                                        <span className="text-gray-600 text-[11px]">↑{j.upKey} ↓{j.downKey} ←{j.leftKey} →{j.rightKey}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                  <div className="pt-2 border-t border-gray-800/60">
-                                    <button
-                                      onClick={async () => {
-                                        const save = shadowSaves[shadowSaveIndex];
-                                        if (!save) return;
-                                        const label = prompt("Template name:", save.name);
-                                        if (!label) return;
-                                        await saveAsTemplate(label, save.config as { buttons: ButtonConfig[]; portInputs: PortConfig[]; leds: LedConfig; irSensors: IRSensorConfig[]; sipPuffs: SipPuffConfig[]; joysticks: JoystickConfig[] });
-                                      }}
-                                      className="flex items-center gap-1.5 text-[11px] text-violet-400 hover:text-violet-300 transition-colors"
-                                    >
-                                      <Star size={11} /> Make template
-                                    </button>
-                                  </div>
-                                  </>
-                                );
-                              })()}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                                    <div className="pt-2 border-t border-gray-800/60">
+                                      <button
+                                        onClick={async () => {
+                                          const sv = shadowSaves[shadowSaveIndex];
+                                          if (!sv) return;
+                                          const label = prompt("Template name:", sv.name);
+                                          if (!label) return;
+                                          await saveAsTemplate(label, sv.config as { buttons: ButtonConfig[]; portInputs: PortConfig[]; leds: LedConfig; irSensors: IRSensorConfig[]; sipPuffs: SipPuffConfig[]; joysticks: JoystickConfig[] });
+                                        }}
+                                        className="flex items-center gap-1.5 text-[11px] text-violet-400 hover:text-violet-300 transition-colors"
+                                      ><Star size={11} /> Make template</button>
+                                    </div>
+                                    </>
+                                  );
+                                })()}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
+            </>)}
+
+            </div>
           </div>
         </div>
       )}
