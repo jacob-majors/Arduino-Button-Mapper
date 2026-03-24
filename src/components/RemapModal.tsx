@@ -21,10 +21,11 @@ export interface RemapEntry {
 
 interface RemapConfig {
   v: number;
-  b: { p: number; k: string; n: string; m: number }[];
-  ir: { p: number; k: string; n: string }[];
-  sp: { p: number; k: string; n: string }[];
-  j: { x: number; y: number; bp: number; u: string; d: string; l: string; r: string; bk: string; n: string }[];
+  id?: string;
+  b: { p: number; k: string; kd?: string; n: string; m: number }[];
+  ir: { p: number; k: string; kd?: string; n: string }[];
+  sp: { p: number; k: string; kd?: string; n: string }[];
+  j: { x: number; y: number; bp: number; u: string; ud?: string; d: string; dd?: string; l: string; ld?: string; r: string; rd?: string; bk: string; bkd?: string; n: string }[];
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -57,7 +58,7 @@ function parseRemapConfig(json: string): RemapEntry[] {
       pin: `D${b.p}`,
       arduinoKey: b.k,
       newKey: b.k,
-      newDisplay: arduinoKeyDisplay(b.k),
+      newDisplay: b.kd || arduinoKeyDisplay(b.k),
     });
   });
 
@@ -69,7 +70,7 @@ function parseRemapConfig(json: string): RemapEntry[] {
       pin: `D${ir.p}`,
       arduinoKey: ir.k,
       newKey: ir.k,
-      newDisplay: arduinoKeyDisplay(ir.k),
+      newDisplay: ir.kd || arduinoKeyDisplay(ir.k),
     });
   });
 
@@ -81,18 +82,18 @@ function parseRemapConfig(json: string): RemapEntry[] {
       pin: `D${sp.p}`,
       arduinoKey: sp.k,
       newKey: sp.k,
-      newDisplay: arduinoKeyDisplay(sp.k),
+      newDisplay: sp.kd || arduinoKeyDisplay(sp.k),
     });
   });
 
   cfg.j?.forEach((j, i) => {
-    const dirs: { type: RemapEntry["type"]; label: string; key: string }[] = [
-      { type: "joystick-up",    label: "↑ Up",    key: j.u },
-      { type: "joystick-down",  label: "↓ Down",  key: j.d },
-      { type: "joystick-left",  label: "← Left",  key: j.l },
-      { type: "joystick-right", label: "→ Right", key: j.r },
+    const dirs: { type: RemapEntry["type"]; label: string; key: string; kd?: string }[] = [
+      { type: "joystick-up",    label: "↑ Up",    key: j.u, kd: j.ud },
+      { type: "joystick-down",  label: "↓ Down",  key: j.d, kd: j.dd },
+      { type: "joystick-left",  label: "← Left",  key: j.l, kd: j.ld },
+      { type: "joystick-right", label: "→ Right", key: j.r, kd: j.rd },
     ];
-    if (j.bp >= 0 && j.bk) dirs.push({ type: "joystick-btn", label: "⏺ Click", key: j.bk });
+    if (j.bp >= 0 && j.bk) dirs.push({ type: "joystick-btn", label: "⏺ Click", key: j.bk, kd: j.bkd });
     dirs.forEach((d, di) => {
       entries.push({
         id: `j-${i}-${di}`,
@@ -101,7 +102,7 @@ function parseRemapConfig(json: string): RemapEntry[] {
         pin: `A${j.x}`,
         arduinoKey: d.key,
         newKey: d.key,
-        newDisplay: arduinoKeyDisplay(d.key),
+        newDisplay: d.kd || arduinoKeyDisplay(d.key),
       });
     });
   });

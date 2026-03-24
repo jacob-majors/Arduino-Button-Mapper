@@ -358,6 +358,19 @@ const int irLedModes[${m}] = {${irLedModesArr}}; // 0=active 1=always` : ""}
     joyLoop += `  }`;
   }
 
+  // ── Site identifier + config hash ────────────────────────────────────────
+  const configPayload = JSON.stringify({ b: buttons.map(x=>x.pin), ir: irSensors.map(x=>x.pin), sp: sipPuffs.map(x=>x.pin), j: joysticks.map(x=>x.xPin) });
+  let _h = 0;
+  for (let _i = 0; _i < configPayload.length; _i++) { _h = Math.imul(31, _h) + configPayload.charCodeAt(_i) | 0; }
+  const configId = ((_h >>> 0).toString(16).padStart(8, "0")).toUpperCase();
+
+  const headerComment = `// ════════════════════════════════════════════════════
+//  Arduino Button Mapper
+//  arduino.jacobmajors.com
+//  Config ID: ${configId}
+// ════════════════════════════════════════════════════
+`;
+
   // ── Assemble ──────────────────────────────────────────────────────────────
 
   const allLoopParts = [irLoop, spLoop, joyLoop].filter(Boolean);
@@ -423,10 +436,11 @@ ${btnLedSetup}` : "";
   // ── Compact remap config embedded in sketch ──────────────────────────────
   const remapConfig = JSON.stringify({
     v: 1,
-    b: [...buttons, ...ports].map((b) => ({ p: b.pin, k: b.arduinoKey, n: b.name, m: b.mode === "toggle" ? 1 : b.mode === "power" ? 2 : 0 })),
-    ir: irSensors.map((ir) => ({ p: ir.pin, k: ir.arduinoKey, n: ir.name })),
-    sp: sipPuffs.map((sp) => ({ p: sp.pin, k: sp.key, n: sp.name || "Sip & Puff" })),
-    j: joysticks.map((j) => ({ x: j.xPin, y: j.yPin, bp: j.buttonPin, u: j.upKey, d: j.downKey, l: j.leftKey, r: j.rightKey, bk: j.buttonKey, n: j.name })),
+    id: configId,
+    b: [...buttons, ...ports].map((b) => ({ p: b.pin, k: b.arduinoKey, kd: b.keyDisplay, n: b.name, m: b.mode === "toggle" ? 1 : b.mode === "power" ? 2 : 0 })),
+    ir: irSensors.map((ir) => ({ p: ir.pin, k: ir.arduinoKey, kd: ir.keyDisplay, n: ir.name })),
+    sp: sipPuffs.map((sp) => ({ p: sp.pin, k: sp.key, kd: sp.keyDisplay, n: sp.name || "Sip & Puff" })),
+    j: joysticks.map((j) => ({ x: j.xPin, y: j.yPin, bp: j.buttonPin, u: j.upKey, ud: j.upDisplay, d: j.downKey, dd: j.downDisplay, l: j.leftKey, ld: j.leftDisplay, r: j.rightKey, rd: j.rightDisplay, bk: j.buttonKey, bkd: j.buttonDisplay, n: j.name })),
   });
   // Escape for C string literal
   const remapJson = remapConfig.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
@@ -452,7 +466,7 @@ void checkSerial() {
   }
 }`;
 
-  return `#include <Keyboard.h>
+  return `${headerComment}#include <Keyboard.h>
 ${btnSection}
 bool systemActive = true;
 ${ledSection}${irGlobals}${spGlobals}${joyGlobals}${remapSection}

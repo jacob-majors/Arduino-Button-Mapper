@@ -2114,6 +2114,8 @@ export default function Home() {
   const [isOffline, setIsOffline] = useState(false);
   const [arduinoDetected, setArduinoDetected] = useState(false);
   const arduinoDetectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authTab, setAuthTab] = useState<"username" | "google">("username");
 
   const logEndRef = useRef<HTMLDivElement>(null);
   const saveMenuRef = useRef<HTMLDivElement>(null);
@@ -2160,6 +2162,13 @@ export default function Home() {
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, [showPortModal]);
+
+  useEffect(() => {
+    if (!showAuthModal) return;
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") setShowAuthModal(false); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [showAuthModal]);
 
   // ── Offline detection ────────────────────────────────────────────────────
   useEffect(() => {
@@ -2319,6 +2328,7 @@ export default function Home() {
     if (!loginUsername.trim() || loginLoading) return;
     setLoginLoading(true);
     const u = await loginOrCreate(loginUsername);
+    if (u) setShowAuthModal(false);
     if (u) {
       updateLastActive(u.id).catch(() => {});
       localStorage.setItem("appUser", JSON.stringify(u));
@@ -2352,8 +2362,47 @@ export default function Home() {
     setCurrentSaveName("My Setup");
     setShadowUser(null);
     setShadowSaves([]);
+    supabase.auth.signOut().catch(() => {});
     if (tab === "admin") setTab("configure");
   };
+
+  const handleGoogleSignIn = async () => {
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: typeof window !== "undefined" ? window.location.href : undefined },
+    });
+  };
+
+  // ── Handle Google OAuth redirect back ────────────────────────────────────
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session?.user || localStorage.getItem("appUser")) return;
+      const meta = session.user.user_metadata ?? {};
+      const raw = (meta.full_name || meta.name || meta.email || "user").toLowerCase();
+      const username = raw.replace(/[^a-z0-9]/g, ".");
+      const u = await loginOrCreate(username);
+      if (u) {
+        updateLastActive(u.id).catch(() => {});
+        localStorage.setItem("appUser", JSON.stringify(u));
+        setAppUser(u);
+        setShowAuthModal(false);
+        const allSaves = await loadAllSaves(u.id);
+        setSaves(allSaves);
+        if (allSaves.length > 0) {
+          const s = allSaves[0];
+          setCurrentSaveId(s.id); setCurrentSaveName(s.name);
+          const cfg = s.config;
+          if (cfg.buttons)    setButtons(cfg.buttons as ButtonConfig[]);
+          if (cfg.portInputs) setPortInputs(cfg.portInputs as PortConfig[]);
+          if (cfg.leds)       setLeds(cfg.leds as LedConfig);
+          if (cfg.irSensors)  setIrSensors(cfg.irSensors as IRSensorConfig[]);
+          if (cfg.sipPuffs)   setSipPuffs(cfg.sipPuffs as SipPuffConfig[]);
+          if (cfg.joysticks)  setJoysticks(cfg.joysticks as JoystickConfig[]);
+        }
+      }
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Auto-save config 1.5 s after any change (only when logged in) ─────────
   useEffect(() => {
@@ -2723,52 +2772,27 @@ export default function Home() {
             <h1 className="text-sm font-bold text-gray-100 leading-none">Arduino Button Mapper</h1>
             <p className="text-[10px] text-gray-500 leading-none mt-0.5 hidden sm:block">Configure → Upload → Test</p>
           </div>
-          {/* Wiring icon button */}
-          <button
-            onClick={() => setShowWiring(true)}
-            title="Wiring diagram"
-            data-tutorial="wiring-btn"
-            className="w-7 h-7 rounded-lg bg-gray-800 border border-gray-700 text-yellow-500 hover:text-yellow-300 hover:border-yellow-700/60 transition-colors flex items-center justify-center flex-shrink-0"
-          ><Zap size={13} /></button>
-
-          {/* Auth + Save Switcher */}
+          {/* Auth */}
           {authReady && (
             appUser ? (
               <div className="flex items-center gap-2 flex-shrink-0">
-                {/* User pill */}
                 <div className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-800/60 border border-gray-700 rounded-xl">
                   <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
-                    <span className="text-white text-[9px] font-bold">
-                      {appUser.username[0].toUpperCase()}
-                    </span>
+                    <span className="text-white text-[9px] font-bold">{appUser.username[0].toUpperCase()}</span>
                   </div>
-                  <span className="text-xs text-gray-300 hidden sm:block max-w-[100px] truncate">
-                    {appUser.username}
-                  </span>
+                  <span className="text-xs text-gray-300 hidden sm:block max-w-[100px] truncate">{appUser.username}</span>
                   <button onClick={handleSignOut} className="text-[10px] text-gray-600 hover:text-red-400 transition-colors ml-1">Sign out</button>
                   <button onClick={() => setShowTutorial(true)} title="Show tutorial" className="text-[10px] text-gray-600 hover:text-gray-300 transition-colors ml-0.5">?</button>
                 </div>
               </div>
             ) : (
-              <form
-                onSubmit={(e) => { e.preventDefault(); handleLogin(); }}
-                className="flex items-center gap-1.5 flex-shrink-0"
-              >
-                <input
-                  value={loginUsername}
-                  onChange={(e) => setLoginUsername(e.target.value.replace(/\s+/g, "."))}
-                  placeholder="first.last or email"
-                  className="px-2.5 py-1.5 rounded-xl bg-gray-800/60 border border-gray-700 focus:border-blue-500 focus:outline-none text-xs text-gray-200 placeholder-gray-600 w-36 sm:w-40 transition-colors"
-                />
+              <div className="flex items-center gap-1.5 flex-shrink-0">
                 <button
-                  type="submit"
-                  disabled={loginLoading || !loginUsername.trim()}
-                  className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-medium transition-colors flex-shrink-0"
-                >
-                  {loginLoading ? "…" : "Login / Join"}
-                </button>
+                  onClick={() => setShowAuthModal(true)}
+                  className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition-colors flex-shrink-0"
+                >Sign In</button>
                 <button onClick={() => setShowTutorial(true)} title="Show tutorial" className="text-[10px] text-gray-600 hover:text-gray-400 transition-colors">?</button>
-              </form>
+              </div>
             )
           )}
 
@@ -2777,6 +2801,13 @@ export default function Home() {
               className={["flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
                 tab === "configure" ? "bg-gray-700 text-gray-100" : "text-gray-500 hover:text-gray-300"].join(" ")}
             ><Settings size={12} /> Configure</button>
+            {/* Wiring icon — next to Configure */}
+            <button
+              onClick={() => setShowWiring(true)}
+              title="Wiring diagram"
+              data-tutorial="wiring-btn"
+              className={["flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all text-yellow-600 hover:text-yellow-400 hover:bg-yellow-900/20"].join(" ")}
+            ><Zap size={12} /></button>
             <button onClick={() => setTab("remap")} data-tutorial="remap-tab"
               className={["flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
                 tab === "remap" ? "bg-gray-700 text-gray-100" : "text-gray-500 hover:text-gray-300"].join(" ")}
@@ -4020,6 +4051,68 @@ export default function Home() {
               >
                 Cancel
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Auth modal */}
+      {showAuthModal && (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowAuthModal(false)} />
+          <div className="relative w-full max-w-sm bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-800">
+              <div>
+                <h2 className="text-sm font-bold text-gray-100">Sign In</h2>
+                <p className="text-[11px] text-gray-500 mt-0.5">Save your config and access it anywhere</p>
+              </div>
+              <button onClick={() => setShowAuthModal(false)} className="text-gray-600 hover:text-gray-300 transition-colors"><X size={15} /></button>
+            </div>
+
+            {/* Tab selector */}
+            <div className="flex gap-1 px-5 pt-4">
+              <button onClick={() => setAuthTab("username")}
+                className={["flex-1 py-1.5 rounded-lg text-xs font-medium transition-all", authTab === "username" ? "bg-gray-700 text-gray-100" : "text-gray-500 hover:text-gray-300"].join(" ")}
+              >Username</button>
+              <button onClick={() => setAuthTab("google")}
+                className={["flex-1 py-1.5 rounded-lg text-xs font-medium transition-all", authTab === "google" ? "bg-gray-700 text-gray-100" : "text-gray-500 hover:text-gray-300"].join(" ")}
+              >Google</button>
+            </div>
+
+            <div className="px-5 py-4">
+              {authTab === "username" ? (
+                <form onSubmit={(e) => { e.preventDefault(); handleLogin(); }} className="flex flex-col gap-3">
+                  <div>
+                    <label className="text-[11px] text-gray-500 mb-1 block">Username</label>
+                    <input
+                      value={loginUsername}
+                      onChange={(e) => setLoginUsername(e.target.value.replace(/\s+/g, "."))}
+                      placeholder="troy.pappas"
+                      autoFocus
+                      className="w-full px-3 py-2 rounded-xl bg-gray-800 border border-gray-700 focus:border-blue-500 focus:outline-none text-sm text-gray-200 placeholder-gray-600 transition-colors"
+                    />
+                    <p className="text-[10px] text-gray-600 mt-1">New usernames are created automatically.</p>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={loginLoading || !loginUsername.trim()}
+                    className="w-full py-2 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-semibold transition-colors"
+                  >{loginLoading ? "Signing in…" : "Sign In / Join"}</button>
+                </form>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  <p className="text-xs text-gray-400 text-center">Sign in with your Google account. Your name will be used as your username.</p>
+                  <button
+                    onClick={handleGoogleSignIn}
+                    className="w-full flex items-center justify-center gap-2.5 py-2.5 rounded-xl bg-white hover:bg-gray-100 text-gray-900 text-sm font-semibold transition-colors"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.964 10.706A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.706V4.962H.957A8.996 8.996 0 0 0 0 9c0 1.452.348 2.827.957 4.038l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.962L3.964 7.294C4.672 5.163 6.656 3.58 9 3.58z"/></svg>
+                    Continue with Google
+                  </button>
+                  <p className="text-[10px] text-gray-600 text-center">Google OAuth must be enabled in your Supabase project.</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
