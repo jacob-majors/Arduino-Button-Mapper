@@ -2266,6 +2266,14 @@ export default function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Auto-show tutorial for guests (no stored login) every time
+  useEffect(() => {
+    if (!authReady) return;
+    if (!localStorage.getItem("appUser")) {
+      setShowTutorial(true);
+    }
+  }, [authReady]);
+
   const handleLogin = async () => {
     if (!loginUsername.trim() || loginLoading) return;
     setLoginLoading(true);
