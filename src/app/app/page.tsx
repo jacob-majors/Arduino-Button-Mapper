@@ -1489,126 +1489,238 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
             <rect width="920" height="660" fill="url(#wdgrid)" />
 
             {/* ── Arduino Board ── */}
-            {/* Outer PCB */}
-            <rect x={BX} y={BY} width={BW} height={BH} rx="8" fill="#00696f" stroke="#004f52" strokeWidth="2" />
-            {/* Inner PCB texture */}
-            <rect x={BX + 6} y={BY + 6} width={BW - 12} height={BH - 12} rx="6" fill="#00797d" />
-            {/* Silk-screen edge traces */}
-            <rect x={BX + 10} y={BY + 10} width={BW - 20} height={BH - 20} rx="4" fill="none" stroke="#005f62" strokeWidth="0.5" opacity="0.4" />
+            <defs>
+              {/* PCB copper-pour / trace texture */}
+              <radialGradient id="pcbshine" cx="35%" cy="20%" r="60%">
+                <stop offset="0%" stopColor="#2a6dd9" stopOpacity="0.25" />
+                <stop offset="100%" stopColor="#0d3272" stopOpacity="0" />
+              </radialGradient>
+            </defs>
+
+            {/* PCB body — Arduino blue */}
+            <rect x={BX} y={BY} width={BW} height={BH} rx="6" fill="#1a4c8b" stroke="#0d3272" strokeWidth="2" />
+            <rect x={BX + 4} y={BY + 4} width={BW - 8} height={BH - 8} rx="4" fill="url(#pcbshine)" />
+            {/* Silkscreen border */}
+            <rect x={BX + 8} y={BY + 8} width={BW - 16} height={BH - 16} rx="3" fill="none" stroke="#a8c8ff" strokeWidth="0.4" opacity="0.3" />
 
             {isMicro ? (
               <>
-                {/* Leonardo Micro: USB micro connector on the short edge (right side) */}
-                <rect x={BX + BW - 4} y={BY + BH / 2 - 15} width="26" height="30" rx="3" fill="#1f2937" stroke="#374151" strokeWidth="1.5" />
-                <rect x={BX + BW + 2} y={BY + BH / 2 - 10} width="16" height="20" rx="2" fill="#111827" />
-                <text x={BX + BW + 10} y={BY + BH / 2 + 4} textAnchor="middle" fontFamily="monospace" fontSize="6" fill="#4b5563">USB</text>
-
-                {/* ATmega32U4 chip — centered */}
-                <rect x={BX + 25} y={BY + 200} width="100" height="70" rx="4" fill="#111" stroke="#333" strokeWidth="1.5" />
-                <text x={BX + 75} y={BY + 230} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#4b5563">ATmega</text>
-                <text x={BX + 75} y={BY + 242} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#4b5563">32U4</text>
-                {[0, 1, 2, 3].map((i) => (
-                  <line key={`cl${i}`} x1={BX + 25} y1={BY + 215 + i * 14} x2={BX + 18} y2={BY + 215 + i * 14} stroke="#333" strokeWidth="1.5" />
+                {/* ── Arduino Micro ── */}
+                {/* USB Micro-B connector at top — trapezoid body */}
+                <rect x={BX + BW / 2 - 14} y={BY - 20} width="28" height="24" rx="3" fill="#2d3748" stroke="#4a5568" strokeWidth="1.5" />
+                <rect x={BX + BW / 2 - 10} y={BY - 16} width="20" height="16" rx="1.5" fill="#1a202c" />
+                {/* USB port opening trapezoid */}
+                <path d={`M ${BX + BW / 2 - 7} ${BY - 15} L ${BX + BW / 2 + 7} ${BY - 15} L ${BX + BW / 2 + 5} ${BY - 3} L ${BX + BW / 2 - 5} ${BY - 3} Z`} fill="#0d1117" />
+                {/* USB pins inside */}
+                {[-3, -1, 1, 3].map((o, i) => (
+                  <rect key={`up${i}`} x={BX + BW / 2 + o * 2.5 - 0.8} y={BY - 13} width="1.6" height="8" rx="0.5" fill="#9ca3af" />
                 ))}
-                {[0, 1, 2, 3].map((i) => (
-                  <line key={`cr${i}`} x1={BX + 125} y1={BY + 215 + i * 14} x2={BX + 132} y2={BY + 215 + i * 14} stroke="#333" strokeWidth="1.5" />
-                ))}
+                <text x={BX + BW / 2} y={BY - 24} textAnchor="middle" fontFamily="monospace" fontSize="6" fill="#6b7280">MICRO-B</text>
 
-                {/* Reset button */}
-                <circle cx={BX + 20} cy={BY + 50} r="7" fill="#cc2222" stroke="#991111" strokeWidth="1" />
-                <circle cx={BX + 20} cy={BY + 50} r="3.5" fill="#ff4444" opacity={0.6} />
-
-                {/* Power LED */}
-                <circle cx={BX + 40} cy={BY + 50} r="4" fill="#00ff88" opacity={0.8} />
-                {/* TX/RX LEDs */}
-                <circle cx={BX + 55} cy={BY + 50} r="3" fill="#ff9900" opacity={0.8} />
-                <circle cx={BX + 68} cy={BY + 50} r="3" fill="#ff9900" opacity={0.8} />
-
-                {/* Crystal */}
-                <rect x={BX + 80} y={BY + 46} width="16" height="8" rx="2" fill="#c8a800" stroke="#a07800" strokeWidth="1" />
-
-                {/* No mounting holes on Micro (smaller board) */}
-                {/* Board labels */}
-                <text x={BX + BW / 2} y={BY + 120} textAnchor="middle" fontFamily="monospace" fontSize="9" fill="#004f52" fontWeight="bold" letterSpacing="1">ARDUINO</text>
-                <text x={BX + BW / 2} y={BY + 133} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#004f52" letterSpacing="1">MICRO</text>
-              </>
-            ) : (
-              <>
-                {/* USB Micro-B connector at top */}
-                <rect x={BX + 50} y={BY - 26} width="70" height="32" rx="4" fill="#1f2937" stroke="#374151" strokeWidth="1.5" />
-                <rect x={BX + 57} y={BY - 20} width="56" height="20" rx="2" fill="#111827" />
-                {/* USB pins detail */}
-                {[0, 1, 2, 3, 4].map((i) => (
-                  <rect key={`usb${i}`} x={BX + 59 + i * 10} y={BY - 19} width="6" height="18" rx="1" fill="#1f2937" />
-                ))}
-                <text x={BX + 85} y={BY - 6} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#4b5563">USB</text>
-
-                {/* ICSP header (6-pin 2×3) */}
-                <rect x={BX + 105} y={BY + 90} width="30" height="20" rx="2" fill="#111827" stroke="#374151" strokeWidth="1" />
-                {[0, 1, 2].map((col) => [0, 1].map((row) => (
-                  <circle key={`icsp${col}${row}`} cx={BX + 112 + col * 9} cy={BY + 96 + row * 8} r="2" fill="#374151" />
-                )))}
-                <text x={BX + 120} y={BY + 122} textAnchor="middle" fontFamily="monospace" fontSize="6" fill="#4b5563">ICSP</text>
-
-                {/* ATmega32U4 chip */}
-                <rect x={BX + 35} y={BY + 200} width="100" height="75" rx="4" fill="#111" stroke="#333" strokeWidth="1.5" />
+                {/* ATmega32U4 — QFP package, centered */}
+                {/* QFP body */}
+                <rect x={BX + BW / 2 - 38} y={BY + 215} width="76" height="76" rx="3" fill="#111" stroke="#2d3748" strokeWidth="1.2" />
                 {/* Chip notch */}
-                <path d={`M ${BX + 82} ${BY + 200} a 3 3 0 0 1 6 0`} fill="#222" />
-                <text x={BX + 85} y={BY + 230} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#4b5563">ATmega</text>
-                <text x={BX + 85} y={BY + 242} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#4b5563">32U4</text>
-                {[0, 1, 2, 3].map((i) => (
-                  <line key={`cl${i}`} x1={BX + 35} y1={BY + 215 + i * 14} x2={BX + 28} y2={BY + 215 + i * 14} stroke="#333" strokeWidth="1.5" />
+                <path d={`M ${BX + BW / 2 - 5} ${BY + 215} a 5 5 0 0 1 10 0`} fill="#1a1a1a" />
+                {/* Dot marker */}
+                <circle cx={BX + BW / 2 - 30} cy={BY + 223} r="3" fill="#374151" />
+                <text x={BX + BW / 2} y={BY + 249} textAnchor="middle" fontFamily="monospace" fontSize="6.5" fill="#6b7280" fontWeight="bold">ATmega</text>
+                <text x={BX + BW / 2} y={BY + 259} textAnchor="middle" fontFamily="monospace" fontSize="6.5" fill="#6b7280" fontWeight="bold">32U4</text>
+                <text x={BX + BW / 2} y={BY + 269} textAnchor="middle" fontFamily="monospace" fontSize="5.5" fill="#4b5563">Arduino</text>
+                {/* QFP pins — all 4 sides */}
+                {[0,1,2,3,4,5,6].map((i) => (
+                  <g key={`mqt${i}`}>
+                    <line x1={BX + BW / 2 - 38 + 8 + i * 9} y1={BY + 215} x2={BX + BW / 2 - 38 + 8 + i * 9} y2={BY + 208} stroke="#6b7280" strokeWidth="1.5" />
+                    <line x1={BX + BW / 2 - 38 + 8 + i * 9} y1={BY + 291} x2={BX + BW / 2 - 38 + 8 + i * 9} y2={BY + 298} stroke="#6b7280" strokeWidth="1.5" />
+                  </g>
                 ))}
-                {[0, 1, 2, 3].map((i) => (
-                  <line key={`cr${i}`} x1={BX + 135} y1={BY + 215 + i * 14} x2={BX + 142} y2={BY + 215 + i * 14} stroke="#333" strokeWidth="1.5" />
-                ))}
-
-                {/* Reset button */}
-                <circle cx={BX + 22} cy={BY + 65} r="9" fill="#cc2222" stroke="#991111" strokeWidth="1.5" />
-                <circle cx={BX + 22} cy={BY + 65} r="4.5" fill="#ff4444" opacity={0.6} />
-                <text x={BX + 22} y={BY + 83} textAnchor="middle" fontFamily="monospace" fontSize="6" fill="#991111">RST</text>
-
-                {/* Power LED (green) */}
-                <rect x={BX + 48} y={BY + 59} width="8" height="14" rx="2" fill="#00bb66" opacity={0.9} />
-                <ellipse cx={BX + 52} cy={BY + 59} rx="4" ry="3" fill="#00ff88" opacity={0.8} />
-                <text x={BX + 52} y={BY + 82} textAnchor="middle" fontFamily="monospace" fontSize="6" fill="#005f40">PWR</text>
-                {/* TX LED (orange) */}
-                <rect x={BX + 65} y={BY + 59} width="8" height="14" rx="2" fill="#cc6600" opacity={0.9} />
-                <ellipse cx={BX + 69} cy={BY + 59} rx="4" ry="3" fill="#ff9900" opacity={0.8} />
-                <text x={BX + 69} y={BY + 82} textAnchor="middle" fontFamily="monospace" fontSize="6" fill="#995500">TX</text>
-                {/* RX LED (orange) */}
-                <rect x={BX + 80} y={BY + 59} width="8" height="14" rx="2" fill="#cc6600" opacity={0.9} />
-                <ellipse cx={BX + 84} cy={BY + 59} rx="4" ry="3" fill="#ff9900" opacity={0.8} />
-                <text x={BX + 84} y={BY + 82} textAnchor="middle" fontFamily="monospace" fontSize="6" fill="#995500">RX</text>
-
-                {/* Crystal */}
-                <rect x={BX + 100} y={BY + 62} width="22" height="10" rx="3" fill="#c8a800" stroke="#a07800" strokeWidth="1.2" />
-                <line x1={BX + 108} y1={BY + 72} x2={BX + 108} y2={BY + 78} stroke="#a07800" strokeWidth="1.2" />
-                <line x1={BX + 116} y1={BY + 72} x2={BX + 116} y2={BY + 78} stroke="#a07800" strokeWidth="1.2" />
-                <text x={BX + 111} y={BY + 88} textAnchor="middle" fontFamily="monospace" fontSize="6" fill="#a07800">16MHz</text>
-
-                {/* Voltage regulator */}
-                <rect x={BX + 130} y={BY + 160} width="20" height="28" rx="2" fill="#111827" stroke="#374151" strokeWidth="1" />
-                <line x1={BX + 133} y1={BY + 188} x2={BX + 133} y2={BY + 198} stroke="#374151" strokeWidth="1.5" />
-                <line x1={BX + 140} y1={BY + 188} x2={BX + 140} y2={BY + 198} stroke="#374151" strokeWidth="1.5" />
-                <line x1={BX + 147} y1={BY + 188} x2={BX + 147} y2={BY + 198} stroke="#374151" strokeWidth="1.5" />
-                <text x={BX + 140} y={BY + 208} textAnchor="middle" fontFamily="monospace" fontSize="6" fill="#4b5563">5V reg</text>
-
-                {/* Mounting holes */}
-                {([
-                  [BX + 12, BY + 12], [BX + BW - 12, BY + 12],
-                  [BX + 12, BY + BH - 12], [BX + BW - 12, BY + BH - 12],
-                ] as [number, number][]).map(([hx, hy], i) => (
-                  <g key={`mh${i}`}>
-                    <circle cx={hx} cy={hy} r="7" fill="#005f62" stroke="#004f52" strokeWidth="1.5" />
-                    <circle cx={hx} cy={hy} r="4" fill="#003f42" />
-                    <circle cx={hx} cy={hy} r="1.5" fill="#00797d" />
+                {[0,1,2,3,4,5,6].map((i) => (
+                  <g key={`mql${i}`}>
+                    <line x1={BX + BW / 2 - 38} y1={BY + 223 + i * 9} x2={BX + BW / 2 - 46} y2={BY + 223 + i * 9} stroke="#6b7280" strokeWidth="1.5" />
+                    <line x1={BX + BW / 2 + 38} y1={BY + 223 + i * 9} x2={BX + BW / 2 + 46} y2={BY + 223 + i * 9} stroke="#6b7280" strokeWidth="1.5" />
                   </g>
                 ))}
 
-                {/* Board title */}
-                <text x={BX + BW / 2} y={BY + 140} textAnchor="middle" fontFamily="monospace" fontSize="10" fill="#004f52" fontWeight="bold" letterSpacing="2">ARDUINO</text>
-                <text x={BX + BW / 2} y={BY + 155} textAnchor="middle" fontFamily="monospace" fontSize="8" fill="#004f52" letterSpacing="1">LEONARDO</text>
+                {/* 16MHz crystal — silver metal can */}
+                <rect x={BX + BW / 2 - 10} y={BY + 170} width="20" height="34" rx="10" fill="#9ca3af" stroke="#6b7280" strokeWidth="1" />
+                <rect x={BX + BW / 2 - 6} y={BY + 174} width="12" height="26" rx="6" fill="#d1d5db" opacity="0.6" />
+                <line x1={BX + BW / 2 - 5} y1={BY + 204} x2={BX + BW / 2 - 5} y2={BY + 214} stroke="#6b7280" strokeWidth="1.2" />
+                <line x1={BX + BW / 2 + 5} y1={BY + 204} x2={BX + BW / 2 + 5} y2={BY + 214} stroke="#6b7280" strokeWidth="1.2" />
+                <text x={BX + BW / 2} y={BY + 163} textAnchor="middle" fontFamily="monospace" fontSize="5.5" fill="#6b7280">16MHz</text>
+
+                {/* Reset button — white/gray SMD tactile */}
+                <rect x={BX + BW / 2 - 7} y={BY + 320} width="14" height="14" rx="2" fill="#d1d5db" stroke="#9ca3af" strokeWidth="1" />
+                <circle cx={BX + BW / 2} cy={BY + 327} r="4" fill="#e5e7eb" />
+                <circle cx={BX + BW / 2} cy={BY + 327} r="2" fill="#9ca3af" />
+                <text x={BX + BW / 2} y={BY + 343} textAnchor="middle" fontFamily="monospace" fontSize="5.5" fill="#a8c8ff" opacity="0.6">RESET</text>
+
+                {/* LEDs near top */}
+                {/* PWR — green */}
+                <rect x={BX + 20} y={BY + 40} width="7" height="10" rx="1.5" fill="#166534" stroke="#15803d" strokeWidth="0.8" />
+                <ellipse cx={BX + 23} cy={BY + 40} rx="3.5" ry="2.5" fill="#22c55e" opacity="0.9" />
+                <text x={BX + 23} y={BY + 57} textAnchor="middle" fontFamily="monospace" fontSize="5" fill="#a8c8ff" opacity="0.5">ON</text>
+                {/* TX — yellow */}
+                <rect x={BX + 35} y={BY + 40} width="7" height="10" rx="1.5" fill="#713f12" stroke="#92400e" strokeWidth="0.8" />
+                <ellipse cx={BX + 38} cy={BY + 40} rx="3.5" ry="2.5" fill="#eab308" opacity="0.9" />
+                <text x={BX + 38} y={BY + 57} textAnchor="middle" fontFamily="monospace" fontSize="5" fill="#a8c8ff" opacity="0.5">TX</text>
+                {/* RX — yellow */}
+                <rect x={BX + 50} y={BY + 40} width="7" height="10" rx="1.5" fill="#713f12" stroke="#92400e" strokeWidth="0.8" />
+                <ellipse cx={BX + 53} cy={BY + 40} rx="3.5" ry="2.5" fill="#eab308" opacity="0.9" />
+                <text x={BX + 53} y={BY + 57} textAnchor="middle" fontFamily="monospace" fontSize="5" fill="#a8c8ff" opacity="0.5">RX</text>
+
+                {/* Small SMD capacitors */}
+                <rect x={BX + BW - 30} y={BY + 80} width="9" height="6" rx="1" fill="#1e293b" stroke="#334155" strokeWidth="0.8" />
+                <rect x={BX + BW - 30} y={BY + 92} width="9" height="6" rx="1" fill="#1e293b" stroke="#334155" strokeWidth="0.8" />
+                <rect x={BX + 20} y={BY + 140} width="6" height="9" rx="1" fill="#1e293b" stroke="#334155" strokeWidth="0.8" />
+
+                {/* Silk-screen labels */}
+                <text x={BX + BW / 2} y={BY + 390} textAnchor="middle" fontFamily="monospace" fontSize="9" fill="#a8c8ff" fontWeight="bold" opacity="0.55" letterSpacing="1">ARDUINO</text>
+                <text x={BX + BW / 2} y={BY + 403} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#a8c8ff" opacity="0.45" letterSpacing="1">MICRO</text>
+
+                {/* Silk-screen pin labels on PCB edges */}
+                <text x={BX + 4} y={BY + 95} fontFamily="monospace" fontSize="4.5" fill="#a8c8ff" opacity="0.4" transform={`rotate(-90, ${BX + 4}, ${BY + 95})`}>D13·12·11·10·9·8</text>
+                <text x={BX + BW - 5} y={BY + 95} fontFamily="monospace" fontSize="4.5" fill="#a8c8ff" opacity="0.4" transform={`rotate(90, ${BX + BW - 5}, ${BY + 95})`}>5V·RST·GND·2·3·4</text>
+              </>
+            ) : (
+              <>
+                {/* ── Arduino Leonardo ── */}
+                {/* USB Micro-B at top center — sticks above PCB */}
+                <rect x={BX + BW / 2 - 18} y={BY - 22} width="36" height="26" rx="4" fill="#2d3748" stroke="#4a5568" strokeWidth="1.5" />
+                <rect x={BX + BW / 2 - 13} y={BY - 17} width="26" height="18" rx="2" fill="#1a202c" />
+                {/* Trapezoid port opening */}
+                <path d={`M ${BX + BW / 2 - 9} ${BY - 16} L ${BX + BW / 2 + 9} ${BY - 16} L ${BX + BW / 2 + 7} ${BY - 2} L ${BX + BW / 2 - 7} ${BY - 2} Z`} fill="#0d1117" />
+                {[-3.5, -1.5, 0.5, 2.5].map((o, i) => (
+                  <rect key={`lup${i}`} x={BX + BW / 2 + o * 2 - 0.7} y={BY - 14} width="1.4" height="9" rx="0.5" fill="#9ca3af" />
+                ))}
+                <text x={BX + BW / 2} y={BY - 25} textAnchor="middle" fontFamily="monospace" fontSize="6" fill="#6b7280">USB</text>
+
+                {/* DC Barrel Jack at top — right of USB, sticks above */}
+                <rect x={BX + BW - 34} y={BY - 18} width="28" height="22" rx="3" fill="#111827" stroke="#374151" strokeWidth="1.5" />
+                <circle cx={BX + BW - 20} cy={BY - 7} r="7" fill="#1f2937" stroke="#4b5563" strokeWidth="1" />
+                <circle cx={BX + BW - 20} cy={BY - 7} r="3.5" fill="#111827" />
+                <circle cx={BX + BW - 20} cy={BY - 7} r="1.2" fill="#4b5563" />
+                <text x={BX + BW - 20} y={BY + 10} textAnchor="middle" fontFamily="monospace" fontSize="5.5" fill="#6b7280">PWR</text>
+
+                {/* Mounting holes — 4 corners */}
+                {([
+                  [BX + 14, BY + 14], [BX + BW - 14, BY + 14],
+                  [BX + 14, BY + BH - 14], [BX + BW - 14, BY + BH - 14],
+                ] as [number, number][]).map(([hx, hy], i) => (
+                  <g key={`mh${i}`}>
+                    <circle cx={hx} cy={hy} r="8" fill="#122d6b" stroke="#0d3272" strokeWidth="1.5" />
+                    <circle cx={hx} cy={hy} r="4.5" fill="#0a1f50" />
+                    <circle cx={hx} cy={hy} r="1.8" fill="#1a4c8b" />
+                    {/* Copper ring around hole */}
+                    <circle cx={hx} cy={hy} r="7" fill="none" stroke="#b87333" strokeWidth="0.8" opacity="0.5" />
+                  </g>
+                ))}
+
+                {/* ICSP 2×3 header */}
+                <rect x={BX + 100} y={BY + 95} width="26" height="18" rx="2" fill="#0f172a" stroke="#334155" strokeWidth="1" />
+                {[0, 1, 2].map((col) => [0, 1].map((row) => (
+                  <g key={`icsp${col}${row}`}>
+                    <rect x={BX + 104 + col * 8 - 2.5} y={BY + 99 + row * 8 - 2.5} width="5" height="5" rx="0.5" fill="#374151" />
+                    <circle cx={BX + 104 + col * 8} cy={BY + 99 + row * 8} r="1.5" fill="#b87333" opacity="0.8" />
+                  </g>
+                )))}
+                <text x={BX + 113} y={BY + 123} textAnchor="middle" fontFamily="monospace" fontSize="5.5" fill="#a8c8ff" opacity="0.45">ICSP</text>
+
+                {/* Reset button — white SMD tactile */}
+                <rect x={BX + 18} y={BY + 72} width="16" height="16" rx="2.5" fill="#cbd5e1" stroke="#94a3b8" strokeWidth="1" />
+                <circle cx={BX + 26} cy={BY + 80} r="5" fill="#e2e8f0" />
+                <circle cx={BX + 26} cy={BY + 80} r="2.5" fill="#94a3b8" />
+                <text x={BX + 26} y={BY + 97} textAnchor="middle" fontFamily="monospace" fontSize="5.5" fill="#a8c8ff" opacity="0.5">RST</text>
+
+                {/* LEDs — realistic SMD packages */}
+                {/* PWR — green */}
+                <rect x={BX + 50} y={BY + 68} width="8" height="12" rx="1.5" fill="#14532d" stroke="#166534" strokeWidth="0.8" />
+                <ellipse cx={BX + 54} cy={BY + 68} rx="4" ry="3" fill="#22c55e" opacity="0.95" />
+                <ellipse cx={BX + 53} cy={BY + 66} rx="1.5" ry="1" fill="white" opacity="0.3" />
+                <text x={BX + 54} y={BY + 89} textAnchor="middle" fontFamily="monospace" fontSize="5.5" fill="#a8c8ff" opacity="0.5">ON</text>
+                {/* L — yellow (pin 13) */}
+                <rect x={BX + 66} y={BY + 68} width="8" height="12" rx="1.5" fill="#713f12" stroke="#92400e" strokeWidth="0.8" />
+                <ellipse cx={BX + 70} cy={BY + 68} rx="4" ry="3" fill="#eab308" opacity="0.95" />
+                <ellipse cx={BX + 69} cy={BY + 66} rx="1.5" ry="1" fill="white" opacity="0.3" />
+                <text x={BX + 70} y={BY + 89} textAnchor="middle" fontFamily="monospace" fontSize="5.5" fill="#a8c8ff" opacity="0.5">L</text>
+                {/* TX — yellow */}
+                <rect x={BX + 82} y={BY + 68} width="8" height="12" rx="1.5" fill="#713f12" stroke="#92400e" strokeWidth="0.8" />
+                <ellipse cx={BX + 86} cy={BY + 68} rx="4" ry="3" fill="#eab308" opacity="0.95" />
+                <ellipse cx={BX + 85} cy={BY + 66} rx="1.5" ry="1" fill="white" opacity="0.3" />
+                <text x={BX + 86} y={BY + 89} textAnchor="middle" fontFamily="monospace" fontSize="5.5" fill="#a8c8ff" opacity="0.5">TX</text>
+                {/* RX — yellow */}
+                <rect x={BX + 98} y={BY + 68} width="8" height="12" rx="1.5" fill="#713f12" stroke="#92400e" strokeWidth="0.8" />
+                <ellipse cx={BX + 102} cy={BY + 68} rx="4" ry="3" fill="#eab308" opacity="0.95" />
+                <ellipse cx={BX + 101} cy={BY + 66} rx="1.5" ry="1" fill="white" opacity="0.3" />
+                <text x={BX + 102} y={BY + 89} textAnchor="middle" fontFamily="monospace" fontSize="5.5" fill="#a8c8ff" opacity="0.5">RX</text>
+
+                {/* 16MHz crystal — silver HC-49 metal can */}
+                <rect x={BX + 38} y={BY + 165} width="14" height="36" rx="7" fill="#9ca3af" stroke="#6b7280" strokeWidth="1.2" />
+                <rect x={BX + 41} y={BY + 169} width="8" height="28" rx="4" fill="#d1d5db" opacity="0.5" />
+                {/* Crystal highlight */}
+                <line x1={BX + 42} y1={BY + 172} x2={BX + 42} y2={BY + 192} stroke="white" strokeWidth="1" opacity="0.2" />
+                {/* Leads */}
+                <line x1={BX + 42} y1={BY + 201} x2={BX + 42} y2={BY + 212} stroke="#9ca3af" strokeWidth="1.5" />
+                <line x1={BX + 50} y1={BY + 201} x2={BX + 50} y2={BY + 212} stroke="#9ca3af" strokeWidth="1.5" />
+                <text x={BX + 45} y={BY + 160} textAnchor="middle" fontFamily="monospace" fontSize="5.5" fill="#a8c8ff" opacity="0.4">16MHz</text>
+
+                {/* ATmega32U4 — QFP package */}
+                <rect x={BX + 30} y={BY + 220} width="110" height="110" rx="4" fill="#111" stroke="#2d3748" strokeWidth="1.5" />
+                {/* Chip notch at top-center */}
+                <path d={`M ${BX + 82} ${BY + 220} a 6 6 0 0 1 12 0`} fill="#1a1a1a" />
+                {/* Pin 1 dot */}
+                <circle cx={BX + 38} cy={BY + 228} r="3.5" fill="#374151" />
+                <text x={BX + 85} y={BY + 262} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#6b7280" fontWeight="bold">ATmega</text>
+                <text x={BX + 85} y={BY + 273} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#6b7280" fontWeight="bold">32U4</text>
+                <text x={BX + 85} y={BY + 284} textAnchor="middle" fontFamily="monospace" fontSize="5.5" fill="#4b5563">8-bit MCU</text>
+                <text x={BX + 85} y={BY + 294} textAnchor="middle" fontFamily="monospace" fontSize="5" fill="#374151">TQFP-44</text>
+                {/* QFP pins — top and bottom (8 each) */}
+                {[0,1,2,3,4,5,6,7].map((i) => (
+                  <g key={`ltb${i}`}>
+                    <line x1={BX + 38 + i * 11} y1={BY + 220} x2={BX + 38 + i * 11} y2={BY + 212} stroke="#9ca3af" strokeWidth="1.5" />
+                    <line x1={BX + 38 + i * 11} y1={BY + 330} x2={BX + 38 + i * 11} y2={BY + 338} stroke="#9ca3af" strokeWidth="1.5" />
+                  </g>
+                ))}
+                {/* QFP pins — left and right (8 each) */}
+                {[0,1,2,3,4,5,6,7].map((i) => (
+                  <g key={`llr${i}`}>
+                    <line x1={BX + 30} y1={BY + 228 + i * 11} x2={BX + 22} y2={BY + 228 + i * 11} stroke="#9ca3af" strokeWidth="1.5" />
+                    <line x1={BX + 140} y1={BY + 228 + i * 11} x2={BX + 148} y2={BY + 228 + i * 11} stroke="#9ca3af" strokeWidth="1.5" />
+                  </g>
+                ))}
+
+                {/* Voltage regulator — TO-220 package */}
+                <rect x={BX + 132} y={BY + 145} width="24" height="32" rx="2" fill="#1e293b" stroke="#334155" strokeWidth="1.2" />
+                <rect x={BX + 133} y={BY + 142} width="22" height="10" rx="1" fill="#374151" />
+                {/* 3 leads */}
+                {[0, 1, 2].map((i) => (
+                  <line key={`vrl${i}`} x1={BX + 137 + i * 7} y1={BY + 177} x2={BX + 137 + i * 7} y2={BY + 188} stroke="#6b7280" strokeWidth="2" strokeLinecap="round" />
+                ))}
+                <text x={BX + 144} y={BY + 198} textAnchor="middle" fontFamily="monospace" fontSize="5.5" fill="#a8c8ff" opacity="0.4">NCP1117</text>
+
+                {/* SMD capacitors — scattered near power */}
+                {([
+                  [BX + 62, BY + 165], [BX + 75, BY + 165], [BX + 88, BY + 165],
+                  [BX + 25, BY + 175], [BX + 25, BY + 187],
+                  [BX + 132, BY + 380], [BX + 132, BY + 392],
+                ] as [number, number][]).map(([cx, cy], i) => (
+                  <g key={`cap${i}`}>
+                    <rect x={cx} y={cy} width="9" height="5" rx="1" fill="#1e293b" stroke="#334155" strokeWidth="0.7" />
+                    <line x1={cx} y1={cy + 2.5} x2={cx - 3} y2={cy + 2.5} stroke="#6b7280" strokeWidth="0.8" />
+                    <line x1={cx + 9} y1={cy + 2.5} x2={cx + 12} y2={cy + 2.5} stroke="#6b7280" strokeWidth="0.8" />
+                  </g>
+                ))}
+
+                {/* PCB traces (silk-screen style) */}
+                <line x1={BX + 26} y1={BY + 88} x2={BX + 50} y2={BY + 75} stroke="#a8c8ff" strokeWidth="0.5" opacity="0.15" />
+                <line x1={BX + 54} y1={BY + 80} x2={BX + 54} y2={BY + 165} stroke="#a8c8ff" strokeWidth="0.5" opacity="0.1" />
+
+                {/* Silk-screen board labels */}
+                <text x={BX + BW / 2} y={BY + 395} textAnchor="middle" fontFamily="monospace" fontSize="10" fill="#a8c8ff" fontWeight="bold" opacity="0.5" letterSpacing="2">ARDUINO</text>
+                <text x={BX + BW / 2} y={BY + 410} textAnchor="middle" fontFamily="monospace" fontSize="8" fill="#a8c8ff" opacity="0.4" letterSpacing="1">LEONARDO</text>
+                <text x={BX + BW / 2} y={BY + 422} textAnchor="middle" fontFamily="monospace" fontSize="6" fill="#a8c8ff" opacity="0.3">© Arduino SA</text>
+
+                {/* Made in Italy mark */}
+                <text x={BX + BW / 2} y={BY + BH - 25} textAnchor="middle" fontFamily="monospace" fontSize="5.5" fill="#a8c8ff" opacity="0.25">MADE IN ITALY</text>
               </>
             )}
 
