@@ -420,17 +420,51 @@ ${btnLedSetup}` : "";
 
   const allSetupParts = [btnSetup, ledSetup, irSetup, spSetup, joySetup].filter(Boolean);
 
+  // ── Compact remap config embedded in sketch ──────────────────────────────
+  const remapConfig = JSON.stringify({
+    v: 1,
+    b: [...buttons, ...ports].map((b) => ({ p: b.pin, k: b.arduinoKey, n: b.name, m: b.mode === "toggle" ? 1 : b.mode === "power" ? 2 : 0 })),
+    ir: irSensors.map((ir) => ({ p: ir.pin, k: ir.arduinoKey, n: ir.name })),
+    sp: sipPuffs.map((sp) => ({ p: sp.pin, k: sp.key, n: sp.name || "Sip & Puff" })),
+    j: joysticks.map((j) => ({ x: j.xPin, y: j.yPin, bp: j.buttonPin, u: j.upKey, d: j.downKey, l: j.leftKey, r: j.rightKey, bk: j.buttonKey, n: j.name })),
+  });
+  // Escape for C string literal
+  const remapJson = remapConfig.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+
+  const remapSection = `
+// ── Remap protocol ────────────────────────────────────────────────────────
+const char REMAP_CONFIG[] = "${remapJson}";
+String _serialBuf = "";
+void checkSerial() {
+  while (Serial.available()) {
+    char c = (char)Serial.read();
+    if (c == '\\n' || c == '\\r') {
+      String cmd = _serialBuf;
+      _serialBuf = "";
+      if (cmd.startsWith("REMAP")) {
+        Serial.println(F("CONFIG_START"));
+        Serial.println(REMAP_CONFIG);
+        Serial.println(F("CONFIG_END"));
+      }
+    } else if (_serialBuf.length() < 16) {
+      _serialBuf += c;
+    }
+  }
+}`;
+
   return `#include <Keyboard.h>
 ${btnSection}
 bool systemActive = true;
-${ledSection}${irGlobals}${spGlobals}${joyGlobals}
+${ledSection}${irGlobals}${spGlobals}${joyGlobals}${remapSection}
 void setup() {
+  Serial.begin(9600);
 ${allSetupParts.join("\n")}
   updateLEDs();
   Keyboard.begin();
 }
 
 void loop() {
+  checkSerial();
 ${btnLoopBody}
 ${allLoopParts.join("\n")}
 }

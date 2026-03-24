@@ -18,6 +18,7 @@ import SnakeGame from "@/components/SnakeGame";
 import PongGame from "@/components/PongGame";
 import DeviceMockup from "@/components/DeviceMockup";
 import ControllerMockup from "@/components/ControllerMockup";
+import RemapModal, { type RemapEntry } from "@/components/RemapModal";
 import { arduinoToBrowserKey } from "@/lib/keymap";
 import {
   supabase,
@@ -2051,6 +2052,7 @@ export default function Home() {
   const [loadingSketch, setLoadingSketch] = useState(false);
   const [showLedInfo, setShowLedInfo] = useState(false);
   const [showWiring, setShowWiring] = useState(false);
+  const [showRemap, setShowRemap] = useState(false);
   const [showSetupBanner, setShowSetupBanner] = useState(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("arduino_cli_dismissed") !== "1";
@@ -2795,6 +2797,11 @@ export default function Home() {
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-yellow-700/50 bg-yellow-950/30 hover:bg-yellow-900/30 text-xs text-yellow-300 hover:text-yellow-100 transition-all"
                 >
                   <Zap size={13} /> Wiring
+                </button>
+                <button onClick={() => setShowRemap(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-violet-700/50 bg-violet-950/30 hover:bg-violet-900/30 text-xs text-violet-300 hover:text-violet-100 transition-all"
+                >
+                  <RefreshCw size={13} /> Remap Device
                 </button>
                 <button onClick={() => handleWebSerialUpload(false)} disabled={wsUploading}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-green-700 to-teal-700 hover:from-green-600 hover:to-teal-600 disabled:opacity-50 text-white font-semibold text-xs transition-all"
@@ -3866,6 +3873,46 @@ export default function Home() {
           buttons={buttons} portInputs={portInputs} leds={leds}
           irSensors={irSensors} sipPuffs={sipPuffs} joysticks={joysticks}
           onClose={() => setShowWiring(false)}
+        />
+      )}
+
+      {/* Remap Device modal */}
+      {showRemap && (
+        <RemapModal
+          backendUrl={BACKEND_URL}
+          selectedPort={selectedPort}
+          onClose={() => setShowRemap(false)}
+          onUploadSketch={(remapEntries: RemapEntry[]) => {
+            // Apply remapped keys back onto the current config and re-upload
+            setShowRemap(false);
+            // Update buttons/ports
+            const updatedButtons = buttons.map((b) => {
+              const entry = remapEntries.find((e) => (e.type === "button" || e.type === "port") && e.pin === `D${b.pin}` && e.arduinoKey === b.arduinoKey);
+              if (!entry || entry.newKey === entry.arduinoKey) return b;
+              return { ...b, arduinoKey: entry.newKey, keyDisplay: entry.newDisplay };
+            });
+            const updatedPorts = portInputs.map((p) => {
+              const entry = remapEntries.find((e) => (e.type === "button" || e.type === "port") && e.pin === `D${p.pin}` && e.arduinoKey === p.arduinoKey);
+              if (!entry || entry.newKey === entry.arduinoKey) return p;
+              return { ...p, arduinoKey: entry.newKey, keyDisplay: entry.newDisplay };
+            });
+            const updatedIr = irSensors.map((ir) => {
+              const entry = remapEntries.find((e) => e.type === "ir" && e.pin === `D${ir.pin}` && e.arduinoKey === ir.arduinoKey);
+              if (!entry || entry.newKey === entry.arduinoKey) return ir;
+              return { ...ir, arduinoKey: entry.newKey, keyDisplay: entry.newDisplay };
+            });
+            const updatedSp = sipPuffs.map((sp) => {
+              const entry = remapEntries.find((e) => e.type === "sipPuff" && e.pin === `D${sp.pin}` && e.arduinoKey === sp.key);
+              if (!entry || entry.newKey === entry.arduinoKey) return sp;
+              return { ...sp, key: entry.newKey, keyDisplay: entry.newDisplay };
+            });
+            setButtons(updatedButtons);
+            setPortInputs(updatedPorts);
+            setIrSensors(updatedIr);
+            setSipPuffs(updatedSp);
+            // Trigger upload with updated values
+            setTimeout(() => handleWebSerialUpload(false), 100);
+          }}
         />
       )}
 
