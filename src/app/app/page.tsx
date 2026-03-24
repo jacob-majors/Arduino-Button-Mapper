@@ -19,6 +19,7 @@ import PongGame from "@/components/PongGame";
 import DeviceMockup from "@/components/DeviceMockup";
 import ControllerMockup from "@/components/ControllerMockup";
 import RemapModal, { type RemapEntry } from "@/components/RemapModal";
+import TutorialOverlay from "@/components/TutorialOverlay";
 import { arduinoToBrowserKey } from "@/lib/keymap";
 import {
   supabase,
@@ -2053,6 +2054,7 @@ export default function Home() {
   const [showLedInfo, setShowLedInfo] = useState(false);
   const [showWiring, setShowWiring] = useState(false);
   const [showRemap, setShowRemap] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
   const [showSetupBanner, setShowSetupBanner] = useState(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("arduino_cli_dismissed") !== "1";
@@ -2063,7 +2065,7 @@ export default function Home() {
   const [authReady, setAuthReady] = useState(false);
   const [loginUsername, setLoginUsername] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
-  const [adminSettings, setAdminSettings] = useState<AdminSettings>({ show_ports: true, show_leds: true, show_upload: true, show_sensors: true, show_buttons: true, show_games: true, show_wiring: true, show_controller: true, maintenance_mode: false, welcome_message: "" });
+  const [adminSettings, setAdminSettings] = useState<AdminSettings>({ show_ports: true, show_leds: true, show_upload: true, show_sensors: true, show_buttons: true, show_games: true, show_wiring: true, show_controller: true, maintenance_mode: false, welcome_message: "", show_tutorial: false, tutorial_version: 0 });
   const [allUsers, setAllUsers] = useState<AppUser[]>([]);
   const [dbTemplates, setDbTemplates] = useState<DbTemplate[]>([]);
   const [editingTemplate, setEditingTemplate] = useState<string | null>(null);
@@ -2215,9 +2217,16 @@ export default function Home() {
         show_controller:   s.show_controller   ?? cached?.show_controller   ?? true,
         maintenance_mode:  s.maintenance_mode  ?? cached?.maintenance_mode  ?? false,
         welcome_message:   s.welcome_message   ?? cached?.welcome_message   ?? "",
+        show_tutorial:     s.show_tutorial     ?? cached?.show_tutorial     ?? false,
+        tutorial_version:  s.tutorial_version  ?? cached?.tutorial_version  ?? 0,
       };
       setAdminSettings(merged);
       localStorage.setItem("adminSettings", JSON.stringify(merged));
+      // Auto-launch tutorial if admin enabled it and user hasn't seen this version
+      if (merged.show_tutorial) {
+        const key = `tutorial_v${merged.tutorial_version}_done`;
+        if (!localStorage.getItem(key)) setShowTutorial(true);
+      }
     });
 
     // Realtime subscription: update settings instantly for all users
@@ -2239,9 +2248,16 @@ export default function Home() {
             show_controller:  s.show_controller  ?? true,
             maintenance_mode: s.maintenance_mode ?? false,
             welcome_message:  s.welcome_message  ?? "",
+            show_tutorial:    s.show_tutorial    ?? false,
+            tutorial_version: s.tutorial_version ?? 0,
           };
           setAdminSettings(next);
           localStorage.setItem("adminSettings", JSON.stringify(next));
+          // Launch tutorial live if admin just turned it on
+          if (next.show_tutorial) {
+            const key = `tutorial_v${next.tutorial_version}_done`;
+            if (!localStorage.getItem(key)) setShowTutorial(true);
+          }
         }
       )
       .subscribe();
@@ -2657,6 +2673,13 @@ export default function Home() {
             <h1 className="text-sm font-bold text-gray-100 leading-none">Arduino Button Mapper</h1>
             <p className="text-[10px] text-gray-500 leading-none mt-0.5 hidden sm:block">Configure → Upload → Test</p>
           </div>
+          {/* Tutorial ? button */}
+          <button
+            onClick={() => setShowTutorial(true)}
+            title="Show tutorial"
+            className="w-6 h-6 rounded-full bg-gray-800 border border-gray-700 text-gray-500 hover:text-gray-200 hover:border-gray-500 text-xs font-bold transition-colors flex items-center justify-center flex-shrink-0"
+          >?</button>
+
           {/* Auth + Save Switcher */}
           {authReady && (
             appUser ? (
@@ -2697,11 +2720,11 @@ export default function Home() {
           )}
 
           <div className="flex bg-gray-800/60 border border-gray-700 rounded-xl p-0.5 gap-0.5">
-            <button onClick={() => setTab("configure")}
+            <button onClick={() => setTab("configure")} data-tutorial="configure-tab"
               className={["flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
                 tab === "configure" ? "bg-gray-700 text-gray-100" : "text-gray-500 hover:text-gray-300"].join(" ")}
             ><Settings size={12} /> Configure</button>
-            <button onClick={() => setTab("test")}
+            <button onClick={() => setTab("test")} data-tutorial="test-tab"
               className={["flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
                 tab === "test" ? "bg-gray-700 text-gray-100" : "text-gray-500 hover:text-gray-300"].join(" ")}
             ><Gamepad2 size={12} /> Test</button>
@@ -2793,17 +2816,17 @@ export default function Home() {
                 >
                   <Code size={13} /> View &amp; Copy Sketch
                 </button>
-                <button onClick={() => setShowWiring(true)}
+                <button onClick={() => setShowWiring(true)} data-tutorial="wiring-btn"
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-yellow-700/50 bg-yellow-950/30 hover:bg-yellow-900/30 text-xs text-yellow-300 hover:text-yellow-100 transition-all"
                 >
                   <Zap size={13} /> Wiring
                 </button>
-                <button onClick={() => setShowRemap(true)}
+                <button onClick={() => setShowRemap(true)} data-tutorial="remap-btn"
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-violet-700/50 bg-violet-950/30 hover:bg-violet-900/30 text-xs text-violet-300 hover:text-violet-100 transition-all"
                 >
                   <RefreshCw size={13} /> Remap Device
                 </button>
-                <button onClick={() => handleWebSerialUpload(false)} disabled={wsUploading}
+                <button onClick={() => handleWebSerialUpload(false)} disabled={wsUploading} data-tutorial="upload-btn"
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-green-700 to-teal-700 hover:from-green-600 hover:to-teal-600 disabled:opacity-50 text-white font-semibold text-xs transition-all"
                 >
                   {wsUploading ? <><Loader2 size={13} className="animate-spin" /> Uploading…</> : <><Upload size={13} /> Compile &amp; Upload</>}
@@ -3022,7 +3045,7 @@ export default function Home() {
               {/* Add input — centered icon pill buttons */}
               <div className="mt-3 pt-3 border-t border-gray-800 flex-shrink-0">
                 <p className="text-[10px] text-gray-600 uppercase tracking-wider font-semibold text-center mb-2">Add Input</p>
-                <div className="flex flex-wrap justify-center gap-2">
+                <div className="flex flex-wrap justify-center gap-2" data-tutorial="add-input">
                   {([
                     { type: "micro-switch",  label: "Micro Switch",  icon: <Keyboard size={13} />,  color: "hover:bg-blue-600/20 hover:border-blue-500/50 hover:text-blue-300"  },
                     { type: "joystick",      label: "Joystick",      icon: <Joystick size={13} />,  color: "hover:bg-violet-600/20 hover:border-violet-500/50 hover:text-violet-300" },
@@ -3277,6 +3300,7 @@ export default function Home() {
                   { key: "show_wiring"     as const, label: "Wiring Diagram",      desc: "Show the live wiring diagram in Configure tab",             icon: <Zap size={13} className="text-orange-400" /> },
                   { key: "show_controller" as const, label: "Controller View",     desc: "Show the Controller mockup tab in Device Tester",           icon: <Gamepad2 size={13} className="text-pink-400" /> },
                   { key: "maintenance_mode" as const, label: "Maintenance Mode",   desc: "Show a maintenance banner to all non-admin users",          icon: <Settings size={13} className="text-red-400" /> },
+                  { key: "show_tutorial"   as const, label: "Interactive Tutorial", desc: "Show the guided tour to users who haven't completed it",    icon: <span className="text-sm font-bold text-violet-400">?</span> },
                 ] as { key: keyof AdminSettings; label: string; desc: string; icon: React.ReactNode }[]).map(({ key, label, desc, icon }) => (
                   <div key={key} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
                     <div className="flex items-center gap-2.5">
@@ -3317,6 +3341,23 @@ export default function Home() {
                     placeholder="The app is temporarily unavailable…"
                     className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-red-500 transition-colors"
                   />
+                </div>
+              )}
+              {/* Tutorial controls */}
+              {adminSettings.show_tutorial && (
+                <div className="mt-4 pt-4 border-t border-gray-800 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs text-gray-400">Tutorial version: <span className="font-mono text-violet-400">{adminSettings.tutorial_version ?? 0}</span></p>
+                    <p className="text-[11px] text-gray-600">Incrementing the version resets the tutorial for all users — they'll see it again on next load.</p>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      const next = (adminSettings.tutorial_version ?? 0) + 1;
+                      setAdminSettings((s) => { const n = { ...s, tutorial_version: next }; localStorage.setItem("adminSettings", JSON.stringify(n)); return n; });
+                      await updateAdminSettings({ tutorial_version: next });
+                    }}
+                    className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-700/50 hover:bg-violet-700 border border-violet-600/50 text-violet-200 transition-colors"
+                  >Reset for Everyone</button>
                 </div>
               )}
             </div>
@@ -3876,6 +3917,18 @@ export default function Home() {
         />
       )}
 
+      {/* Interactive tutorial */}
+      {showTutorial && (
+        <TutorialOverlay
+          onComplete={() => {
+            setShowTutorial(false);
+            const key = `tutorial_v${adminSettings.tutorial_version ?? 0}_done`;
+            localStorage.setItem(key, "1");
+          }}
+          onTabChange={(t) => setTab(t as "configure" | "test" | "info" | "admin")}
+        />
+      )}
+
       {/* Remap Device modal */}
       {showRemap && (
         <RemapModal
@@ -3922,6 +3975,7 @@ export default function Home() {
           {/* Trigger button */}
           <button
             onClick={() => setShowSaveMenu((v) => !v)}
+            data-tutorial="save-panel"
             className={["flex items-center gap-2 px-3 py-2 rounded-2xl border text-xs font-medium shadow-2xl transition-all",
               showSaveMenu
                 ? "bg-gray-800 border-gray-600 text-gray-100"
