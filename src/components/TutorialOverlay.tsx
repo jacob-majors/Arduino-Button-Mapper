@@ -35,7 +35,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     target: "[data-tutorial='add-input']",
     title: "Adding Inputs",
     body: "Click any of these pills to add a new input. Each one maps a physical component on your Arduino to a keyboard key.",
-    position: "bottom",
+    position: "top",
     tab: "configure",
   },
   {
@@ -50,17 +50,15 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     id: "wiring",
     target: "[data-tutorial='wiring-btn']",
     title: "Wiring Diagram",
-    body: "Not sure how to physically connect your components? Click Wiring to see an interactive diagram showing every connection for your setup.",
-    position: "top",
-    tab: "configure",
+    body: "Not sure how to physically connect your components? Click the Wiring icon to see an interactive diagram showing every connection for your setup.",
+    position: "bottom",
   },
   {
     id: "remap",
-    target: "[data-tutorial='remap-btn']",
+    target: "[data-tutorial='remap-tab']",
     title: "Remap a Device",
-    body: "Already have a device? Plug it in and click Remap Device to read its current key mappings and reassign them — no starting from scratch.",
-    position: "top",
-    tab: "configure",
+    body: "Already have a device? Click the Remap tab to read its current key mappings and reassign them — no starting from scratch.",
+    position: "bottom",
   },
   {
     id: "test-tab",
@@ -91,9 +89,10 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
 
 interface SpotRect { top: number; left: number; width: number; height: number; }
 
-function getRect(selector: string): SpotRect | null {
+function getRect(selector: string, scroll = false): SpotRect | null {
   const el = document.querySelector(selector);
   if (!el) return null;
+  if (scroll) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
   const r = el.getBoundingClientRect();
   return { top: r.top, left: r.left, width: r.width, height: r.height };
 }
@@ -243,10 +242,15 @@ export default function TutorialOverlay({
       setVisible(true);
       return;
     }
-    const r = getRect(step.target);
-    if (r) {
-      setRect(r);
-      setVisible(true);
+    const el = document.querySelector(step.target);
+    if (el) {
+      // Scroll into view, then re-measure after scroll settles
+      el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      setTimeout(() => {
+        const r2 = el.getBoundingClientRect();
+        setRect({ top: r2.top, left: r2.left, width: r2.width, height: r2.height });
+        setVisible(true);
+      }, 250);
     } else {
       // Retry — element might not be mounted yet
       rafRef.current = requestAnimationFrame(updateRect);
@@ -267,7 +271,7 @@ export default function TutorialOverlay({
   // Re-measure on resize/scroll
   useEffect(() => {
     if (!step.target) return;
-    const measure = () => { const r = getRect(step.target!); if (r) setRect(r); };
+    const measure = () => { const r = getRect(step.target!); if (r) setRect(r); }; // no scroll on resize
     window.addEventListener("resize", measure);
     window.addEventListener("scroll", measure, true);
     return () => {

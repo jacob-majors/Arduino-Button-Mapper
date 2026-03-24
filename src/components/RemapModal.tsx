@@ -197,11 +197,13 @@ export default function RemapModal({
   selectedPort,
   onClose,
   onUploadSketch,
+  inline = false,
 }: {
   backendUrl: string;
   selectedPort: string;
   onClose: () => void;
   onUploadSketch: (entries: RemapEntry[]) => void;
+  inline?: boolean;
 }) {
   const [phase, setPhase] = useState<"idle" | "connecting" | "reading" | "ready" | "error">("idle");
   const [error, setError] = useState("");
@@ -291,6 +293,180 @@ export default function RemapModal({
   const hasChanges = entries.some((e) => e.newKey !== e.arduinoKey);
   const supportsWebSerial = typeof navigator !== "undefined" && "serial" in navigator;
 
+  // ── Shared inner content ──────────────────────────────────────────────────
+  const innerContent = (
+    <>
+      {/* ── Tutorial ── */}
+      <div className="px-5 pt-5 pb-3">
+        <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-3">How it works</p>
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+          {STEPS.map((s) => (
+            <div key={s.n} className="bg-gray-800/60 border border-gray-700/60 rounded-xl p-3 flex flex-col gap-1.5">
+              <span className="text-lg">{s.icon}</span>
+              <p className="text-xs font-semibold text-gray-200 leading-snug">{s.title}</p>
+              <p className="text-[11px] text-gray-500 leading-relaxed">{s.body}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Browser compat warning ── */}
+      {!supportsWebSerial && (
+        <div className="mx-5 mb-3 flex items-start gap-2 p-3 bg-amber-950/40 border border-amber-700/40 rounded-xl">
+          <AlertCircle size={13} className="text-amber-400 mt-0.5 flex-shrink-0" />
+          <p className="text-xs text-amber-300">
+            Web Serial is only supported in <strong>Chrome</strong> or <strong>Edge</strong>. Please open this page in one of those browsers to use the Remap feature.
+          </p>
+        </div>
+      )}
+
+      {/* ── Connect button ── */}
+      <div className="px-5 pb-4">
+        <div className="flex items-center gap-3 p-4 bg-gray-800/50 border border-gray-700/60 rounded-xl">
+          <div className="w-9 h-9 rounded-xl bg-violet-600/20 border border-violet-500/30 flex items-center justify-center flex-shrink-0">
+            <Plug size={16} className="text-violet-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-gray-200">
+              {phase === "ready" ? "Device read successfully" : "Connect & Read Device"}
+            </p>
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              {phase === "ready"
+                ? `${entries.length} input${entries.length !== 1 ? "s" : ""} found — edit keys below`
+                : "Plug in your Arduino, then click to read its current mapping via serial"}
+            </p>
+          </div>
+          {phase === "ready" ? (
+            <CheckCircle2 size={18} className="text-emerald-400 flex-shrink-0" />
+          ) : (
+            <button
+              onClick={connectAndRead}
+              disabled={!supportsWebSerial || phase === "connecting" || phase === "reading"}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-600 hover:bg-violet-500 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+            >
+              {(phase === "connecting" || phase === "reading") ? (
+                <><Loader2 size={11} className="animate-spin" />{phase === "connecting" ? "Connecting…" : "Reading…"}</>
+              ) : (
+                <><Plug size={11} />Connect &amp; Read</>
+              )}
+            </button>
+          )}
+        </div>
+
+        {/* Error */}
+        {phase === "error" && (
+          <div className="mt-2 flex items-start gap-2 p-3 bg-red-950/40 border border-red-700/40 rounded-xl">
+            <AlertCircle size={13} className="text-red-400 mt-0.5 flex-shrink-0" />
+            <div>
+              <p className="text-xs text-red-300 font-medium">Connection failed</p>
+              <p className="text-[11px] text-red-400/80 mt-0.5">{error}</p>
+              <button onClick={connectAndRead} className="mt-1.5 text-[11px] text-red-400 hover:text-red-300 underline">Try again</button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Mapping table ── */}
+      {phase === "ready" && entries.length > 0 && (
+        <div className="px-5 pb-5">
+          <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">
+            Current Mapping — click any key to reassign
+          </p>
+          <div className="rounded-xl border border-gray-700/60 overflow-hidden">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="bg-gray-800/80 border-b border-gray-700/60">
+                  <th className="px-3 py-2 text-left text-[10px] text-gray-500 font-semibold uppercase tracking-wider w-1/3">Input</th>
+                  <th className="px-3 py-2 text-left text-[10px] text-gray-500 font-semibold uppercase tracking-wider w-16">Pin</th>
+                  <th className="px-3 py-2 text-left text-[10px] text-gray-500 font-semibold uppercase tracking-wider w-20">Type</th>
+                  <th className="px-3 py-2 text-left text-[10px] text-gray-500 font-semibold uppercase tracking-wider">Key</th>
+                  <th className="px-3 py-2 text-center text-[10px] text-gray-500 font-semibold uppercase tracking-wider w-16">Changed</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-800/60">
+                {entries.map((e) => (
+                  <tr key={e.id} className={e.newKey !== e.arduinoKey ? "bg-violet-950/20" : "hover:bg-gray-800/30 transition-colors"}>
+                    <td className="px-3 py-2 text-gray-300 font-medium truncate max-w-0 w-1/3">
+                      <span className="truncate block">{e.name}</span>
+                    </td>
+                    <td className="px-3 py-2 font-mono text-gray-500">{e.pin}</td>
+                    <td className="px-3 py-2"><TypeBadge type={e.type} /></td>
+                    <td className="px-3 py-2">
+                      <KeyCell
+                        entry={e}
+                        onChange={(k, d) => updateEntry(e.id, k, d)}
+                      />
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      {e.newKey !== e.arduinoKey ? (
+                        <span className="text-[10px] text-violet-400 font-semibold">
+                          {arduinoKeyDisplay(e.arduinoKey)} → {e.newDisplay}
+                        </span>
+                      ) : (
+                        <span className="text-gray-700">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Re-read button */}
+          <button
+            onClick={() => { setPhase("idle"); setEntries([]); }}
+            className="mt-2 text-[11px] text-gray-600 hover:text-gray-400 transition-colors flex items-center gap-1"
+          >
+            <RefreshCw size={9} /> Read device again
+          </button>
+        </div>
+      )}
+    </>
+  );
+
+  // ── Inline (tab) mode ─────────────────────────────────────────────────────
+  if (inline) {
+    return (
+      <div className="flex-1 overflow-hidden flex flex-col">
+        <div className="h-full max-w-[900px] mx-auto px-4 sm:px-6 py-4 w-full flex flex-col overflow-y-auto">
+          <div className="flex items-center gap-2.5 mb-4 flex-shrink-0">
+            <div className="w-7 h-7 rounded-lg bg-violet-600/30 border border-violet-500/40 flex items-center justify-center">
+              <RefreshCw size={13} className="text-violet-400" />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-gray-100">Remap Device</h2>
+              <p className="text-[11px] text-gray-500">Read and reassign key mappings from a connected Arduino</p>
+            </div>
+          </div>
+          <div className="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden flex flex-col flex-1">
+            <div className="flex-1 overflow-y-auto">
+              {innerContent}
+            </div>
+            {phase === "ready" && (
+              <div className="flex items-center justify-end px-5 py-3 border-t border-gray-800 flex-shrink-0">
+                <button
+                  onClick={() => onUploadSketch(entries)}
+                  disabled={!hasChanges}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold bg-violet-600 hover:bg-violet-500 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  <Upload size={13} />
+                  Upload Changes
+                  {hasChanges && (
+                    <span className="ml-1 bg-white/20 text-[10px] px-1.5 py-0.5 rounded-full">
+                      {entries.filter((e) => e.newKey !== e.arduinoKey).length} changed
+                    </span>
+                  )}
+                  <ChevronRight size={13} />
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Modal mode ────────────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 z-[400] flex items-center justify-center p-4" onClick={(ev) => ev.target === ev.currentTarget && onClose()}>
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
@@ -313,132 +489,7 @@ export default function RemapModal({
         </div>
 
         <div className="flex-1 overflow-y-auto">
-
-          {/* ── Tutorial ── */}
-          <div className="px-5 pt-5 pb-3">
-            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-3">How it works</p>
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-              {STEPS.map((s) => (
-                <div key={s.n} className="bg-gray-800/60 border border-gray-700/60 rounded-xl p-3 flex flex-col gap-1.5">
-                  <span className="text-lg">{s.icon}</span>
-                  <p className="text-xs font-semibold text-gray-200 leading-snug">{s.title}</p>
-                  <p className="text-[11px] text-gray-500 leading-relaxed">{s.body}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* ── Browser compat warning ── */}
-          {!supportsWebSerial && (
-            <div className="mx-5 mb-3 flex items-start gap-2 p-3 bg-amber-950/40 border border-amber-700/40 rounded-xl">
-              <AlertCircle size={13} className="text-amber-400 mt-0.5 flex-shrink-0" />
-              <p className="text-xs text-amber-300">
-                Web Serial is only supported in <strong>Chrome</strong> or <strong>Edge</strong>. Please open this page in one of those browsers to use the Remap feature.
-              </p>
-            </div>
-          )}
-
-          {/* ── Connect button ── */}
-          <div className="px-5 pb-4">
-            <div className="flex items-center gap-3 p-4 bg-gray-800/50 border border-gray-700/60 rounded-xl">
-              <div className="w-9 h-9 rounded-xl bg-violet-600/20 border border-violet-500/30 flex items-center justify-center flex-shrink-0">
-                <Plug size={16} className="text-violet-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-200">
-                  {phase === "ready" ? "Device read successfully" : "Connect & Read Device"}
-                </p>
-                <p className="text-[11px] text-gray-500 mt-0.5">
-                  {phase === "ready"
-                    ? `${entries.length} input${entries.length !== 1 ? "s" : ""} found — edit keys below`
-                    : "Plug in your Arduino, then click to read its current mapping via serial"}
-                </p>
-              </div>
-              {phase === "ready" ? (
-                <CheckCircle2 size={18} className="text-emerald-400 flex-shrink-0" />
-              ) : (
-                <button
-                  onClick={connectAndRead}
-                  disabled={!supportsWebSerial || phase === "connecting" || phase === "reading"}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-600 hover:bg-violet-500 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
-                >
-                  {(phase === "connecting" || phase === "reading") ? (
-                    <><Loader2 size={11} className="animate-spin" />{phase === "connecting" ? "Connecting…" : "Reading…"}</>
-                  ) : (
-                    <><Plug size={11} />Connect &amp; Read</>
-                  )}
-                </button>
-              )}
-            </div>
-
-            {/* Error */}
-            {phase === "error" && (
-              <div className="mt-2 flex items-start gap-2 p-3 bg-red-950/40 border border-red-700/40 rounded-xl">
-                <AlertCircle size={13} className="text-red-400 mt-0.5 flex-shrink-0" />
-                <div>
-                  <p className="text-xs text-red-300 font-medium">Connection failed</p>
-                  <p className="text-[11px] text-red-400/80 mt-0.5">{error}</p>
-                  <button onClick={connectAndRead} className="mt-1.5 text-[11px] text-red-400 hover:text-red-300 underline">Try again</button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* ── Mapping table ── */}
-          {phase === "ready" && entries.length > 0 && (
-            <div className="px-5 pb-5">
-              <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">
-                Current Mapping — click any key to reassign
-              </p>
-              <div className="rounded-xl border border-gray-700/60 overflow-hidden">
-                <table className="w-full text-xs">
-                  <thead>
-                    <tr className="bg-gray-800/80 border-b border-gray-700/60">
-                      <th className="px-3 py-2 text-left text-[10px] text-gray-500 font-semibold uppercase tracking-wider w-1/3">Input</th>
-                      <th className="px-3 py-2 text-left text-[10px] text-gray-500 font-semibold uppercase tracking-wider w-16">Pin</th>
-                      <th className="px-3 py-2 text-left text-[10px] text-gray-500 font-semibold uppercase tracking-wider w-20">Type</th>
-                      <th className="px-3 py-2 text-left text-[10px] text-gray-500 font-semibold uppercase tracking-wider">Key</th>
-                      <th className="px-3 py-2 text-center text-[10px] text-gray-500 font-semibold uppercase tracking-wider w-16">Changed</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-800/60">
-                    {entries.map((e) => (
-                      <tr key={e.id} className={e.newKey !== e.arduinoKey ? "bg-violet-950/20" : "hover:bg-gray-800/30 transition-colors"}>
-                        <td className="px-3 py-2 text-gray-300 font-medium truncate max-w-0 w-1/3">
-                          <span className="truncate block">{e.name}</span>
-                        </td>
-                        <td className="px-3 py-2 font-mono text-gray-500">{e.pin}</td>
-                        <td className="px-3 py-2"><TypeBadge type={e.type} /></td>
-                        <td className="px-3 py-2">
-                          <KeyCell
-                            entry={e}
-                            onChange={(k, d) => updateEntry(e.id, k, d)}
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-center">
-                          {e.newKey !== e.arduinoKey ? (
-                            <span className="text-[10px] text-violet-400 font-semibold">
-                              {arduinoKeyDisplay(e.arduinoKey)} → {e.newDisplay}
-                            </span>
-                          ) : (
-                            <span className="text-gray-700">—</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Re-read button */}
-              <button
-                onClick={() => { setPhase("idle"); setEntries([]); }}
-                className="mt-2 text-[11px] text-gray-600 hover:text-gray-400 transition-colors flex items-center gap-1"
-              >
-                <RefreshCw size={9} /> Read device again
-              </button>
-            </div>
-          )}
+          {innerContent}
         </div>
 
         {/* Footer */}

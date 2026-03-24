@@ -2036,7 +2036,7 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function Home() {
-  const [tab, setTab] = useState<"configure" | "test" | "info" | "admin">("configure");
+  const [tab, setTab] = useState<"configure" | "remap" | "test" | "info" | "admin">("configure");
   const [ports, setPorts] = useState<Port[]>([]);
   const [selectedPort, setSelectedPort] = useState("");
   const [buttons, setButtons] = useState<ButtonConfig[]>([
@@ -2673,12 +2673,13 @@ export default function Home() {
             <h1 className="text-sm font-bold text-gray-100 leading-none">Arduino Button Mapper</h1>
             <p className="text-[10px] text-gray-500 leading-none mt-0.5 hidden sm:block">Configure → Upload → Test</p>
           </div>
-          {/* Tutorial ? button */}
+          {/* Wiring icon button */}
           <button
-            onClick={() => setShowTutorial(true)}
-            title="Show tutorial"
-            className="w-6 h-6 rounded-full bg-gray-800 border border-gray-700 text-gray-500 hover:text-gray-200 hover:border-gray-500 text-xs font-bold transition-colors flex items-center justify-center flex-shrink-0"
-          >?</button>
+            onClick={() => setShowWiring(true)}
+            title="Wiring diagram"
+            data-tutorial="wiring-btn"
+            className="w-7 h-7 rounded-lg bg-gray-800 border border-gray-700 text-yellow-500 hover:text-yellow-300 hover:border-yellow-700/60 transition-colors flex items-center justify-center flex-shrink-0"
+          ><Zap size={13} /></button>
 
           {/* Auth + Save Switcher */}
           {authReady && (
@@ -2695,6 +2696,7 @@ export default function Home() {
                     {appUser.username}
                   </span>
                   <button onClick={handleSignOut} className="text-[10px] text-gray-600 hover:text-red-400 transition-colors ml-1">Sign out</button>
+                  <button onClick={() => setShowTutorial(true)} title="Show tutorial" className="text-[10px] text-gray-600 hover:text-gray-300 transition-colors ml-0.5">?</button>
                 </div>
               </div>
             ) : (
@@ -2715,6 +2717,7 @@ export default function Home() {
                 >
                   {loginLoading ? "…" : "Login / Join"}
                 </button>
+                <button onClick={() => setShowTutorial(true)} title="Show tutorial" className="text-[10px] text-gray-600 hover:text-gray-400 transition-colors">?</button>
               </form>
             )
           )}
@@ -2724,6 +2727,10 @@ export default function Home() {
               className={["flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
                 tab === "configure" ? "bg-gray-700 text-gray-100" : "text-gray-500 hover:text-gray-300"].join(" ")}
             ><Settings size={12} /> Configure</button>
+            <button onClick={() => setTab("remap")} data-tutorial="remap-tab"
+              className={["flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
+                tab === "remap" ? "bg-gray-700 text-gray-100" : "text-gray-500 hover:text-gray-300"].join(" ")}
+            ><RefreshCw size={12} /> Remap</button>
             <button onClick={() => setTab("test")} data-tutorial="test-tab"
               className={["flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
                 tab === "test" ? "bg-gray-700 text-gray-100" : "text-gray-500 hover:text-gray-300"].join(" ")}
@@ -2807,25 +2814,6 @@ export default function Home() {
             {/* Top bar: Get Code */}
             {adminSettings.show_upload && <section className="bg-gray-900 border border-gray-800 rounded-2xl px-4 py-3 flex-shrink-0">
               <div className="flex flex-wrap items-center gap-2">
-                <div className="flex items-center gap-1.5 mr-1">
-                  <Code size={13} className="text-green-400" />
-                  <span className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Get Code</span>
-                </div>
-                <button onClick={openSketch}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-semibold text-xs transition-all shadow-lg shadow-blue-900/30"
-                >
-                  <Code size={13} /> View &amp; Copy Sketch
-                </button>
-                <button onClick={() => setShowWiring(true)} data-tutorial="wiring-btn"
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-yellow-700/50 bg-yellow-950/30 hover:bg-yellow-900/30 text-xs text-yellow-300 hover:text-yellow-100 transition-all"
-                >
-                  <Zap size={13} /> Wiring
-                </button>
-                <button onClick={() => setShowRemap(true)} data-tutorial="remap-btn"
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-violet-700/50 bg-violet-950/30 hover:bg-violet-900/30 text-xs text-violet-300 hover:text-violet-100 transition-all"
-                >
-                  <RefreshCw size={13} /> Remap Device
-                </button>
                 <button onClick={() => handleWebSerialUpload(false)} disabled={wsUploading} data-tutorial="upload-btn"
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-green-700 to-teal-700 hover:from-green-600 hover:to-teal-600 disabled:opacity-50 text-white font-semibold text-xs transition-all"
                 >
@@ -2836,6 +2824,11 @@ export default function Home() {
                   className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-gray-700 bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-gray-400 hover:text-gray-200 text-xs transition-all"
                 >
                   <Usb size={12} /> Board <ChevronDown size={10} />
+                </button>
+                <button onClick={openSketch} title="View sketch code"
+                  className="flex items-center gap-1 px-2.5 py-2 rounded-xl border border-gray-700 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 text-xs transition-all"
+                >
+                  <Code size={12} />
                 </button>
                 <span className="text-[10px] text-gray-600 ml-auto hidden sm:block">Chrome / Edge only</span>
               </div>
@@ -3065,6 +3058,44 @@ export default function Home() {
           </div>
           </div>
         </div>
+      )}
+
+      {/* ══ REMAP TAB ══════════════════════════════════════════════════════ */}
+      {tab === "remap" && (
+        <RemapModal
+          inline
+          backendUrl={BACKEND_URL}
+          selectedPort={selectedPort}
+          onClose={() => setTab("configure")}
+          onUploadSketch={(remapEntries: RemapEntry[]) => {
+            setTab("configure");
+            const updatedButtons = buttons.map((b) => {
+              const entry = remapEntries.find((e) => (e.type === "button" || e.type === "port") && e.pin === `D${b.pin}` && e.arduinoKey === b.arduinoKey);
+              if (!entry || entry.newKey === entry.arduinoKey) return b;
+              return { ...b, arduinoKey: entry.newKey, keyDisplay: entry.newDisplay };
+            });
+            const updatedPorts = portInputs.map((p) => {
+              const entry = remapEntries.find((e) => (e.type === "button" || e.type === "port") && e.pin === `D${p.pin}` && e.arduinoKey === p.arduinoKey);
+              if (!entry || entry.newKey === entry.arduinoKey) return p;
+              return { ...p, arduinoKey: entry.newKey, keyDisplay: entry.newDisplay };
+            });
+            const updatedIr = irSensors.map((ir) => {
+              const entry = remapEntries.find((e) => e.type === "ir" && e.pin === `D${ir.pin}` && e.arduinoKey === ir.arduinoKey);
+              if (!entry || entry.newKey === entry.arduinoKey) return ir;
+              return { ...ir, arduinoKey: entry.newKey, keyDisplay: entry.newDisplay };
+            });
+            const updatedSp = sipPuffs.map((sp) => {
+              const entry = remapEntries.find((e) => e.type === "sipPuff" && e.pin === `D${sp.pin}` && e.arduinoKey === sp.key);
+              if (!entry || entry.newKey === entry.arduinoKey) return sp;
+              return { ...sp, key: entry.newKey, keyDisplay: entry.newDisplay };
+            });
+            setButtons(updatedButtons);
+            setPortInputs(updatedPorts);
+            setIrSensors(updatedIr);
+            setSipPuffs(updatedSp);
+            setTimeout(() => handleWebSerialUpload(false), 100);
+          }}
+        />
       )}
 
       {/* ══ TEST TAB ═══════════════════════════════════════════════════════ */}
@@ -3925,49 +3956,10 @@ export default function Home() {
             const key = `tutorial_v${adminSettings.tutorial_version ?? 0}_done`;
             localStorage.setItem(key, "1");
           }}
-          onTabChange={(t) => setTab(t as "configure" | "test" | "info" | "admin")}
+          onTabChange={(t) => setTab(t as "configure" | "remap" | "test" | "info" | "admin")}
         />
       )}
 
-      {/* Remap Device modal */}
-      {showRemap && (
-        <RemapModal
-          backendUrl={BACKEND_URL}
-          selectedPort={selectedPort}
-          onClose={() => setShowRemap(false)}
-          onUploadSketch={(remapEntries: RemapEntry[]) => {
-            // Apply remapped keys back onto the current config and re-upload
-            setShowRemap(false);
-            // Update buttons/ports
-            const updatedButtons = buttons.map((b) => {
-              const entry = remapEntries.find((e) => (e.type === "button" || e.type === "port") && e.pin === `D${b.pin}` && e.arduinoKey === b.arduinoKey);
-              if (!entry || entry.newKey === entry.arduinoKey) return b;
-              return { ...b, arduinoKey: entry.newKey, keyDisplay: entry.newDisplay };
-            });
-            const updatedPorts = portInputs.map((p) => {
-              const entry = remapEntries.find((e) => (e.type === "button" || e.type === "port") && e.pin === `D${p.pin}` && e.arduinoKey === p.arduinoKey);
-              if (!entry || entry.newKey === entry.arduinoKey) return p;
-              return { ...p, arduinoKey: entry.newKey, keyDisplay: entry.newDisplay };
-            });
-            const updatedIr = irSensors.map((ir) => {
-              const entry = remapEntries.find((e) => e.type === "ir" && e.pin === `D${ir.pin}` && e.arduinoKey === ir.arduinoKey);
-              if (!entry || entry.newKey === entry.arduinoKey) return ir;
-              return { ...ir, arduinoKey: entry.newKey, keyDisplay: entry.newDisplay };
-            });
-            const updatedSp = sipPuffs.map((sp) => {
-              const entry = remapEntries.find((e) => e.type === "sipPuff" && e.pin === `D${sp.pin}` && e.arduinoKey === sp.key);
-              if (!entry || entry.newKey === entry.arduinoKey) return sp;
-              return { ...sp, key: entry.newKey, keyDisplay: entry.newDisplay };
-            });
-            setButtons(updatedButtons);
-            setPortInputs(updatedPorts);
-            setIrSensors(updatedIr);
-            setSipPuffs(updatedSp);
-            // Trigger upload with updated values
-            setTimeout(() => handleWebSerialUpload(false), 100);
-          }}
-        />
-      )}
 
       {/* ── Floating Save Panel ─────────────────────────────────────────────── */}
       {appUser && (
