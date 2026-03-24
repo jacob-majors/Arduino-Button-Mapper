@@ -7,11 +7,11 @@ import { X, ChevronRight, ChevronLeft } from "lucide-react";
 
 export interface TutorialStep {
   id: string;
-  target: string | null;          // CSS selector, null = centred modal
+  target: string | null;
   title: string;
   body: string;
   position?: "top" | "bottom" | "left" | "right" | "center";
-  tab?: string;                   // switch to this tab before showing step
+  tab?: string;
 }
 
 export const TUTORIAL_STEPS: TutorialStep[] = [
@@ -43,7 +43,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     target: "[data-tutorial='upload-btn']",
     title: "Compile & Upload",
     body: "Once configured, plug in your Arduino and click this button. The app compiles your code and sends it to the board — no Arduino IDE needed.",
-    position: "top",
+    position: "bottom",
     tab: "configure",
   },
   {
@@ -85,19 +85,61 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
 ];
 
+// ─── Keyframe animations ──────────────────────────────────────────────────────
+
+function TutorialStyles() {
+  return (
+    <style>{`
+      @keyframes tutorialGlow {
+        0%, 100% {
+          box-shadow: 0 0 0 2px rgba(139,92,246,0.9),
+                      0 0 28px rgba(139,92,246,0.5),
+                      0 0 70px rgba(139,92,246,0.2);
+        }
+        50% {
+          box-shadow: 0 0 0 3px rgba(167,139,250,1),
+                      0 0 50px rgba(139,92,246,0.8),
+                      0 0 100px rgba(139,92,246,0.3);
+        }
+      }
+      @keyframes tutorialSpotPulse {
+        0%, 100% { opacity: 0.06; }
+        50%      { opacity: 0.18; }
+      }
+      @keyframes tutorialFadeSlide {
+        from { opacity: 0; transform: translateY(8px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes tutorialFadeSlideUp {
+        from { opacity: 0; transform: translateY(-8px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes tutorialScaleIn {
+        from { opacity: 0; transform: translate(-50%, -46%) scale(0.95); }
+        to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+      }
+      @keyframes tutorialPanelIn {
+        from { opacity: 0; }
+        to   { opacity: 1; }
+      }
+    `}</style>
+  );
+}
+
 // ─── Spotlight rect ───────────────────────────────────────────────────────────
 
 interface SpotRect { top: number; left: number; width: number; height: number; }
 
-function getRect(selector: string, scroll = false): SpotRect | null {
+function getRect(selector: string): SpotRect | null {
   const el = document.querySelector(selector);
   if (!el) return null;
-  if (scroll) el.scrollIntoView({ block: "nearest", behavior: "smooth" });
   const r = el.getBoundingClientRect();
   return { top: r.top, left: r.left, width: r.width, height: r.height };
 }
 
 // ─── Tooltip ──────────────────────────────────────────────────────────────────
+
+const TW = 320;
 
 function Tooltip({
   step, stepIndex, total, rect, padding,
@@ -107,107 +149,139 @@ function Tooltip({
   rect: SpotRect | null; padding: number;
   onNext: () => void; onPrev: () => void; onSkip: () => void;
 }) {
-  const isFirst = stepIndex === 0;
-  const isLast  = stepIndex === total - 1;
+  const isFirst    = stepIndex === 0;
+  const isLast     = stepIndex === total - 1;
   const isCentered = !rect || step.position === "center";
+  const progress   = total > 1 ? (stepIndex / (total - 1)) * 100 : 100;
 
-  // Tooltip width
-  const TW = 300;
-
-  let style: React.CSSProperties = {};
+  let posStyle: React.CSSProperties = {};
+  let anim = "tutorialFadeSlide";
 
   if (isCentered) {
-    style = {
+    posStyle = {
       position: "fixed",
       top: "50%",
       left: "50%",
       transform: "translate(-50%, -50%)",
       width: TW,
+      animation: "tutorialScaleIn 0.28s cubic-bezier(0.34,1.4,0.64,1) forwards",
     };
   } else if (rect) {
-    const PAD = padding + 12; // gap between spotlight and tooltip
+    const PAD = padding + 14;
     const cx  = rect.left + rect.width / 2;
     const pos = step.position ?? "bottom";
+    const left = Math.max(8, Math.min(cx - TW / 2, window.innerWidth - TW - 8));
 
     if (pos === "bottom") {
-      style = {
-        position: "fixed",
-        top:  rect.top + rect.height + PAD,
-        left: Math.max(8, Math.min(cx - TW / 2, window.innerWidth - TW - 8)),
-        width: TW,
-      };
+      anim = "tutorialFadeSlide";
+      posStyle = { position: "fixed", top: rect.top + rect.height + PAD, left, width: TW };
     } else if (pos === "top") {
-      style = {
-        position: "fixed",
-        bottom: window.innerHeight - rect.top + PAD,
-        left:   Math.max(8, Math.min(cx - TW / 2, window.innerWidth - TW - 8)),
-        width:  TW,
-      };
+      anim = "tutorialFadeSlideUp";
+      posStyle = { position: "fixed", bottom: window.innerHeight - rect.top + PAD, left, width: TW };
     } else if (pos === "right") {
-      style = {
-        position: "fixed",
-        top:  rect.top + rect.height / 2 - 60,
-        left: rect.left + rect.width + PAD,
-        width: TW,
-      };
+      posStyle = { position: "fixed", top: Math.max(8, rect.top + rect.height / 2 - 70), left: rect.left + rect.width + PAD, width: TW };
     } else {
-      style = {
-        position: "fixed",
-        top:   rect.top + rect.height / 2 - 60,
-        right: window.innerWidth - rect.left + PAD,
-        width: TW,
-      };
+      posStyle = { position: "fixed", top: Math.max(8, rect.top + rect.height / 2 - 70), right: window.innerWidth - rect.left + PAD, width: TW };
+    }
+
+    if (!posStyle.animation) {
+      posStyle.animation = `${anim} 0.22s ease-out forwards`;
     }
   }
 
   return (
-    <div
-      style={{ ...style, zIndex: 10002 }}
-      className="bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl p-4 flex flex-col gap-3"
-    >
-      {/* Progress dots */}
-      <div className="flex items-center gap-1.5">
-        {Array.from({ length: total }).map((_, i) => (
-          <div
-            key={i}
-            className={[
-              "rounded-full transition-all",
-              i === stepIndex ? "w-4 h-1.5 bg-violet-400" : "w-1.5 h-1.5 bg-gray-700",
-            ].join(" ")}
-          />
-        ))}
-        <span className="ml-auto text-[10px] text-gray-600">{stepIndex + 1} / {total}</span>
-      </div>
+    <div style={{ ...posStyle, zIndex: 10005 }} className="flex flex-col rounded-2xl shadow-2xl overflow-hidden">
+      {/* Gradient top bar */}
+      <div style={{ height: 2, background: "linear-gradient(90deg, #7c3aed, #a78bfa, #60a5fa)" }} />
 
-      {/* Content */}
-      <div>
-        <h3 className="text-sm font-semibold text-gray-100 mb-1">{step.title}</h3>
-        <p className="text-xs text-gray-400 leading-relaxed">{step.body}</p>
-      </div>
+      {/* Body */}
+      <div style={{
+        background: "rgba(10,7,24,0.97)",
+        border: "1px solid rgba(139,92,246,0.22)",
+        borderTop: "none",
+        borderRadius: "0 0 16px 16px",
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
+        padding: "14px 16px 14px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 12,
+      }}>
+        {/* Progress bar + counter */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ flex: 1, height: 3, borderRadius: 99, background: "rgba(55,40,90,0.7)", overflow: "hidden" }}>
+            <div style={{
+              height: "100%",
+              borderRadius: 99,
+              background: "linear-gradient(90deg, #7c3aed, #a78bfa)",
+              width: `${progress}%`,
+              transition: "width 0.35s cubic-bezier(0.4,0,0.2,1)",
+            }} />
+          </div>
+          <span style={{ fontSize: 10, color: "#6b7280", fontVariantNumeric: "tabular-nums" }}>{stepIndex + 1}/{total}</span>
+        </div>
 
-      {/* Buttons */}
-      <div className="flex items-center gap-2 pt-1">
-        <button
-          onClick={onSkip}
-          className="text-[11px] text-gray-600 hover:text-gray-400 transition-colors"
-        >
-          {isLast ? "Close" : "Skip tour"}
-        </button>
-        <div className="flex-1" />
-        {!isFirst && (
+        {/* Dots */}
+        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+          {Array.from({ length: total }).map((_, i) => (
+            <div key={i} style={{
+              height: 5,
+              width: i === stepIndex ? 18 : 5,
+              borderRadius: 99,
+              background: i === stepIndex
+                ? "linear-gradient(90deg,#7c3aed,#a78bfa)"
+                : i < stepIndex ? "rgba(124,58,237,0.4)" : "rgba(55,65,81,0.7)",
+              transition: "width 0.25s ease, background 0.25s ease",
+            }} />
+          ))}
+        </div>
+
+        {/* Text */}
+        <div>
+          <h3 style={{ fontSize: 13, fontWeight: 600, color: "#f9fafb", marginBottom: 5, lineHeight: 1.35 }}>{step.title}</h3>
+          <p style={{ fontSize: 12, color: "#9ca3af", lineHeight: 1.6, margin: 0 }}>{step.body}</p>
+        </div>
+
+        {/* Actions */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: 2 }}>
           <button
-            onClick={onPrev}
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors"
+            onClick={onSkip}
+            style={{ fontSize: 11, color: "#4b5563", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#9ca3af")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "#4b5563")}
           >
-            <ChevronLeft size={12} /> Back
+            {isLast ? "Close" : "Skip tour"}
           </button>
-        )}
-        <button
-          onClick={isLast ? onSkip : onNext}
-          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-600 hover:bg-violet-500 text-white transition-colors"
-        >
-          {isLast ? "Done" : "Next"} {!isLast && <ChevronRight size={12} />}
-        </button>
+          <div style={{ flex: 1 }} />
+          {!isFirst && (
+            <button
+              onClick={onPrev}
+              style={{
+                display: "flex", alignItems: "center", gap: 4, padding: "5px 10px",
+                borderRadius: 8, fontSize: 12, color: "#6b7280", background: "transparent",
+                border: "1px solid rgba(75,85,99,0.4)", cursor: "pointer", transition: "all 0.15s",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = "#e5e7eb"; e.currentTarget.style.borderColor = "rgba(139,92,246,0.4)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = "#6b7280"; e.currentTarget.style.borderColor = "rgba(75,85,99,0.4)"; }}
+            >
+              <ChevronLeft size={12} /> Back
+            </button>
+          )}
+          <button
+            onClick={isLast ? onSkip : onNext}
+            style={{
+              display: "flex", alignItems: "center", gap: 5, padding: "6px 14px",
+              borderRadius: 9, fontSize: 12, fontWeight: 600, color: "#fff", cursor: "pointer", border: "none",
+              background: "linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%)",
+              boxShadow: "0 2px 12px rgba(124,58,237,0.4)",
+              transition: "all 0.15s",
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.filter = "brightness(1.12)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.filter = "none"; }}
+          >
+            {isLast ? "Done" : "Next"} {!isLast && <ChevronRight size={12} />}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -215,7 +289,7 @@ function Tooltip({
 
 // ─── Main overlay ─────────────────────────────────────────────────────────────
 
-const PADDING = 8; // spotlight padding around target
+const PADDING = 10;
 
 export default function TutorialOverlay({
   steps = TUTORIAL_STEPS,
@@ -235,7 +309,6 @@ export default function TutorialOverlay({
 
   const step = steps[stepIndex];
 
-  // Switch tab if needed, then find the target element
   const updateRect = useCallback(() => {
     if (!step.target) {
       setRect(null);
@@ -244,7 +317,6 @@ export default function TutorialOverlay({
     }
     const el = document.querySelector(step.target);
     if (el) {
-      // Scroll into view, then re-measure after scroll settles
       el.scrollIntoView({ block: "nearest", behavior: "smooth" });
       setTimeout(() => {
         const r2 = el.getBoundingClientRect();
@@ -252,7 +324,6 @@ export default function TutorialOverlay({
         setVisible(true);
       }, 250);
     } else {
-      // Retry — element might not be mounted yet
       rafRef.current = requestAnimationFrame(updateRect);
     }
   }, [step.target]);
@@ -260,7 +331,6 @@ export default function TutorialOverlay({
   useEffect(() => {
     setVisible(false);
     if (step.tab && onTabChange) onTabChange(step.tab);
-    // Short delay for tab switch to render
     const t = setTimeout(updateRect, 80);
     return () => {
       clearTimeout(t);
@@ -268,10 +338,9 @@ export default function TutorialOverlay({
     };
   }, [stepIndex, step.tab, onTabChange, updateRect]);
 
-  // Re-measure on resize/scroll
   useEffect(() => {
     if (!step.target) return;
-    const measure = () => { const r = getRect(step.target!); if (r) setRect(r); }; // no scroll on resize
+    const measure = () => { const r = getRect(step.target!); if (r) setRect(r); };
     window.addEventListener("resize", measure);
     window.addEventListener("scroll", measure, true);
     return () => {
@@ -291,71 +360,79 @@ export default function TutorialOverlay({
   if (!visible) return null;
 
   const isCentered = !rect || step.position === "center";
+  const panelStyle: React.CSSProperties = {
+    position: "fixed", zIndex: 10000, pointerEvents: "none",
+    background: "rgba(3,0,14,0.84)",
+    backdropFilter: "blur(6px)",
+    WebkitBackdropFilter: "blur(6px)",
+    animation: "tutorialPanelIn 0.18s ease-out forwards",
+  };
 
   return (
     <>
-      {/* Dark overlay — either full-screen (centered) or with spotlight hole */}
+      <TutorialStyles />
+
       {isCentered ? (
         <div
-          className="fixed inset-0 bg-black/75 backdrop-blur-[2px]"
-          style={{ zIndex: 10000 }}
           onClick={onComplete}
+          style={{
+            position: "fixed", inset: 0, zIndex: 10000,
+            background: "rgba(3,0,14,0.88)",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+            animation: "tutorialPanelIn 0.18s ease-out forwards",
+          }}
         />
       ) : (
         <>
-          {/* 4 dark panels forming the "hole" around the target */}
-          {/* Top */}
-          <div style={{
-            position: "fixed", zIndex: 10000, pointerEvents: "none",
-            top: 0, left: 0, right: 0,
-            height: rect!.top - PADDING,
-            background: "rgba(0,0,0,0.75)",
-          }} />
-          {/* Bottom */}
-          <div style={{
-            position: "fixed", zIndex: 10000, pointerEvents: "none",
-            top: rect!.top + rect!.height + PADDING,
-            left: 0, right: 0, bottom: 0,
-            background: "rgba(0,0,0,0.75)",
-          }} />
-          {/* Left */}
-          <div style={{
-            position: "fixed", zIndex: 10000, pointerEvents: "none",
-            top: rect!.top - PADDING,
-            left: 0,
-            width: rect!.left - PADDING,
-            height: rect!.height + PADDING * 2,
-            background: "rgba(0,0,0,0.75)",
-          }} />
-          {/* Right */}
-          <div style={{
-            position: "fixed", zIndex: 10000, pointerEvents: "none",
-            top: rect!.top - PADDING,
-            left: rect!.left + rect!.width + PADDING,
-            right: 0,
-            height: rect!.height + PADDING * 2,
-            background: "rgba(0,0,0,0.75)",
-          }} />
-          {/* Glow ring around target */}
+          {/* 4 blurred panels */}
+          <div style={{ ...panelStyle, top: 0, left: 0, right: 0, height: Math.max(0, rect!.top - PADDING) }} />
+          <div style={{ ...panelStyle, top: rect!.top + rect!.height + PADDING, left: 0, right: 0, bottom: 0 }} />
+          <div style={{ ...panelStyle, top: rect!.top - PADDING, left: 0, width: Math.max(0, rect!.left - PADDING), height: rect!.height + PADDING * 2 }} />
+          <div style={{ ...panelStyle, top: rect!.top - PADDING, left: rect!.left + rect!.width + PADDING, right: 0, height: rect!.height + PADDING * 2 }} />
+
+          {/* Violet pulsing glow under the spotlight element */}
           <div style={{
             position: "fixed", zIndex: 10001, pointerEvents: "none",
-            top:    rect!.top    - PADDING - 2,
-            left:   rect!.left   - PADDING - 2,
-            width:  rect!.width  + PADDING * 2 + 4,
-            height: rect!.height + PADDING * 2 + 4,
-            borderRadius: 10,
-            boxShadow: "0 0 0 2px rgba(139,92,246,0.8), 0 0 20px rgba(139,92,246,0.4)",
+            top:    rect!.top    - PADDING,
+            left:   rect!.left   - PADDING,
+            width:  rect!.width  + PADDING * 2,
+            height: rect!.height + PADDING * 2,
+            borderRadius: 12,
+            background: "radial-gradient(ellipse at center, rgba(139,92,246,1) 0%, transparent 75%)",
+            animation: "tutorialSpotPulse 2s ease-in-out infinite",
+          }} />
+
+          {/* Animated glow ring */}
+          <div style={{
+            position: "fixed", zIndex: 10002, pointerEvents: "none",
+            top:    rect!.top    - PADDING - 1.5,
+            left:   rect!.left   - PADDING - 1.5,
+            width:  rect!.width  + PADDING * 2 + 3,
+            height: rect!.height + PADDING * 2 + 3,
+            borderRadius: 13,
+            animation: "tutorialGlow 2s ease-in-out infinite",
           }} />
         </>
       )}
 
-      {/* Skip X in corner */}
+      {/* X close button */}
       <button
         onClick={onComplete}
-        style={{ position: "fixed", top: 16, right: 16, zIndex: 10003 }}
-        className="p-2 rounded-xl bg-gray-900 border border-gray-700 text-gray-500 hover:text-gray-200 hover:bg-gray-800 transition-colors shadow-xl"
+        style={{
+          position: "fixed", top: 14, right: 14, zIndex: 10006,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          width: 28, height: 28, borderRadius: 8,
+          background: "rgba(10,7,24,0.9)",
+          border: "1px solid rgba(139,92,246,0.2)",
+          color: "#6b7280", cursor: "pointer",
+          backdropFilter: "blur(8px)",
+          transition: "all 0.15s",
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.color = "#e5e7eb"; e.currentTarget.style.borderColor = "rgba(139,92,246,0.5)"; }}
+        onMouseLeave={(e) => { e.currentTarget.style.color = "#6b7280"; e.currentTarget.style.borderColor = "rgba(139,92,246,0.2)"; }}
       >
-        <X size={14} />
+        <X size={13} />
       </button>
 
       <Tooltip
