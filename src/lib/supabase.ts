@@ -9,7 +9,7 @@ export const ADMIN_USERNAME = "jacob.majors";
 const ADMIN_USERNAMES = ["jacob.majors", "ramsey.musallam"];
 export const isAdmin = (username: string) => ADMIN_USERNAMES.includes(username);
 
-export type AppUser = { id: string; username: string; created_at?: string };
+export type AppUser = { id: string; username: string; created_at?: string; last_active_at?: string };
 
 export type UserConfig = {
   buttons: unknown[];
@@ -147,10 +147,17 @@ export async function updateAdminSettings(settings: Partial<AdminSettings>): Pro
     .eq("id", 1);
 }
 
+export async function updateLastActive(userId: string): Promise<void> {
+  await supabase
+    .from("app_users")
+    .update({ last_active_at: new Date().toISOString() })
+    .eq("id", userId);
+}
+
 export async function loadAllUsers(): Promise<AppUser[]> {
   const { data } = await supabase
     .from("app_users")
-    .select("id, username, created_at")
+    .select("id, username, created_at, last_active_at")
     .order("created_at", { ascending: false });
   return (data as AppUser[]) ?? [];
 }

@@ -40,6 +40,7 @@ import {
   loadDbTemplates,
   upsertDbTemplate,
   deleteDbTemplate,
+  updateLastActive,
 } from "@/lib/supabase";
 import type { SaveSlot, AppUser, AdminSettings, DinoScore, DbTemplate } from "@/lib/supabase";
 
@@ -2110,6 +2111,9 @@ export default function Home() {
   const [userSaveCounts, setUserSaveCounts] = useState<Record<string, number>>({});
   const [userSearch, setUserSearch] = useState("");
   const [adminSubTab, setAdminSubTab] = useState<"settings" | "users">("settings");
+  const [isOffline, setIsOffline] = useState(false);
+  const [arduinoDetected, setArduinoDetected] = useState(false);
+  const arduinoDetectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const logEndRef = useRef<HTMLDivElement>(null);
   const saveMenuRef = useRef<HTMLDivElement>(null);
@@ -2150,6 +2154,41 @@ export default function Home() {
     return () => document.removeEventListener("mousedown", h);
   }, [showPortMenu]);
 
+  useEffect(() => {
+    if (!showPortModal) return;
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") setShowPortModal(false); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [showPortModal]);
+
+  // ── Offline detection ────────────────────────────────────────────────────
+  useEffect(() => {
+    const goOffline = () => setIsOffline(true);
+    const goOnline  = () => setIsOffline(false);
+    window.addEventListener("offline", goOffline);
+    window.addEventListener("online",  goOnline);
+    return () => {
+      window.removeEventListener("offline", goOffline);
+      window.removeEventListener("online",  goOnline);
+    };
+  }, []);
+
+  // ── Serial port auto-detection banner ────────────────────────────────────
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const serial = (navigator as any).serial;
+    if (!serial) return;
+    const onConnect = () => {
+      setArduinoDetected(true);
+      if (arduinoDetectTimer.current) clearTimeout(arduinoDetectTimer.current);
+      arduinoDetectTimer.current = setTimeout(() => setArduinoDetected(false), 6000);
+    };
+    serial.addEventListener("connect", onConnect);
+    return () => {
+      serial.removeEventListener("connect", onConnect);
+      if (arduinoDetectTimer.current) clearTimeout(arduinoDetectTimer.current);
+    };
+  }, []);
 
   // ── Load shared setup from URL (?share=<id>) ────────────────────────────────
   useEffect(() => {
@@ -2180,6 +2219,7 @@ export default function Home() {
       if (stored) {
         const u = JSON.parse(stored) as AppUser;
         setAppUser(u);
+        updateLastActive(u.id).catch(() => {});
         loadAllSaves(u.id).then((allSaves) => {
           setSaves(allSaves);
           if (allSaves.length > 0) {
@@ -2280,6 +2320,7 @@ export default function Home() {
     setLoginLoading(true);
     const u = await loginOrCreate(loginUsername);
     if (u) {
+      updateLastActive(u.id).catch(() => {});
       localStorage.setItem("appUser", JSON.stringify(u));
       setAppUser(u);
       const allSaves = await loadAllSaves(u.id);
@@ -2770,6 +2811,31 @@ export default function Home() {
         </div>
       </header>
 
+      {/* Offline banner */}
+      {isOffline && (
+        <div className="flex-shrink-0 bg-gray-900 border-b border-gray-700 px-4 py-2 z-40">
+          <div className="max-w-[1400px] mx-auto flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-gray-500 flex-shrink-0" />
+            <p className="text-xs text-gray-400 flex-1">
+              <span className="font-semibold text-gray-300">You&apos;re offline.</span> Changes won&apos;t save until your connection is restored.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Arduino detected toast */}
+      {arduinoDetected && (
+        <div
+          className="fixed bottom-16 left-1/2 -translate-x-1/2 z-[400] flex items-center gap-2.5 px-4 py-2.5 rounded-2xl shadow-2xl"
+          style={{ background: "rgba(10,20,10,0.97)", border: "1px solid rgba(74,222,128,0.35)", backdropFilter: "blur(12px)" }}
+        >
+          <div className="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.9)] flex-shrink-0 animate-pulse" />
+          <span className="text-xs text-green-300 font-medium">Arduino detected</span>
+          <span className="text-xs text-gray-500">— click <span className="text-gray-300 font-semibold">Board</span> to select it</span>
+          <button onClick={() => setArduinoDetected(false)} className="ml-1 text-gray-600 hover:text-gray-400 transition-colors"><X size={12} /></button>
+        </div>
+      )}
+
       {/* Maintenance banner */}
       {adminSettings.maintenance_mode && appUser && !isAdmin(appUser.username) && (
         <div className="flex-shrink-0 bg-red-950/60 border-b border-red-800/50 px-4 py-2 z-40">
@@ -2810,7 +2876,7 @@ export default function Home() {
               <div className="max-w-[1400px] mx-auto flex items-center gap-3">
                 <span className="text-blue-400 flex-shrink-0 text-sm">👤</span>
                 <p className="text-xs text-blue-300 flex-1 min-w-0">
-                  You&apos;re using the app as a guest — everything works, but your setup won&apos;t be saved. Type your name (e.g. <span className="font-mono text-blue-200">john.doe</span>) in the top-right and click <span className="font-semibold">Login / Join</span> to save your config.
+                  You&apos;re using the app as a guest — everything works, but your setup won&apos;t be saved. Type your name (e.g. <span className="font-mono text-blue-200">troy.pappas</span>) in the top-right and click <span className="font-semibold">Login / Join</span> to save your config.
                 </p>
                 <div className="flex-shrink-0 text-[11px] text-blue-500 hidden sm:block">↑ top right</div>
               </div>
@@ -2842,18 +2908,69 @@ export default function Home() {
                 </button>
                 <span className="text-[10px] text-gray-600 ml-auto hidden sm:block">Chrome / Edge only</span>
               </div>
-              {wsLog.length > 0 && (
-                <div className="mt-2 bg-gray-950 border border-gray-800 rounded-xl p-2.5 max-h-32 overflow-y-auto">
-                  {wsLog.map((line, i) => (
-                    <p key={i} className={`text-[11px] font-mono whitespace-pre-wrap ${
-                      line.startsWith("✗") ? "text-red-400" :
-                      line.startsWith("✓") ? "text-green-400" :
-                      line.includes("failed") || line.includes("Failed") ? "text-red-400" :
-                      "text-gray-400"
-                    }`}>{line}</p>
-                  ))}
-                </div>
-              )}
+              {(wsUploading || wsLog.length > 0) && (() => {
+                const joined = wsLog.join("\n");
+                const failed = wsLog.some((l) => l.startsWith("✗") || l.toLowerCase().includes("failed") || l.toLowerCase().includes("error"));
+                const compileOk  = joined.includes("Compilation successful");
+                const connectOk  = joined.includes("Bootloader:");
+                const flashPct   = (() => {
+                  const m = [...joined.matchAll(/Writing… (\d+)%/g)];
+                  return m.length ? parseInt(m[m.length - 1][1]) : (connectOk ? 0 : null);
+                })();
+                const flashOk    = joined.includes("Upload complete");
+                const isCompiling  = !compileOk && !failed;
+                const isConnecting = compileOk && !connectOk && !failed;
+                const isFlashing   = connectOk && !flashOk && !failed;
+
+                const stages = [
+                  { key: "compile",  label: "Compile",    done: compileOk,  active: isCompiling  },
+                  { key: "connect",  label: "Connect",    done: connectOk,  active: isConnecting },
+                  { key: "flash",    label: "Flash",      done: flashOk,    active: isFlashing   },
+                ] as const;
+
+                return (
+                  <div className="mt-2 space-y-2">
+                    {/* Step pills */}
+                    <div className="flex items-center gap-1">
+                      {stages.map((s, i) => (
+                        <div key={s.key} className="flex items-center gap-1 flex-1">
+                          <div className={[
+                            "flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all flex-1 justify-center",
+                            s.done  ? "bg-green-900/40 border border-green-700/50 text-green-300" :
+                            s.active && !failed ? "bg-blue-900/40 border border-blue-700/50 text-blue-300" :
+                            failed && s.active ? "bg-red-900/40 border border-red-700/50 text-red-300" :
+                            "bg-gray-800/40 border border-gray-700/30 text-gray-600",
+                          ].join(" ")}>
+                            {s.done ? (
+                              <svg width="10" height="10" viewBox="0 0 10 10"><polyline points="1.5,5 4,7.5 8.5,2.5" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round"/></svg>
+                            ) : s.active && !failed ? (
+                              <Loader2 size={9} className="animate-spin" />
+                            ) : null}
+                            {s.label}
+                            {s.key === "flash" && s.active && flashPct !== null && ` ${flashPct}%`}
+                          </div>
+                          {i < stages.length - 1 && <div className={["w-3 h-px flex-shrink-0", s.done ? "bg-green-700/60" : "bg-gray-700/40"].join(" ")} />}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Flash progress bar */}
+                    {(isFlashing || flashOk) && flashPct !== null && (
+                      <div className="h-1 bg-gray-800 rounded-full overflow-hidden">
+                        <div className="h-full bg-gradient-to-r from-blue-600 to-teal-500 rounded-full transition-all duration-300"
+                          style={{ width: `${flashOk ? 100 : flashPct}%` }} />
+                      </div>
+                    )}
+
+                    {/* Latest log line */}
+                    {wsLog.length > 0 && (
+                      <p className={`text-[11px] font-mono truncate ${
+                        failed ? "text-red-400" : flashOk ? "text-green-400" : "text-gray-500"
+                      }`}>{wsLog[wsLog.length - 1]}</p>
+                    )}
+                  </div>
+                );
+              })()}
             </section>}
 
             {/* ── Board Templates ── */}
@@ -3046,9 +3163,9 @@ export default function Home() {
               </div>
 
               {/* Add input — centered icon pill buttons */}
-              <div className="mt-3 pt-3 border-t border-gray-800 flex-shrink-0" data-tutorial="add-input">
+              <div className="mt-3 pt-3 border-t border-gray-800 flex-shrink-0">
                 <p className="text-[10px] text-gray-600 uppercase tracking-wider font-semibold text-center mb-2">Add Input</p>
-                <div className="flex flex-wrap justify-center gap-2">
+                <div className="flex flex-wrap justify-center gap-2" data-tutorial="add-input">
                   {([
                     { type: "micro-switch",  label: "Micro Switch",  icon: <Keyboard size={13} />,  color: "hover:bg-blue-600/20 hover:border-blue-500/50 hover:text-blue-300"  },
                     { type: "joystick",      label: "Joystick",      icon: <Joystick size={13} />,  color: "hover:bg-violet-600/20 hover:border-violet-500/50 hover:text-violet-300" },
@@ -3558,6 +3675,18 @@ export default function Home() {
                             <div className="flex items-center gap-3 mt-0.5">
                               <span className="text-[11px] text-gray-600">{userSaveCounts[u.id] ?? "…"} saves</span>
                               {u.created_at && <span className="text-[11px] text-gray-700">Joined {new Date(u.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" })}</span>}
+                              {u.last_active_at && (
+                                <span className="text-[11px] text-gray-600">
+                                  Active {(() => {
+                                    const mins = Math.floor((Date.now() - new Date(u.last_active_at).getTime()) / 60000);
+                                    if (mins < 2) return "just now";
+                                    if (mins < 60) return `${mins}m ago`;
+                                    const hrs = Math.floor(mins / 60);
+                                    if (hrs < 24) return `${hrs}h ago`;
+                                    return `${Math.floor(hrs / 24)}d ago`;
+                                  })()}
+                                </span>
+                              )}
                             </div>
                           </div>
                           {/* Tutorial completion badge */}
