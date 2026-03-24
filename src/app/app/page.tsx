@@ -2908,9 +2908,9 @@ export default function Home() {
               <div className="max-w-[1400px] mx-auto flex items-center gap-3">
                 <span className="text-blue-400 flex-shrink-0 text-sm">👤</span>
                 <p className="text-xs text-blue-300 flex-1 min-w-0">
-                  You&apos;re using the app as a guest — everything works, but your setup won&apos;t be saved. Type your name (e.g. <span className="font-mono text-blue-200">troy.pappas</span>) in the top-right and click <span className="font-semibold">Login / Join</span> to save your config.
+                  You&apos;re using the app as a guest — everything works, but your setup won&apos;t be saved.{" "}
+                  <button onClick={() => setShowAuthModal(true)} className="underline font-semibold text-blue-200 hover:text-white transition-colors">Sign In</button> to save your config.
                 </p>
-                <div className="flex-shrink-0 text-[11px] text-blue-500 hidden sm:block">↑ top right</div>
               </div>
             </div>
           )}
@@ -3197,10 +3197,10 @@ export default function Home() {
               </div>
 
               {/* Add input — centered icon pill buttons */}
-              <div className="mt-3 pt-3 border-t border-gray-800 flex-shrink-0">
+              <div className="mt-3 pt-3 border-t border-gray-800 flex-shrink-0" data-tutorial="add-input">
                 <p className="text-[10px] text-gray-600 uppercase tracking-wider font-semibold text-center mb-2">Add Input</p>
                 <div className="flex justify-center">
-                <div className="inline-flex flex-wrap justify-center gap-2" data-tutorial="add-input">
+                <div className="inline-flex flex-wrap justify-center gap-2">
                   {([
                     { type: "micro-switch",  label: "Micro Switch",  icon: <Keyboard size={13} />,  color: "hover:bg-blue-600/20 hover:border-blue-500/50 hover:text-blue-300"  },
                     { type: "joystick",      label: "Joystick",      icon: <Joystick size={13} />,  color: "hover:bg-violet-600/20 hover:border-violet-500/50 hover:text-violet-300" },
