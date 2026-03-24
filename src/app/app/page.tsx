@@ -2830,6 +2830,7 @@ export default function Home() {
                 </button>
                 <button onClick={openPortMenu} disabled={wsUploading}
                   title="Select board / port"
+                  data-tutorial="board-btn"
                   className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-gray-700 bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-gray-400 hover:text-gray-200 text-xs transition-all"
                 >
                   <Usb size={12} /> Board <ChevronDown size={10} />
