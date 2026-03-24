@@ -19,7 +19,7 @@ import PongGame from "@/components/PongGame";
 import DeviceMockup from "@/components/DeviceMockup";
 import ControllerMockup from "@/components/ControllerMockup";
 import RemapModal, { type RemapEntry } from "@/components/RemapModal";
-import TutorialOverlay from "@/components/TutorialOverlay";
+import TutorialOverlay, { TUTORIAL_STEPS } from "@/components/TutorialOverlay";
 import { arduinoToBrowserKey } from "@/lib/keymap";
 import {
   supabase,
@@ -3046,9 +3046,9 @@ export default function Home() {
               </div>
 
               {/* Add input — centered icon pill buttons */}
-              <div className="mt-3 pt-3 border-t border-gray-800 flex-shrink-0">
+              <div className="mt-3 pt-3 border-t border-gray-800 flex-shrink-0" data-tutorial="add-input">
                 <p className="text-[10px] text-gray-600 uppercase tracking-wider font-semibold text-center mb-2">Add Input</p>
-                <div className="flex flex-wrap justify-center gap-2" data-tutorial="add-input">
+                <div className="flex flex-wrap justify-center gap-2">
                   {([
                     { type: "micro-switch",  label: "Micro Switch",  icon: <Keyboard size={13} />,  color: "hover:bg-blue-600/20 hover:border-blue-500/50 hover:text-blue-300"  },
                     { type: "joystick",      label: "Joystick",      icon: <Joystick size={13} />,  color: "hover:bg-violet-600/20 hover:border-violet-500/50 hover:text-violet-300" },
@@ -3904,6 +3904,7 @@ export default function Home() {
       {/* Interactive tutorial */}
       {showTutorial && (
         <TutorialOverlay
+          steps={TUTORIAL_STEPS.filter((s) => !(s.id === "save" && !appUser))}
           onComplete={() => {
             setShowTutorial(false);
             const key = `tutorial_v${adminSettings.tutorial_version ?? 0}_done`;

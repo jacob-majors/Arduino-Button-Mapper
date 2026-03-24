@@ -313,6 +313,7 @@ export default function TutorialOverlay({
   const [cardKey, setCardKey] = useState(0); // force tooltip re-mount per step
   const rafRef = useRef<number>(0);
   const stepTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const retryCount = useRef<number>(0);
 
   const step = steps[stepIndex];
 
@@ -325,6 +326,7 @@ export default function TutorialOverlay({
     }
     const el = document.querySelector(step.target);
     if (el) {
+      retryCount.current = 0;
       el.scrollIntoView({ block: "nearest", behavior: "smooth" });
       stepTimer.current = setTimeout(() => {
         const r = el.getBoundingClientRect();
@@ -332,14 +334,23 @@ export default function TutorialOverlay({
         setOpacity(1);
         setCardKey((k) => k + 1);
       }, 260);
-    } else {
+    } else if (retryCount.current < 30) {
+      retryCount.current += 1;
       rafRef.current = requestAnimationFrame(showStep);
+    } else {
+      // Element never appeared — skip this step
+      retryCount.current = 0;
+      setStepIndex((i) => {
+        const next = i + 1;
+        return next < steps.length ? next : i;
+      });
     }
-  }, [step.target]);
+  }, [step.target, steps.length]);
 
   useEffect(() => {
     // Fade out, switch tab, then re-position
     setOpacity(0);
+    retryCount.current = 0;
     if (step.tab && onTabChange) onTabChange(step.tab);
 
     // Small pause for fade-out + tab render, then show
