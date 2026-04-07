@@ -160,6 +160,8 @@ export async function compileAndUpload(
 
   // ── Step 3: 1200-baud touch (triggers Leonardo bootloader) ───────────────
   onProgress("Triggering bootloader (1200-baud touch)…");
+  // Snapshot ports before reset so we can detect the new bootloader port after
+  const portsBefore: unknown[] = await serial.getPorts().catch(() => []);
   try {
     await port.open({ baudRate: 1200 });
     await new Promise((r) => setTimeout(r, 300));
@@ -169,12 +171,25 @@ export async function compileAndUpload(
   }
 
   onProgress("Waiting for bootloader to enumerate…");
-  await new Promise((r) => setTimeout(r, 2800));
+  await new Promise((r) => setTimeout(r, 3200));
+
+  // After reset, Leonardo re-enumerates as a NEW USB device (different port path).
+  // Find whichever port appeared that wasn't there before — that's the bootloader.
+  const portsAfter: unknown[] = await serial.getPorts().catch(() => []);
+  const bootPort = portsAfter.find((p) => !portsBefore.includes(p)) ?? port;
+
+  if (portsAfter.length === 0) {
+    throw new Error(
+      "Board didn't re-enumerate after reset.\n" +
+      "Try pressing the reset button twice quickly to manually enter bootloader mode, then upload again."
+    );
+  }
 
   // ── Step 4: Re-open at 57600 for avr109 ──────────────────────────────────
   onProgress("Connecting to bootloader…");
   try {
-    await port.open({ baudRate: 57600, dataBits: 8, stopBits: 1, parity: "none" });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (bootPort as any).open({ baudRate: 57600, dataBits: 8, stopBits: 1, parity: "none" });
   } catch {
     throw new Error(
       "Could not connect to the bootloader after reset.\n" +
@@ -183,8 +198,10 @@ export async function compileAndUpload(
     );
   }
 
-  const writer = port.writable!.getWriter();
-  const reader = port.readable!.getReader();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const bp = bootPort as any;
+  const writer = bp.writable!.getWriter();
+  const reader = bp.readable!.getReader();
   const send = (b: number[]) => writer.write(new Uint8Array(b));
   const read = (n: number, t?: number) => readExact(reader, n, t);
   const readCR = async (label: string) => {
@@ -248,6 +265,6 @@ export async function compileAndUpload(
   } finally {
     try { reader.releaseLock(); } catch { /* ignore */ }
     try { writer.releaseLock(); } catch { /* ignore */ }
-    try { await port.close(); } catch { /* ignore */ }
+    try { await bp.close(); } catch { /* ignore */ }
   }
 }
