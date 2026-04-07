@@ -173,33 +173,53 @@ export async function compileAndUpload(
   onProgress("Waiting for bootloader to enumerate…");
   await new Promise((r) => setTimeout(r, 3200));
 
-  // After reset, Leonardo re-enumerates as a NEW USB device (different port path).
-  // Find whichever port appeared that wasn't there before — that's the bootloader.
+  // After reset the Leonardo re-enumerates. getPorts() only returns previously-granted
+  // ports, so the new bootloader device usually won't appear here — that's normal.
+  // Prefer a newly-appeared granted port; otherwise fall back to the original port object
+  // (on Mac/Linux the same handle reconnects fine after re-enumeration).
   const portsAfter: unknown[] = await serial.getPorts().catch(() => []);
-  const bootPort = portsAfter.find((p) => !portsBefore.includes(p)) ?? port;
-
-  if (portsAfter.length === 0) {
-    throw new Error(
-      "Board didn't re-enumerate after reset.\n" +
-      "Try pressing the reset button twice quickly to manually enter bootloader mode, then upload again."
-    );
-  }
+  const newPort = portsAfter.find((p) => !portsBefore.includes(p));
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let bp: any = newPort ?? port;
 
   // ── Step 4: Re-open at 57600 for avr109 ──────────────────────────────────
   onProgress("Connecting to bootloader…");
+  let openOk = false;
+  // First try: whatever port we picked (original or newly-appeared)
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await (bootPort as any).open({ baudRate: 57600, dataBits: 8, stopBits: 1, parity: "none" });
-  } catch {
-    throw new Error(
-      "Could not connect to the bootloader after reset.\n" +
-      "On Windows the COM port number changes after reset — click 'Change Port' to select the new one.\n" +
-      "On Mac/Linux, try clicking Compile & Upload again immediately."
-    );
+    await bp.open({ baudRate: 57600, dataBits: 8, stopBits: 1, parity: "none" });
+    openOk = true;
+  } catch { /* fall through to retry */ }
+
+  // Second try: scan all granted ports for one that just appeared (handles Windows COM renumber)
+  if (!openOk) {
+    const allPorts: unknown[] = await serial.getPorts().catch(() => []);
+    const candidate = allPorts.find((p) => !portsBefore.includes(p));
+    if (candidate && candidate !== bp) {
+      bp = candidate as any;
+      try {
+        await bp.open({ baudRate: 57600, dataBits: 8, stopBits: 1, parity: "none" });
+        openOk = true;
+      } catch { /* fall through */ }
+    }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const bp = bootPort as any;
+  // Last resort: ask the user to pick the bootloader port manually
+  if (!openOk) {
+    onProgress("Select the bootloader port in the browser dialog (it appears briefly after reset)…");
+    try {
+      bp = await serial.requestPort({ filters: [] });
+      await bp.open({ baudRate: 57600, dataBits: 8, stopBits: 1, parity: "none" });
+      openOk = true;
+    } catch {
+      throw new Error(
+        "Could not connect to the bootloader.\n" +
+        "① Make sure it's a data USB cable (not charge-only)\n" +
+        "② Try pressing the reset button twice quickly — the LED should pulse\n" +
+        "③ Then click Compile & Upload within 8 seconds"
+      );
+    }
+  }
   const writer = bp.writable!.getWriter();
   const reader = bp.readable!.getReader();
   const send = (b: number[]) => writer.write(new Uint8Array(b));
