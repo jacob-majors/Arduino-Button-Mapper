@@ -29,6 +29,22 @@ function pageAlign(data: Uint8Array): number {
 
 type Progress = (msg: string) => void;
 
+/** Open a serial port with a hard timeout so a dead port handle never hangs forever */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function openPort(port: any, options: Record<string, unknown>, timeoutMs = 4000): Promise<boolean> {
+  try {
+    await Promise.race([
+      port.open(options),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("timeout")), timeoutMs)
+      ),
+    ]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function readExact(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   n: number,
@@ -160,65 +176,64 @@ export async function compileAndUpload(
 
   // ── Step 3: 1200-baud touch (triggers Leonardo bootloader) ───────────────
   onProgress("Triggering bootloader (1200-baud touch)…");
-  // Snapshot ports before reset so we can detect the new bootloader port after
   const portsBefore: unknown[] = await serial.getPorts().catch(() => []);
-  try {
-    await port.open({ baudRate: 1200 });
-    await new Promise((r) => setTimeout(r, 300));
-    await port.close();
-  } catch {
-    // Some boards skip this step; continue anyway
-  }
+
+  // Open at 1200 baud — Leonardo treats this as "enter bootloader on close"
+  await openPort(port, { baudRate: 1200 }, 3000);
+  try { await port.close(); } catch { /* ignore */ }
 
   onProgress("Waiting for bootloader to enumerate…");
   await new Promise((r) => setTimeout(r, 3200));
 
-  // After reset the Leonardo re-enumerates. getPorts() only returns previously-granted
-  // ports, so the new bootloader device usually won't appear here — that's normal.
-  // Prefer a newly-appeared granted port; otherwise fall back to the original port object
-  // (on Mac/Linux the same handle reconnects fine after re-enumeration).
-  const portsAfter: unknown[] = await serial.getPorts().catch(() => []);
-  const newPort = portsAfter.find((p) => !portsBefore.includes(p));
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let bp: any = newPort ?? port;
-
-  // ── Step 4: Re-open at 57600 for avr109 ──────────────────────────────────
+  // ── Step 4: Connect to bootloader at 57600 ───────────────────────────────
+  // After reset the Leonardo re-enumerates as a NEW USB device.
+  // Web Serial's getPorts() only returns previously-granted ports so the new
+  // bootloader device usually won't show up — that's expected, not a bug.
+  // Strategy: try all candidate ports with a hard timeout on each open() so
+  // a dead/stale port handle never hangs forever. Fall back to requestPort()
+  // which shows a browser dialog where the user can pick "Arduino bootloader".
   onProgress("Connecting to bootloader…");
-  let openOk = false;
-  // First try: whatever port we picked (original or newly-appeared)
-  try {
-    await bp.open({ baudRate: 57600, dataBits: 8, stopBits: 1, parity: "none" });
-    openOk = true;
-  } catch { /* fall through to retry */ }
 
-  // Second try: scan all granted ports for one that just appeared (handles Windows COM renumber)
-  if (!openOk) {
-    const allPorts: unknown[] = await serial.getPorts().catch(() => []);
-    const candidate = allPorts.find((p) => !portsBefore.includes(p));
-    if (candidate && candidate !== bp) {
-      bp = candidate as any;
-      try {
-        await bp.open({ baudRate: 57600, dataBits: 8, stopBits: 1, parity: "none" });
-        openOk = true;
-      } catch { /* fall through */ }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let bp: any = null;
+  const flashOpts = { baudRate: 57600, dataBits: 8, stopBits: 1, parity: "none" };
+
+  // Try 1: any newly-appeared granted port (bootloader port was pre-granted)
+  const portsAfter: unknown[] = await serial.getPorts().catch(() => []);
+  const newlyAppeared = portsAfter.filter((p) => !portsBefore.includes(p));
+  for (const candidate of newlyAppeared) {
+    if (await openPort(candidate, flashOpts)) { bp = candidate; break; }
+  }
+
+  // Try 2: original port handle (on Mac/Linux often reconnects after re-enum)
+  if (!bp && await openPort(port, flashOpts)) { bp = port; }
+
+  // Try 3: any other already-granted port (Windows COM number may have changed)
+  if (!bp) {
+    const allGranted: unknown[] = await serial.getPorts().catch(() => []);
+    for (const candidate of allGranted) {
+      if (candidate === port) continue;
+      if (await openPort(candidate, flashOpts)) { bp = candidate; break; }
     }
   }
 
-  // Last resort: ask the user to pick the bootloader port manually
-  if (!openOk) {
-    onProgress("Select the bootloader port in the browser dialog (it appears briefly after reset)…");
+  // Try 4: ask the user — browser dialog shows the bootloader device by name
+  if (!bp) {
+    onProgress("Select the Arduino bootloader port in the browser dialog…");
     try {
-      bp = await serial.requestPort({ filters: [] });
-      await bp.open({ baudRate: 57600, dataBits: 8, stopBits: 1, parity: "none" });
-      openOk = true;
-    } catch {
-      throw new Error(
-        "Could not connect to the bootloader.\n" +
-        "① Make sure it's a data USB cable (not charge-only)\n" +
-        "② Try pressing the reset button twice quickly — the LED should pulse\n" +
-        "③ Then click Compile & Upload within 8 seconds"
-      );
-    }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const chosen: any = await serial.requestPort({ filters: [] });
+      if (await openPort(chosen, flashOpts)) bp = chosen;
+    } catch { /* user cancelled or failed */ }
+  }
+
+  if (!bp) {
+    throw new Error(
+      "Could not connect to the bootloader after reset.\n" +
+      "① Make sure it's a data USB cable (not charge-only)\n" +
+      "② Press the reset button TWICE quickly — the LED should pulse slowly\n" +
+      "③ Click Compile & Upload within 8 seconds of the double-press"
+    );
   }
   const writer = bp.writable!.getWriter();
   const reader = bp.readable!.getReader();
