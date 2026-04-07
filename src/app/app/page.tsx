@@ -283,17 +283,36 @@ function ButtonCard({ button, index, usedPins, onUpdate, onRemove, typeLabel, is
 }) {
   const availablePins = ALL_PINS.filter((p) => p === button.pin || !usedPins.includes(p));
   const isPort = typeLabel === "Port";
+  const isPower = button.mode === "power";
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
+  const ctxRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const h = (e: MouseEvent) => { if (!ctxRef.current?.contains(e.target as Node)) setCtxMenu(null); };
+    const k = (e: KeyboardEvent) => { if (e.key === "Escape") setCtxMenu(null); };
+    document.addEventListener("mousedown", h);
+    document.addEventListener("keydown", k);
+    return () => { document.removeEventListener("mousedown", h); document.removeEventListener("keydown", k); };
+  }, [ctxMenu]);
 
   return (
     <div
-      className={["border rounded-xl p-3 flex flex-col gap-2 transition-colors group cursor-pointer",
-        isSelected ? "bg-gray-800 border-blue-600/50" : "bg-gray-800/50 border-gray-700/80 hover:border-gray-600/80"
+      className={["border rounded-xl p-3 flex flex-col gap-2 transition-colors group cursor-pointer relative",
+        isPower
+          ? isSelected ? "bg-amber-950/50 border-amber-600/60" : "bg-amber-950/30 border-amber-800/50 hover:border-amber-700/60"
+          : isSelected ? "bg-gray-800 border-blue-600/50" : "bg-gray-800/50 border-gray-700/80 hover:border-gray-600/80"
       ].join(" ")}
       onClick={() => onSelect?.(isSelected ? null : button.id)}
+      onContextMenu={(e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY }); }}
     >
       {/* Header */}
       <div className="flex items-center gap-2">
-        {typeLabel && (
+        {isPower ? (
+          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 bg-amber-900/60 text-amber-400 border border-amber-700/60 flex items-center gap-1">
+            <Power size={8} /> Power
+          </span>
+        ) : typeLabel && (
           <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${
             isPort ? "bg-sky-900/60 text-sky-400 border border-sky-800/60" : "bg-blue-900/60 text-blue-400 border border-blue-800/60"
           }`}>{typeLabel}</span>
@@ -301,7 +320,7 @@ function ButtonCard({ button, index, usedPins, onUpdate, onRemove, typeLabel, is
         <input
           type="text" value={button.name}
           onChange={(e) => onUpdate(button.id, { name: e.target.value })}
-          placeholder={isPort ? `Port ${index + 1}` : `Input ${index + 1}`}
+          placeholder={isPower ? "Power Switch" : isPort ? `Port ${index + 1}` : `Input ${index + 1}`}
           className="flex-1 bg-transparent text-sm font-semibold text-gray-200 placeholder:text-gray-600 outline-none border-b border-transparent focus:border-gray-600 transition-colors min-w-0"
         />
         {(button.ledPin ?? -1) >= 0 && (
@@ -309,7 +328,7 @@ function ButtonCard({ button, index, usedPins, onUpdate, onRemove, typeLabel, is
             <Lightbulb size={8} /> D{button.ledPin}
           </span>
         )}
-        <button onClick={() => onRemove(button.id)}
+        <button onClick={(e) => { e.stopPropagation(); onRemove(button.id); }}
           className="p-1 rounded text-gray-700 hover:text-red-400 hover:bg-red-400/10 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0"
         ><Trash2 size={12} /></button>
       </div>
@@ -328,17 +347,24 @@ function ButtonCard({ button, index, usedPins, onUpdate, onRemove, typeLabel, is
         </div>
       </div>
 
-      {/* Key */}
-      <div className="flex gap-2 items-center">
-        <label className="text-[10px] text-gray-500 uppercase tracking-wider w-6 flex-shrink-0">Key</label>
-        <div className="flex-1">
-          <KeyCaptureInput
-            value={button.arduinoKey} display={button.keyDisplay}
-            onChange={(arduinoKey, keyDisplay) => onUpdate(button.id, { arduinoKey, keyDisplay })}
-            onClear={() => onUpdate(button.id, { arduinoKey: "", keyDisplay: "" })}
-          />
+      {/* Key — hidden for power switches, they don't send keys */}
+      {!isPower && (
+        <div className="flex gap-2 items-center">
+          <label className="text-[10px] text-gray-500 uppercase tracking-wider w-6 flex-shrink-0">Key</label>
+          <div className="flex-1">
+            <KeyCaptureInput
+              value={button.arduinoKey} display={button.keyDisplay}
+              onChange={(arduinoKey, keyDisplay) => onUpdate(button.id, { arduinoKey, keyDisplay })}
+              onClear={() => onUpdate(button.id, { arduinoKey: "", keyDisplay: "" })}
+            />
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Power mode description */}
+      {isPower && (
+        <p className="text-[10px] text-amber-600/70 pl-8">Toggles all other inputs on / off when pressed</p>
+      )}
 
       {isSelected && (
         <LedPanel
@@ -347,6 +373,41 @@ function ButtonCard({ button, index, usedPins, onUpdate, onRemove, typeLabel, is
           usedPins={usedPins}
           onUpdate={(pin, mode) => onUpdate(button.id, { ledPin: pin, ledMode: mode })}
         />
+      )}
+
+      {/* Right-click context menu */}
+      {ctxMenu && (
+        <div
+          ref={ctxRef}
+          onClick={(e) => e.stopPropagation()}
+          style={{ position: "fixed", top: ctxMenu.y, left: ctxMenu.x, zIndex: 9999 }}
+          className="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl py-1 min-w-[170px] overflow-hidden"
+        >
+          <div className="px-3 py-1.5 border-b border-gray-800">
+            <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">{button.name || (isPort ? `Port ${index + 1}` : `Input ${index + 1}`)}</p>
+          </div>
+          {isPower ? (
+            <button
+              className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-gray-800 flex items-center gap-2 transition-colors"
+              onClick={() => { onUpdate(button.id, { mode: "momentary" }); setCtxMenu(null); }}
+            >
+              <RotateCcw size={11} className="text-gray-500" /> Remove power mode
+            </button>
+          ) : (
+            <button
+              className="w-full text-left px-3 py-2 text-xs text-gray-300 hover:bg-amber-900/30 flex items-center gap-2 transition-colors"
+              onClick={() => { onUpdate(button.id, { mode: "power", arduinoKey: "", keyDisplay: "" }); setCtxMenu(null); }}
+            >
+              <Power size={11} className="text-amber-400" /> Make power switch
+            </button>
+          )}
+          <button
+            className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-red-900/20 flex items-center gap-2 transition-colors"
+            onClick={() => { onRemove(button.id); setCtxMenu(null); }}
+          >
+            <Trash2 size={11} /> Delete
+          </button>
+        </div>
       )}
     </div>
   );
