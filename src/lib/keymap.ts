@@ -94,6 +94,8 @@ export interface JoystickConfig {
   invertY: boolean;
   ledPin: number;        // -1 = no LED
   ledMode: "active" | "always";  // active = on while any axis moves or btn pressed
+  mouseMode?: boolean;   // true = move the mouse cursor instead of pressing keys
+  mouseSpeed?: number;   // 1–20, default 8 — pixels per loop at full deflection
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -321,7 +323,28 @@ const int irLedModes[${m}] = {${irLedModesArr}}; // 0=active 1=always` : ""}
       const xi = j.invertX ? `-(analogRead(JOY${i}_X) - 512)` : `analogRead(JOY${i}_X) - 512`;
       const yi = j.invertY ? `-(analogRead(JOY${i}_Y) - 512)` : `analogRead(JOY${i}_Y) - 512`;
       const hasBtn = j.buttonPin >= 0 && j.buttonKey;
-      joyLoop += `    { int x = ${xi}; int y = ${yi};
+      const isMouse = !!j.mouseMode;
+      const spd = j.mouseSpeed ?? 8;
+
+      if (isMouse) {
+        // Mouse mode: proportional Mouse.move() based on stick deflection
+        joyLoop += `    { int x = ${xi}; int y = ${yi};
+      int dx = (abs(x) > JOY${i}_DZ) ? (int)((long)x * ${spd} / 512) : 0;
+      int dy = (abs(y) > JOY${i}_DZ) ? (int)((long)y * ${spd} / 512) : 0;
+      if (dx != 0 || dy != 0) Mouse.move(dx, dy, 0);${(j.ledPin ?? -1) >= 0 ? `
+      if (JOY${i}_LED_MODE == 1) digitalWrite(JOY${i}_LED, HIGH);
+      else digitalWrite(JOY${i}_LED, (dx != 0 || dy != 0) ? HIGH : LOW);` : ""}${hasBtn ? `
+      // Click button → left mouse click
+      bool bs = digitalRead(JOY${i}_BTN);
+      if (bs != joy${i}BtnLast) { delay(20); bs = digitalRead(JOY${i}_BTN); }
+      if (bs != joy${i}BtnLast) {
+        if (bs == LOW) Mouse.press(MOUSE_LEFT); else Mouse.release(MOUSE_LEFT);
+        joy${i}BtnLast = bs;
+      }` : ""}
+    }\n`;
+      } else {
+        // Key mode: digital press/release per direction
+        joyLoop += `    { int x = ${xi}; int y = ${yi};
       // Y axis
       if (y < -JOY${i}_DZ) {
         if (!joy${i}U && JOY${i}_UP   != 0) { Keyboard.press(JOY${i}_UP);   joy${i}U=true; }
@@ -354,6 +377,7 @@ const int irLedModes[${m}] = {${irLedModesArr}}; // 0=active 1=always` : ""}
         joy${i}BtnLast = bs;
       }` : ""}
     }\n`;
+      }
     });
     joyLoop += `  }`;
   }
@@ -466,7 +490,9 @@ void checkSerial() {
   }
 }`;
 
-  return `${headerComment}#include <Keyboard.h>
+  const hasMouseJoy = joysticks.some((j) => j.mouseMode);
+
+  return `${headerComment}#include <Keyboard.h>${hasMouseJoy ? "\n#include <Mouse.h>" : ""}
 ${btnSection}
 bool systemActive = true;
 ${ledSection}${irGlobals}${spGlobals}${joyGlobals}${remapSection}
@@ -474,7 +500,7 @@ void setup() {
   Serial.begin(9600);
 ${allSetupParts.join("\n")}
   updateLEDs();
-  Keyboard.begin();
+  Keyboard.begin();${hasMouseJoy ? "\n  Mouse.begin();" : ""}
 }
 
 void loop() {

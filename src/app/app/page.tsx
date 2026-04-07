@@ -942,21 +942,54 @@ function JoystickCard({ joy, index, usedPins, usedAnalogPins, onUpdate, onRemove
           ].join(" ")}>Inv Y</button>
       </div>
 
-      {/* Direction keys */}
-      <div className="grid grid-cols-2 gap-1.5">
-        {dirs.map(({ label, key, display }) => (
-          <div key={String(key)} className="flex items-center gap-1.5">
-            <span className="text-[10px] text-violet-400 font-mono w-12 flex-shrink-0">{label}</span>
-            <div className="flex-1">
-              <KeyCaptureInput
-                value={joy[key] as string} display={joy[display] as string}
-                onChange={(k, d) => onUpdate(joy.id, { [key]: k, [display]: d })}
-                onClear={() => onUpdate(joy.id, { [key]: "", [display]: "" })}
-              />
+      {/* Direction keys — hidden in mouse mode */}
+      {!joy.mouseMode && (
+        <div className="grid grid-cols-2 gap-1.5">
+          {dirs.map(({ label, key, display }) => (
+            <div key={String(key)} className="flex items-center gap-1.5">
+              <span className="text-[10px] text-violet-400 font-mono w-12 flex-shrink-0">{label}</span>
+              <div className="flex-1">
+                <KeyCaptureInput
+                  value={joy[key] as string} display={joy[display] as string}
+                  onChange={(k, d) => onUpdate(joy.id, { [key]: k, [display]: d })}
+                  onClear={() => onUpdate(joy.id, { [key]: "", [display]: "" })}
+                />
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
+      )}
+
+      {/* Mouse mode toggle */}
+      <div className="flex items-center gap-2 pl-1 pt-1 border-t border-violet-900/40">
+        <span className="text-[10px] text-gray-500 uppercase tracking-wider w-16 flex-shrink-0">Mode</span>
+        <div className="flex rounded-lg overflow-hidden border border-gray-700">
+          <button
+            onClick={() => onUpdate(joy.id, { mouseMode: false })}
+            className={["px-3 py-1.5 text-[10px] font-medium transition-colors flex items-center gap-1",
+              !joy.mouseMode ? "bg-violet-700 text-white" : "bg-gray-900 text-gray-500 hover:text-gray-300"
+            ].join(" ")}
+          ><Keyboard size={9} /> Keys</button>
+          <button
+            onClick={() => onUpdate(joy.id, { mouseMode: true })}
+            className={["px-3 py-1.5 text-[10px] font-medium transition-colors flex items-center gap-1",
+              joy.mouseMode ? "bg-violet-700 text-white" : "bg-gray-900 text-gray-500 hover:text-gray-300"
+            ].join(" ")}
+          ><Minimize2 size={9} /> Mouse</button>
+        </div>
       </div>
+
+      {/* Mouse speed slider — only when mouse mode */}
+      {joy.mouseMode && (
+        <div className="flex items-center gap-2 pl-1">
+          <span className="text-[10px] text-gray-500 uppercase tracking-wider w-16 flex-shrink-0">Speed</span>
+          <input type="range" min={1} max={20} value={joy.mouseSpeed ?? 8}
+            onChange={(e) => onUpdate(joy.id, { mouseSpeed: parseInt(e.target.value) })}
+            className="flex-1 accent-violet-500 h-1"
+          />
+          <span className="text-[10px] text-gray-500 font-mono w-8 text-right">{joy.mouseSpeed ?? 8}</span>
+        </div>
+      )}
 
       {/* Deadzone slider */}
       <div className="flex items-center gap-2 pl-1">
