@@ -1014,12 +1014,26 @@ function JoystickCard({ joy, index, usedPins, usedAnalogPins, onUpdate, onRemove
           <ChevronDown size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
         </div>
         {joy.buttonPin >= 0 && (
-          <div className="flex-1">
-            <KeyCaptureInput value={joy.buttonKey} display={joy.buttonDisplay}
-              onChange={(k, d) => onUpdate(joy.id, { buttonKey: k, buttonDisplay: d })}
-              onClear={() => onUpdate(joy.id, { buttonKey: "", buttonDisplay: "" })}
-            />
-          </div>
+          joy.mouseMode ? (
+            /* Mouse mode: pick which mouse button */
+            <div className="flex rounded-lg overflow-hidden border border-gray-700 flex-1">
+              {(["left", "middle", "right"] as const).map((btn) => (
+                <button key={btn}
+                  onClick={() => onUpdate(joy.id, { mouseClickBtn: btn })}
+                  className={["flex-1 py-1.5 text-[10px] font-medium transition-colors capitalize",
+                    (joy.mouseClickBtn ?? "left") === btn ? "bg-violet-700 text-white" : "bg-gray-900 text-gray-500 hover:text-gray-300"
+                  ].join(" ")}
+                >{btn}</button>
+              ))}
+            </div>
+          ) : (
+            <div className="flex-1">
+              <KeyCaptureInput value={joy.buttonKey} display={joy.buttonDisplay}
+                onChange={(k, d) => onUpdate(joy.id, { buttonKey: k, buttonDisplay: d })}
+                onClear={() => onUpdate(joy.id, { buttonKey: "", buttonDisplay: "" })}
+              />
+            </div>
+          )
         )}
       </div>
       <WiringPanel

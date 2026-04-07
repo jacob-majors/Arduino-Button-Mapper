@@ -96,6 +96,7 @@ export interface JoystickConfig {
   ledMode: "active" | "always";  // active = on while any axis moves or btn pressed
   mouseMode?: boolean;   // true = move the mouse cursor instead of pressing keys
   mouseSpeed?: number;   // 1–20, default 8 — pixels per loop at full deflection
+  mouseClickBtn?: "left" | "right" | "middle"; // which mouse button the click pin fires
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -327,6 +328,7 @@ const int irLedModes[${m}] = {${irLedModesArr}}; // 0=active 1=always` : ""}
       const spd = j.mouseSpeed ?? 8;
 
       if (isMouse) {
+        const mouseBtn = j.mouseClickBtn === "right" ? "MOUSE_RIGHT" : j.mouseClickBtn === "middle" ? "MOUSE_MIDDLE" : "MOUSE_LEFT";
         // Mouse mode: proportional Mouse.move() based on stick deflection
         joyLoop += `    { int x = ${xi}; int y = ${yi};
       int dx = (abs(x) > JOY${i}_DZ) ? (int)((long)x * ${spd} / 512) : 0;
@@ -334,11 +336,11 @@ const int irLedModes[${m}] = {${irLedModesArr}}; // 0=active 1=always` : ""}
       if (dx != 0 || dy != 0) Mouse.move(dx, dy, 0);${(j.ledPin ?? -1) >= 0 ? `
       if (JOY${i}_LED_MODE == 1) digitalWrite(JOY${i}_LED, HIGH);
       else digitalWrite(JOY${i}_LED, (dx != 0 || dy != 0) ? HIGH : LOW);` : ""}${hasBtn ? `
-      // Click button → left mouse click
+      // Click button → ${mouseBtn}
       bool bs = digitalRead(JOY${i}_BTN);
       if (bs != joy${i}BtnLast) { delay(20); bs = digitalRead(JOY${i}_BTN); }
       if (bs != joy${i}BtnLast) {
-        if (bs == LOW) Mouse.press(MOUSE_LEFT); else Mouse.release(MOUSE_LEFT);
+        if (bs == LOW) Mouse.press(${mouseBtn}); else Mouse.release(${mouseBtn});
         joy${i}BtnLast = bs;
       }` : ""}
     }\n`;
