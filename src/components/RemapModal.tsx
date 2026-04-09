@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import {
   X, Plug, RefreshCw, Upload, ChevronRight, Keyboard,
-  CheckCircle2, AlertCircle, Loader2, Radio, Joystick, Wind,
+  CheckCircle2, AlertCircle, Loader2, Radio, Joystick, Wind, Save,
 } from "lucide-react";
 import { resolveKey, arduinoToBrowserKey } from "@/lib/keymap";
 
@@ -124,14 +124,20 @@ function KeyCell({ entry, onChange }: { entry: RemapEntry; onChange: (newKey: st
     if (!capturing) return;
     const handler = (e: KeyboardEvent) => {
       e.preventDefault();
+      e.stopImmediatePropagation();
+      if (e.key === "Escape") {
+        setCapturing(false);
+        return;
+      }
       const resolved = resolveKey(e);
       if (resolved) {
         onChange(resolved.arduino, resolved.display);
         setCapturing(false);
       }
     };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    // Use capture phase so this runs before the modal's Escape-to-close handler
+    window.addEventListener("keydown", handler, true);
+    return () => window.removeEventListener("keydown", handler, true);
   }, [capturing, onChange]);
 
   return (
@@ -198,17 +204,20 @@ export default function RemapModal({
   selectedPort,
   onClose,
   onUploadSketch,
+  onSave,
   inline = false,
 }: {
   backendUrl: string;
   selectedPort: string;
   onClose: () => void;
   onUploadSketch: (entries: RemapEntry[]) => void;
+  onSave?: (entries: RemapEntry[]) => void;
   inline?: boolean;
 }) {
   const [phase, setPhase] = useState<"idle" | "connecting" | "reading" | "ready" | "error">("idle");
   const [error, setError] = useState("");
   const [entries, setEntries] = useState<RemapEntry[]>([]);
+  const [savedConfirm, setSavedConfirm] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const portRef = useRef<any>(null);
 
@@ -444,7 +453,15 @@ export default function RemapModal({
               {innerContent}
             </div>
             {phase === "ready" && (
-              <div className="flex items-center justify-end px-5 py-3 border-t border-gray-800 flex-shrink-0">
+              <div className="flex items-center justify-between px-5 py-3 border-t border-gray-800 flex-shrink-0">
+                {onSave ? (
+                  <button
+                    onClick={() => { onSave(entries); setSavedConfirm(true); setTimeout(() => setSavedConfirm(false), 2500); }}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-medium border border-gray-600 text-gray-300 hover:text-white hover:border-gray-400 transition-colors"
+                  >
+                    {savedConfirm ? <><CheckCircle2 size={12} className="text-emerald-400" /> Saved!</> : <><Save size={12} /> Save Setup</>}
+                  </button>
+                ) : <span />}
                 <button
                   onClick={() => onUploadSketch(entries)}
                   disabled={!hasChanges}

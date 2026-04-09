@@ -3338,6 +3338,43 @@ export default function Home() {
           backendUrl={BACKEND_URL}
           selectedPort={selectedPort}
           onClose={() => setTab("configure")}
+          onSave={(remapEntries: RemapEntry[]) => {
+            const applyRemap = (entries: RemapEntry[]) => {
+              setButtons((prev) => prev.map((b) => {
+                const e = entries.find((e) => (e.type === "button" || e.type === "port") && e.pin === `D${b.pin}` && e.arduinoKey === b.arduinoKey);
+                return e && e.newKey !== e.arduinoKey ? { ...b, arduinoKey: e.newKey, keyDisplay: e.newDisplay } : b;
+              }));
+              setPortInputs((prev) => prev.map((p) => {
+                const e = entries.find((e) => (e.type === "button" || e.type === "port") && e.pin === `D${p.pin}` && e.arduinoKey === p.arduinoKey);
+                return e && e.newKey !== e.arduinoKey ? { ...p, arduinoKey: e.newKey, keyDisplay: e.newDisplay } : p;
+              }));
+              setIrSensors((prev) => prev.map((ir) => {
+                const e = entries.find((e) => e.type === "ir" && e.pin === `D${ir.pin}` && e.arduinoKey === ir.arduinoKey);
+                return e && e.newKey !== e.arduinoKey ? { ...ir, arduinoKey: e.newKey, keyDisplay: e.newDisplay } : ir;
+              }));
+              setSipPuffs((prev) => prev.map((sp) => {
+                const e = entries.find((e) => e.type === "sipPuff" && e.pin === `D${sp.pin}` && e.arduinoKey === sp.key);
+                return e && e.newKey !== e.arduinoKey ? { ...sp, key: e.newKey, keyDisplay: e.newDisplay } : sp;
+              }));
+              setJoysticks((prev) => prev.map((j) => {
+                const pin = `A${j.xPin}`;
+                const up    = entries.find((e) => e.type === "joystick-up"    && e.pin === pin && e.arduinoKey === j.upKey);
+                const down  = entries.find((e) => e.type === "joystick-down"  && e.pin === pin && e.arduinoKey === j.downKey);
+                const left  = entries.find((e) => e.type === "joystick-left"  && e.pin === pin && e.arduinoKey === j.leftKey);
+                const right = entries.find((e) => e.type === "joystick-right" && e.pin === pin && e.arduinoKey === j.rightKey);
+                const btn   = entries.find((e) => e.type === "joystick-btn"   && e.pin === pin && e.arduinoKey === j.buttonKey);
+                return {
+                  ...j,
+                  ...(up    && up.newKey    !== up.arduinoKey    ? { upKey:     up.newKey,    upDisplay:     up.newDisplay }    : {}),
+                  ...(down  && down.newKey  !== down.arduinoKey  ? { downKey:   down.newKey,  downDisplay:   down.newDisplay }  : {}),
+                  ...(left  && left.newKey  !== left.arduinoKey  ? { leftKey:   left.newKey,  leftDisplay:   left.newDisplay }  : {}),
+                  ...(right && right.newKey !== right.arduinoKey ? { rightKey:  right.newKey, rightDisplay:  right.newDisplay } : {}),
+                  ...(btn   && btn.newKey   !== btn.arduinoKey   ? { buttonKey: btn.newKey,   buttonDisplay: btn.newDisplay }   : {}),
+                };
+              }));
+            };
+            applyRemap(remapEntries);
+          }}
           onUploadSketch={(remapEntries: RemapEntry[]) => {
             setTab("configure");
             const updatedButtons = buttons.map((b) => {
@@ -3360,10 +3397,27 @@ export default function Home() {
               if (!entry || entry.newKey === entry.arduinoKey) return sp;
               return { ...sp, key: entry.newKey, keyDisplay: entry.newDisplay };
             });
+            const updatedJoysticks = joysticks.map((j) => {
+              const pin = `A${j.xPin}`;
+              const up    = remapEntries.find((e) => e.type === "joystick-up"    && e.pin === pin && e.arduinoKey === j.upKey);
+              const down  = remapEntries.find((e) => e.type === "joystick-down"  && e.pin === pin && e.arduinoKey === j.downKey);
+              const left  = remapEntries.find((e) => e.type === "joystick-left"  && e.pin === pin && e.arduinoKey === j.leftKey);
+              const right = remapEntries.find((e) => e.type === "joystick-right" && e.pin === pin && e.arduinoKey === j.rightKey);
+              const btn   = remapEntries.find((e) => e.type === "joystick-btn"   && e.pin === pin && e.arduinoKey === j.buttonKey);
+              return {
+                ...j,
+                ...(up    && up.newKey    !== up.arduinoKey    ? { upKey:     up.newKey,    upDisplay:     up.newDisplay }    : {}),
+                ...(down  && down.newKey  !== down.arduinoKey  ? { downKey:   down.newKey,  downDisplay:   down.newDisplay }  : {}),
+                ...(left  && left.newKey  !== left.arduinoKey  ? { leftKey:   left.newKey,  leftDisplay:   left.newDisplay }  : {}),
+                ...(right && right.newKey !== right.arduinoKey ? { rightKey:  right.newKey, rightDisplay:  right.newDisplay } : {}),
+                ...(btn   && btn.newKey   !== btn.arduinoKey   ? { buttonKey: btn.newKey,   buttonDisplay: btn.newDisplay }   : {}),
+              };
+            });
             setButtons(updatedButtons);
             setPortInputs(updatedPorts);
             setIrSensors(updatedIr);
             setSipPuffs(updatedSp);
+            setJoysticks(updatedJoysticks);
             setTimeout(() => handleWebSerialUpload(false), 100);
           }}
         />
