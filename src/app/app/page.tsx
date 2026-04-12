@@ -413,56 +413,270 @@ function ButtonCard({ button, index, usedPins, onUpdate, onRemove, typeLabel, is
   );
 }
 
-// ─── Sketch Modal ─────────────────────────────────────────────────────────────
+// ─── IDE Modal ────────────────────────────────────────────────────────────────
 
-function SketchModal({ code, onClose }: { code: string; onClose: () => void }) {
+interface AIMessage { role: "user" | "assistant"; content: string }
+
+function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose }: {
+  originalCode: string;
+  editedCode: string;
+  onCodeUpdate: (code: string) => void;
+  onClose: () => void;
+}) {
+  const [showAIChat, setShowAIChat] = useState(false);
+  const [messages, setMessages] = useState<AIMessage[]>([]);
+  const [userInput, setUserInput] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [apiKey, setApiKey] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("gemini_api_key") ?? "";
+    return "";
+  });
+  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [showDiff, setShowDiff] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const isModified = editedCode !== originalCode;
+
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
   }, [onClose]);
 
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const isClaudeKey = apiKey.startsWith("sk-ant-");
+  const provider = isClaudeKey ? "Claude" : apiKey.startsWith("AIza") ? "Gemini" : apiKey ? "Gemini" : null;
+
+  const saveApiKey = (key: string) => {
+    localStorage.setItem("gemini_api_key", key);
+    setApiKey(key);
+  };
+
   const copy = () => {
-    navigator.clipboard.writeText(code).then(() => {
+    navigator.clipboard.writeText(editedCode).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
   };
+
+  const sendToAI = async () => {
+    if (!userInput.trim() || aiLoading) return;
+    if (!apiKey) { setShowApiKeyInput(true); return; }
+    const userMsg: AIMessage = { role: "user", content: userInput };
+    setMessages(prev => [...prev, userMsg]);
+    setUserInput("");
+    setAiLoading(true);
+    const systemPrompt = "You are modifying Arduino-style code. You must NOT change pin assignments or wiring. Only enhance behavior (e.g., sensitivity, filtering, debounce, detection). Return ONLY the full updated code, no explanation, no markdown code blocks.";
+    try {
+      let cleaned = "";
+      if (isClaudeKey) {
+        // Claude via server-side proxy (avoids CORS)
+        const res = await fetch("/api/ai-proxy", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ apiKey, systemPrompt, prompt: `Current code:\n${editedCode}\n\nUser request: ${userInput}` }),
+        });
+        const data = await res.json() as { error?: string; content?: Array<{ text?: string }> };
+        if (!res.ok) throw new Error(data.error ?? `API error ${res.status}`);
+        const raw = data.content?.[0]?.text ?? "";
+        cleaned = raw.replace(/^```(?:cpp|arduino|c\+\+)?\n?/i, "").replace(/\n?```$/i, "").trim();
+      } else {
+        // Gemini — direct from browser
+        const prompt = `${systemPrompt}\n\nCurrent code:\n${editedCode}\n\nUser request: ${userInput}`;
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: { temperature: 0.2, maxOutputTokens: 8192 },
+            }),
+          }
+        );
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({})) as { error?: { message?: string } };
+          throw new Error(errData?.error?.message ?? `API error ${response.status}`);
+        }
+        const data = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
+        const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+        cleaned = raw.replace(/^```(?:cpp|arduino|c\+\+)?\n?/i, "").replace(/\n?```$/i, "").trim();
+      }
+      onCodeUpdate(cleaned);
+      setMessages(prev => [...prev, { role: "assistant" as const, content: "Done! Code updated in the editor." }]);
+    } catch (err) {
+      setMessages(prev => [...prev, { role: "assistant" as const, content: `Error: ${err instanceof Error ? err.message : "Something went wrong."}` }]);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const SUGGESTIONS = ["Make the joystick more sensitive", "Add debounce to the button", "Detect and smooth out tremors"];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-3xl max-h-[85vh] flex flex-col bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-800">
+      <div className={`relative z-10 flex flex-col bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl overflow-hidden transition-all ${showAIChat ? "w-full max-w-5xl h-[90vh]" : "w-full max-w-3xl max-h-[85vh]"}`}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-800 flex-shrink-0">
           <div className="flex items-center gap-2">
             <Terminal size={14} className="text-green-400" />
             <span className="text-sm font-semibold text-gray-200">Arduino Sketch</span>
-            <span className="text-xs text-gray-500">— copy or use Compile &amp; Upload</span>
+            {isModified && <span className="text-[10px] text-amber-400 bg-amber-900/30 border border-amber-700/40 px-1.5 py-0.5 rounded-full">modified</span>}
           </div>
           <div className="flex items-center gap-2">
+            {isModified && (
+              <button onClick={() => { onCodeUpdate(originalCode); setShowDiff(false); }}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-amber-300 bg-amber-900/20 hover:bg-amber-900/40 border border-amber-700/30 transition-all"
+              ><RotateCcw size={11} /> Reset</button>
+            )}
+            {isModified && (
+              <button onClick={() => setShowDiff(v => !v)}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all border ${showDiff ? "bg-blue-800/40 text-blue-300 border-blue-700/50" : "text-gray-400 bg-gray-800 border-gray-700 hover:text-blue-300"}`}
+              >Diff</button>
+            )}
+            <button onClick={() => setShowAIChat(v => !v)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${showAIChat ? "bg-violet-700/40 text-violet-200 border-violet-600/50" : "bg-violet-600/20 text-violet-300 border-violet-600/30 hover:bg-violet-600/30"}`}
+            ><span>✦</span> Edit with AI</button>
             <button onClick={copy}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${copied ? "bg-green-600 text-white" : "bg-blue-600 hover:bg-blue-500 text-white"}`}
-            >
-              {copied ? <><CheckCircle2 size={12} /> Copied!</> : <><Download size={12} /> Copy Code</>}
-            </button>
-            <button onClick={onClose} className="p-1.5 rounded-lg text-gray-500 hover:text-gray-200 hover:bg-gray-800 transition-colors">
-              <X size={15} />
-            </button>
+            >{copied ? <><CheckCircle2 size={12} /> Copied!</> : <><Download size={12} /> Copy</>}</button>
+            <button onClick={onClose} className="p-1.5 rounded-lg text-gray-500 hover:text-gray-200 hover:bg-gray-800 transition-colors"><X size={15} /></button>
           </div>
         </div>
-        <div className="flex-1 overflow-auto p-4">
-          <pre className="text-xs font-mono text-gray-300 leading-relaxed whitespace-pre">{code}</pre>
+
+        {/* Body */}
+        <div className="flex-1 overflow-hidden flex min-h-0">
+          {/* Code Editor */}
+          <div className={`flex flex-col min-h-0 ${showAIChat ? "flex-1 border-r border-gray-800" : "flex-1"}`}>
+            {showDiff && isModified ? (
+              <div className="flex flex-1 min-h-0">
+                <div className="flex-1 flex flex-col min-h-0 border-r border-gray-800">
+                  <div className="px-3 py-1.5 bg-red-950/30 text-[10px] text-red-400 font-semibold flex-shrink-0 border-b border-gray-800">Before (original)</div>
+                  <pre className="flex-1 overflow-auto p-4 text-xs font-mono text-red-300/70 leading-relaxed whitespace-pre">{originalCode}</pre>
+                </div>
+                <div className="flex-1 flex flex-col min-h-0">
+                  <div className="px-3 py-1.5 bg-green-950/30 text-[10px] text-green-400 font-semibold flex-shrink-0 border-b border-gray-800">After (modified)</div>
+                  <pre className="flex-1 overflow-auto p-4 text-xs font-mono text-green-300/70 leading-relaxed whitespace-pre">{editedCode}</pre>
+                </div>
+              </div>
+            ) : (
+              <textarea
+                className="flex-1 p-4 text-xs font-mono text-gray-300 bg-transparent leading-relaxed resize-none focus:outline-none min-h-0"
+                value={editedCode}
+                onChange={(e) => onCodeUpdate(e.target.value)}
+                spellCheck={false}
+                autoComplete="off"
+                autoCorrect="off"
+              />
+            )}
+          </div>
+
+          {/* AI Chat Panel */}
+          {showAIChat && (
+            <div className="w-80 flex flex-col min-h-0 bg-gray-950/50 flex-shrink-0">
+              {/* API Key */}
+              <div className="px-3 py-2.5 border-b border-gray-800 flex-shrink-0">
+                {showApiKeyInput || !apiKey ? (
+                  <div className="flex flex-col gap-1.5">
+                    <p className="text-[10px] text-gray-500 font-medium">
+                      AI API Key <span className="text-gray-700">(stored locally only)</span>
+                      {provider && <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-semibold ${isClaudeKey ? "bg-orange-900/40 text-orange-300" : "bg-blue-900/40 text-blue-300"}`}>{provider} detected</span>}
+                    </p>
+                    <input
+                      type="password"
+                      placeholder="sk-ant-… (Claude) or AIza… (Gemini)"
+                      value={apiKey}
+                      onChange={e => saveApiKey(e.target.value)}
+                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-violet-500 font-mono"
+                    />
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <a href="https://console.anthropic.com/account/keys" target="_blank" rel="noopener noreferrer"
+                          className="text-[10px] text-orange-500 hover:text-orange-400 flex items-center gap-0.5"
+                        ><ExternalLink size={9} /> Claude key</a>
+                        <span className="text-[10px] text-gray-700">·</span>
+                        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer"
+                          className="text-[10px] text-blue-500 hover:text-blue-400 flex items-center gap-0.5"
+                        ><ExternalLink size={9} /> Gemini key</a>
+                      </div>
+                      {apiKey && <button onClick={() => setShowApiKeyInput(false)} className="text-[10px] text-violet-400 hover:text-violet-300">Done</button>}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
+                      <span className="text-[10px] text-gray-500">
+                        {provider ?? "API"} key set
+                      </span>
+                    </div>
+                    <button onClick={() => setShowApiKeyInput(true)} className="text-[10px] text-gray-600 hover:text-gray-400">Change</button>
+                  </div>
+                )}
+              </div>
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2 min-h-0">
+                {messages.length === 0 && (
+                  <div className="flex flex-col gap-1.5">
+                    <p className="text-[10px] text-gray-600 mb-0.5">Try asking:</p>
+                    {SUGGESTIONS.map(s => (
+                      <button key={s} onClick={() => setUserInput(s)}
+                        className="text-left px-3 py-2 rounded-xl border border-gray-700/60 bg-gray-800/40 text-[11px] text-gray-400 hover:text-violet-300 hover:border-violet-700/40 transition-colors"
+                      >{s}</button>
+                    ))}
+                  </div>
+                )}
+                {messages.map((m, i) => (
+                  <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+                    <div className={`max-w-[92%] px-3 py-2 rounded-xl text-xs leading-relaxed ${m.role === "user" ? "bg-violet-700/40 text-violet-100 border border-violet-600/30" : "bg-gray-800 text-gray-300 border border-gray-700"}`}>{m.content}</div>
+                  </div>
+                ))}
+                {aiLoading && (
+                  <div className="flex justify-start">
+                    <div className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 flex items-center gap-2">
+                      <Loader2 size={11} className="animate-spin text-violet-400" />
+                      <span className="text-xs text-gray-500">Thinking…</span>
+                    </div>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+              {/* Input */}
+              <div className="px-3 py-2.5 border-t border-gray-800 flex-shrink-0">
+                {!apiKey && <p className="text-[10px] text-amber-400 mb-2">Add your API key above to use AI.</p>}
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    placeholder="Ask AI to modify code…"
+                    value={userInput}
+                    onChange={e => setUserInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendToAI(); } }}
+                    disabled={aiLoading || !apiKey}
+                    className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-3 py-1.5 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-violet-500 disabled:opacity-50"
+                  />
+                  <button onClick={sendToAI} disabled={aiLoading || !userInput.trim() || !apiKey}
+                    className="px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white text-xs font-semibold transition-colors"
+                  >{aiLoading ? <Loader2 size={12} className="animate-spin" /> : "→"}</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
-        <div className="px-5 py-3 border-t border-gray-800 flex items-center justify-between">
-          <p className="text-xs text-gray-500">Copy and paste into Arduino IDE, or use Compile &amp; Upload to flash directly from Chrome/Edge.</p>
+
+        {/* Footer */}
+        <div className="px-5 py-2.5 border-t border-gray-800 flex items-center justify-between flex-shrink-0">
+          <p className="text-[11px] text-gray-600">
+            {isModified ? "Modified code will be used on next upload." : "Edit directly or use AI. Compile & Upload flashes from Chrome/Edge."}
+          </p>
           <button onClick={copy}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${copied ? "bg-green-600 text-white" : "bg-blue-600 hover:bg-blue-500 text-white"}`}
-          >
-            {copied ? <><CheckCircle2 size={13} /> Copied!</> : <><Download size={13} /> Copy Code</>}
-          </button>
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${copied ? "bg-green-600 text-white" : "bg-blue-600 hover:bg-blue-500 text-white"}`}
+          >{copied ? <><CheckCircle2 size={12} /> Copied!</> : <><Download size={12} /> Copy Code</>}</button>
         </div>
       </div>
     </div>
@@ -1599,241 +1813,15 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
             </defs>
             <rect width="920" height="660" fill="url(#wdgrid)" />
 
-            {/* ── Arduino Board ── */}
-            <defs>
-              {/* PCB copper-pour / trace texture */}
-              <radialGradient id="pcbshine" cx="35%" cy="20%" r="60%">
-                <stop offset="0%" stopColor="#2a6dd9" stopOpacity="0.25" />
-                <stop offset="100%" stopColor="#0d3272" stopOpacity="0" />
-              </radialGradient>
-            </defs>
-
-            {/* PCB body — Arduino blue */}
-            <rect x={BX} y={BY} width={BW} height={BH} rx="6" fill="#1a4c8b" stroke="#0d3272" strokeWidth="2" />
-            <rect x={BX + 4} y={BY + 4} width={BW - 8} height={BH - 8} rx="4" fill="url(#pcbshine)" />
-            {/* Silkscreen border */}
-            <rect x={BX + 8} y={BY + 8} width={BW - 16} height={BH - 16} rx="3" fill="none" stroke="#a8c8ff" strokeWidth="0.4" opacity="0.3" />
-
-            {isMicro ? (
-              <>
-                {/* ── Arduino Micro ── */}
-                {/* USB Micro-B connector at top — trapezoid body */}
-                <rect x={BX + BW / 2 - 14} y={BY - 20} width="28" height="24" rx="3" fill="#2d3748" stroke="#4a5568" strokeWidth="1.5" />
-                <rect x={BX + BW / 2 - 10} y={BY - 16} width="20" height="16" rx="1.5" fill="#1a202c" />
-                {/* USB port opening trapezoid */}
-                <path d={`M ${BX + BW / 2 - 7} ${BY - 15} L ${BX + BW / 2 + 7} ${BY - 15} L ${BX + BW / 2 + 5} ${BY - 3} L ${BX + BW / 2 - 5} ${BY - 3} Z`} fill="#0d1117" />
-                {/* USB pins inside */}
-                {[-3, -1, 1, 3].map((o, i) => (
-                  <rect key={`up${i}`} x={BX + BW / 2 + o * 2.5 - 0.8} y={BY - 13} width="1.6" height="8" rx="0.5" fill="#9ca3af" />
-                ))}
-                <text x={BX + BW / 2} y={BY - 24} textAnchor="middle" fontFamily="monospace" fontSize="6" fill="#6b7280">MICRO-B</text>
-
-                {/* ATmega32U4 — QFP package, centered */}
-                {/* QFP body */}
-                <rect x={BX + BW / 2 - 38} y={BY + 215} width="76" height="76" rx="3" fill="#111" stroke="#2d3748" strokeWidth="1.2" />
-                {/* Chip notch */}
-                <path d={`M ${BX + BW / 2 - 5} ${BY + 215} a 5 5 0 0 1 10 0`} fill="#1a1a1a" />
-                {/* Dot marker */}
-                <circle cx={BX + BW / 2 - 30} cy={BY + 223} r="3" fill="#374151" />
-                <text x={BX + BW / 2} y={BY + 249} textAnchor="middle" fontFamily="monospace" fontSize="6.5" fill="#6b7280" fontWeight="bold">ATmega</text>
-                <text x={BX + BW / 2} y={BY + 259} textAnchor="middle" fontFamily="monospace" fontSize="6.5" fill="#6b7280" fontWeight="bold">32U4</text>
-                <text x={BX + BW / 2} y={BY + 269} textAnchor="middle" fontFamily="monospace" fontSize="5.5" fill="#4b5563">Arduino</text>
-                {/* QFP pins — all 4 sides */}
-                {[0,1,2,3,4,5,6].map((i) => (
-                  <g key={`mqt${i}`}>
-                    <line x1={BX + BW / 2 - 38 + 8 + i * 9} y1={BY + 215} x2={BX + BW / 2 - 38 + 8 + i * 9} y2={BY + 208} stroke="#6b7280" strokeWidth="1.5" />
-                    <line x1={BX + BW / 2 - 38 + 8 + i * 9} y1={BY + 291} x2={BX + BW / 2 - 38 + 8 + i * 9} y2={BY + 298} stroke="#6b7280" strokeWidth="1.5" />
-                  </g>
-                ))}
-                {[0,1,2,3,4,5,6].map((i) => (
-                  <g key={`mql${i}`}>
-                    <line x1={BX + BW / 2 - 38} y1={BY + 223 + i * 9} x2={BX + BW / 2 - 46} y2={BY + 223 + i * 9} stroke="#6b7280" strokeWidth="1.5" />
-                    <line x1={BX + BW / 2 + 38} y1={BY + 223 + i * 9} x2={BX + BW / 2 + 46} y2={BY + 223 + i * 9} stroke="#6b7280" strokeWidth="1.5" />
-                  </g>
-                ))}
-
-                {/* 16MHz crystal — silver metal can */}
-                <rect x={BX + BW / 2 - 10} y={BY + 170} width="20" height="34" rx="10" fill="#9ca3af" stroke="#6b7280" strokeWidth="1" />
-                <rect x={BX + BW / 2 - 6} y={BY + 174} width="12" height="26" rx="6" fill="#d1d5db" opacity="0.6" />
-                <line x1={BX + BW / 2 - 5} y1={BY + 204} x2={BX + BW / 2 - 5} y2={BY + 214} stroke="#6b7280" strokeWidth="1.2" />
-                <line x1={BX + BW / 2 + 5} y1={BY + 204} x2={BX + BW / 2 + 5} y2={BY + 214} stroke="#6b7280" strokeWidth="1.2" />
-                <text x={BX + BW / 2} y={BY + 163} textAnchor="middle" fontFamily="monospace" fontSize="5.5" fill="#6b7280">16MHz</text>
-
-                {/* Reset button — white/gray SMD tactile */}
-                <rect x={BX + BW / 2 - 7} y={BY + 320} width="14" height="14" rx="2" fill="#d1d5db" stroke="#9ca3af" strokeWidth="1" />
-                <circle cx={BX + BW / 2} cy={BY + 327} r="4" fill="#e5e7eb" />
-                <circle cx={BX + BW / 2} cy={BY + 327} r="2" fill="#9ca3af" />
-                <text x={BX + BW / 2} y={BY + 343} textAnchor="middle" fontFamily="monospace" fontSize="5.5" fill="#a8c8ff" opacity="0.6">RESET</text>
-
-                {/* LEDs near top */}
-                {/* PWR — green */}
-                <rect x={BX + 20} y={BY + 40} width="7" height="10" rx="1.5" fill="#166534" stroke="#15803d" strokeWidth="0.8" />
-                <ellipse cx={BX + 23} cy={BY + 40} rx="3.5" ry="2.5" fill="#22c55e" opacity="0.9" />
-                <text x={BX + 23} y={BY + 57} textAnchor="middle" fontFamily="monospace" fontSize="5" fill="#a8c8ff" opacity="0.5">ON</text>
-                {/* TX — yellow */}
-                <rect x={BX + 35} y={BY + 40} width="7" height="10" rx="1.5" fill="#713f12" stroke="#92400e" strokeWidth="0.8" />
-                <ellipse cx={BX + 38} cy={BY + 40} rx="3.5" ry="2.5" fill="#eab308" opacity="0.9" />
-                <text x={BX + 38} y={BY + 57} textAnchor="middle" fontFamily="monospace" fontSize="5" fill="#a8c8ff" opacity="0.5">TX</text>
-                {/* RX — yellow */}
-                <rect x={BX + 50} y={BY + 40} width="7" height="10" rx="1.5" fill="#713f12" stroke="#92400e" strokeWidth="0.8" />
-                <ellipse cx={BX + 53} cy={BY + 40} rx="3.5" ry="2.5" fill="#eab308" opacity="0.9" />
-                <text x={BX + 53} y={BY + 57} textAnchor="middle" fontFamily="monospace" fontSize="5" fill="#a8c8ff" opacity="0.5">RX</text>
-
-                {/* Small SMD capacitors */}
-                <rect x={BX + BW - 30} y={BY + 80} width="9" height="6" rx="1" fill="#1e293b" stroke="#334155" strokeWidth="0.8" />
-                <rect x={BX + BW - 30} y={BY + 92} width="9" height="6" rx="1" fill="#1e293b" stroke="#334155" strokeWidth="0.8" />
-                <rect x={BX + 20} y={BY + 140} width="6" height="9" rx="1" fill="#1e293b" stroke="#334155" strokeWidth="0.8" />
-
-                {/* Silk-screen labels */}
-                <text x={BX + BW / 2} y={BY + 390} textAnchor="middle" fontFamily="monospace" fontSize="9" fill="#a8c8ff" fontWeight="bold" opacity="0.55" letterSpacing="1">ARDUINO</text>
-                <text x={BX + BW / 2} y={BY + 403} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#a8c8ff" opacity="0.45" letterSpacing="1">MICRO</text>
-
-                {/* Silk-screen pin labels on PCB edges */}
-                <text x={BX + 4} y={BY + 95} fontFamily="monospace" fontSize="4.5" fill="#a8c8ff" opacity="0.4" transform={`rotate(-90, ${BX + 4}, ${BY + 95})`}>D13·12·11·10·9·8</text>
-                <text x={BX + BW - 5} y={BY + 95} fontFamily="monospace" fontSize="4.5" fill="#a8c8ff" opacity="0.4" transform={`rotate(90, ${BX + BW - 5}, ${BY + 95})`}>5V·RST·GND·2·3·4</text>
-              </>
-            ) : (
-              <>
-                {/* ── Arduino Leonardo ── */}
-                {/* USB Micro-B at top center — sticks above PCB */}
-                <rect x={BX + BW / 2 - 18} y={BY - 22} width="36" height="26" rx="4" fill="#2d3748" stroke="#4a5568" strokeWidth="1.5" />
-                <rect x={BX + BW / 2 - 13} y={BY - 17} width="26" height="18" rx="2" fill="#1a202c" />
-                {/* Trapezoid port opening */}
-                <path d={`M ${BX + BW / 2 - 9} ${BY - 16} L ${BX + BW / 2 + 9} ${BY - 16} L ${BX + BW / 2 + 7} ${BY - 2} L ${BX + BW / 2 - 7} ${BY - 2} Z`} fill="#0d1117" />
-                {[-3.5, -1.5, 0.5, 2.5].map((o, i) => (
-                  <rect key={`lup${i}`} x={BX + BW / 2 + o * 2 - 0.7} y={BY - 14} width="1.4" height="9" rx="0.5" fill="#9ca3af" />
-                ))}
-                <text x={BX + BW / 2} y={BY - 25} textAnchor="middle" fontFamily="monospace" fontSize="6" fill="#6b7280">USB</text>
-
-                {/* DC Barrel Jack at top — right of USB, sticks above */}
-                <rect x={BX + BW - 34} y={BY - 18} width="28" height="22" rx="3" fill="#111827" stroke="#374151" strokeWidth="1.5" />
-                <circle cx={BX + BW - 20} cy={BY - 7} r="7" fill="#1f2937" stroke="#4b5563" strokeWidth="1" />
-                <circle cx={BX + BW - 20} cy={BY - 7} r="3.5" fill="#111827" />
-                <circle cx={BX + BW - 20} cy={BY - 7} r="1.2" fill="#4b5563" />
-                <text x={BX + BW - 20} y={BY + 10} textAnchor="middle" fontFamily="monospace" fontSize="5.5" fill="#6b7280">PWR</text>
-
-                {/* Mounting holes — 4 corners */}
-                {([
-                  [BX + 14, BY + 14], [BX + BW - 14, BY + 14],
-                  [BX + 14, BY + BH - 14], [BX + BW - 14, BY + BH - 14],
-                ] as [number, number][]).map(([hx, hy], i) => (
-                  <g key={`mh${i}`}>
-                    <circle cx={hx} cy={hy} r="8" fill="#122d6b" stroke="#0d3272" strokeWidth="1.5" />
-                    <circle cx={hx} cy={hy} r="4.5" fill="#0a1f50" />
-                    <circle cx={hx} cy={hy} r="1.8" fill="#1a4c8b" />
-                    {/* Copper ring around hole */}
-                    <circle cx={hx} cy={hy} r="7" fill="none" stroke="#b87333" strokeWidth="0.8" opacity="0.5" />
-                  </g>
-                ))}
-
-                {/* ICSP 2×3 header */}
-                <rect x={BX + 100} y={BY + 95} width="26" height="18" rx="2" fill="#0f172a" stroke="#334155" strokeWidth="1" />
-                {[0, 1, 2].map((col) => [0, 1].map((row) => (
-                  <g key={`icsp${col}${row}`}>
-                    <rect x={BX + 104 + col * 8 - 2.5} y={BY + 99 + row * 8 - 2.5} width="5" height="5" rx="0.5" fill="#374151" />
-                    <circle cx={BX + 104 + col * 8} cy={BY + 99 + row * 8} r="1.5" fill="#b87333" opacity="0.8" />
-                  </g>
-                )))}
-                <text x={BX + 113} y={BY + 123} textAnchor="middle" fontFamily="monospace" fontSize="5.5" fill="#a8c8ff" opacity="0.45">ICSP</text>
-
-                {/* Reset button — white SMD tactile */}
-                <rect x={BX + 18} y={BY + 72} width="16" height="16" rx="2.5" fill="#cbd5e1" stroke="#94a3b8" strokeWidth="1" />
-                <circle cx={BX + 26} cy={BY + 80} r="5" fill="#e2e8f0" />
-                <circle cx={BX + 26} cy={BY + 80} r="2.5" fill="#94a3b8" />
-                <text x={BX + 26} y={BY + 97} textAnchor="middle" fontFamily="monospace" fontSize="5.5" fill="#a8c8ff" opacity="0.5">RST</text>
-
-                {/* LEDs — realistic SMD packages */}
-                {/* PWR — green */}
-                <rect x={BX + 50} y={BY + 68} width="8" height="12" rx="1.5" fill="#14532d" stroke="#166534" strokeWidth="0.8" />
-                <ellipse cx={BX + 54} cy={BY + 68} rx="4" ry="3" fill="#22c55e" opacity="0.95" />
-                <ellipse cx={BX + 53} cy={BY + 66} rx="1.5" ry="1" fill="white" opacity="0.3" />
-                <text x={BX + 54} y={BY + 89} textAnchor="middle" fontFamily="monospace" fontSize="5.5" fill="#a8c8ff" opacity="0.5">ON</text>
-                {/* L — yellow (pin 13) */}
-                <rect x={BX + 66} y={BY + 68} width="8" height="12" rx="1.5" fill="#713f12" stroke="#92400e" strokeWidth="0.8" />
-                <ellipse cx={BX + 70} cy={BY + 68} rx="4" ry="3" fill="#eab308" opacity="0.95" />
-                <ellipse cx={BX + 69} cy={BY + 66} rx="1.5" ry="1" fill="white" opacity="0.3" />
-                <text x={BX + 70} y={BY + 89} textAnchor="middle" fontFamily="monospace" fontSize="5.5" fill="#a8c8ff" opacity="0.5">L</text>
-                {/* TX — yellow */}
-                <rect x={BX + 82} y={BY + 68} width="8" height="12" rx="1.5" fill="#713f12" stroke="#92400e" strokeWidth="0.8" />
-                <ellipse cx={BX + 86} cy={BY + 68} rx="4" ry="3" fill="#eab308" opacity="0.95" />
-                <ellipse cx={BX + 85} cy={BY + 66} rx="1.5" ry="1" fill="white" opacity="0.3" />
-                <text x={BX + 86} y={BY + 89} textAnchor="middle" fontFamily="monospace" fontSize="5.5" fill="#a8c8ff" opacity="0.5">TX</text>
-                {/* RX — yellow */}
-                <rect x={BX + 98} y={BY + 68} width="8" height="12" rx="1.5" fill="#713f12" stroke="#92400e" strokeWidth="0.8" />
-                <ellipse cx={BX + 102} cy={BY + 68} rx="4" ry="3" fill="#eab308" opacity="0.95" />
-                <ellipse cx={BX + 101} cy={BY + 66} rx="1.5" ry="1" fill="white" opacity="0.3" />
-                <text x={BX + 102} y={BY + 89} textAnchor="middle" fontFamily="monospace" fontSize="5.5" fill="#a8c8ff" opacity="0.5">RX</text>
-
-                {/* 16MHz crystal — silver HC-49 metal can */}
-                <rect x={BX + 38} y={BY + 165} width="14" height="36" rx="7" fill="#9ca3af" stroke="#6b7280" strokeWidth="1.2" />
-                <rect x={BX + 41} y={BY + 169} width="8" height="28" rx="4" fill="#d1d5db" opacity="0.5" />
-                {/* Crystal highlight */}
-                <line x1={BX + 42} y1={BY + 172} x2={BX + 42} y2={BY + 192} stroke="white" strokeWidth="1" opacity="0.2" />
-                {/* Leads */}
-                <line x1={BX + 42} y1={BY + 201} x2={BX + 42} y2={BY + 212} stroke="#9ca3af" strokeWidth="1.5" />
-                <line x1={BX + 50} y1={BY + 201} x2={BX + 50} y2={BY + 212} stroke="#9ca3af" strokeWidth="1.5" />
-                <text x={BX + 45} y={BY + 160} textAnchor="middle" fontFamily="monospace" fontSize="5.5" fill="#a8c8ff" opacity="0.4">16MHz</text>
-
-                {/* ATmega32U4 — QFP package */}
-                <rect x={BX + 30} y={BY + 220} width="110" height="110" rx="4" fill="#111" stroke="#2d3748" strokeWidth="1.5" />
-                {/* Chip notch at top-center */}
-                <path d={`M ${BX + 82} ${BY + 220} a 6 6 0 0 1 12 0`} fill="#1a1a1a" />
-                {/* Pin 1 dot */}
-                <circle cx={BX + 38} cy={BY + 228} r="3.5" fill="#374151" />
-                <text x={BX + 85} y={BY + 262} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#6b7280" fontWeight="bold">ATmega</text>
-                <text x={BX + 85} y={BY + 273} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#6b7280" fontWeight="bold">32U4</text>
-                <text x={BX + 85} y={BY + 284} textAnchor="middle" fontFamily="monospace" fontSize="5.5" fill="#4b5563">8-bit MCU</text>
-                <text x={BX + 85} y={BY + 294} textAnchor="middle" fontFamily="monospace" fontSize="5" fill="#374151">TQFP-44</text>
-                {/* QFP pins — top and bottom (8 each) */}
-                {[0,1,2,3,4,5,6,7].map((i) => (
-                  <g key={`ltb${i}`}>
-                    <line x1={BX + 38 + i * 11} y1={BY + 220} x2={BX + 38 + i * 11} y2={BY + 212} stroke="#9ca3af" strokeWidth="1.5" />
-                    <line x1={BX + 38 + i * 11} y1={BY + 330} x2={BX + 38 + i * 11} y2={BY + 338} stroke="#9ca3af" strokeWidth="1.5" />
-                  </g>
-                ))}
-                {/* QFP pins — left and right (8 each) */}
-                {[0,1,2,3,4,5,6,7].map((i) => (
-                  <g key={`llr${i}`}>
-                    <line x1={BX + 30} y1={BY + 228 + i * 11} x2={BX + 22} y2={BY + 228 + i * 11} stroke="#9ca3af" strokeWidth="1.5" />
-                    <line x1={BX + 140} y1={BY + 228 + i * 11} x2={BX + 148} y2={BY + 228 + i * 11} stroke="#9ca3af" strokeWidth="1.5" />
-                  </g>
-                ))}
-
-                {/* Voltage regulator — TO-220 package */}
-                <rect x={BX + 132} y={BY + 145} width="24" height="32" rx="2" fill="#1e293b" stroke="#334155" strokeWidth="1.2" />
-                <rect x={BX + 133} y={BY + 142} width="22" height="10" rx="1" fill="#374151" />
-                {/* 3 leads */}
-                {[0, 1, 2].map((i) => (
-                  <line key={`vrl${i}`} x1={BX + 137 + i * 7} y1={BY + 177} x2={BX + 137 + i * 7} y2={BY + 188} stroke="#6b7280" strokeWidth="2" strokeLinecap="round" />
-                ))}
-                <text x={BX + 144} y={BY + 198} textAnchor="middle" fontFamily="monospace" fontSize="5.5" fill="#a8c8ff" opacity="0.4">NCP1117</text>
-
-                {/* SMD capacitors — scattered near power */}
-                {([
-                  [BX + 62, BY + 165], [BX + 75, BY + 165], [BX + 88, BY + 165],
-                  [BX + 25, BY + 175], [BX + 25, BY + 187],
-                  [BX + 132, BY + 380], [BX + 132, BY + 392],
-                ] as [number, number][]).map(([cx, cy], i) => (
-                  <g key={`cap${i}`}>
-                    <rect x={cx} y={cy} width="9" height="5" rx="1" fill="#1e293b" stroke="#334155" strokeWidth="0.7" />
-                    <line x1={cx} y1={cy + 2.5} x2={cx - 3} y2={cy + 2.5} stroke="#6b7280" strokeWidth="0.8" />
-                    <line x1={cx + 9} y1={cy + 2.5} x2={cx + 12} y2={cy + 2.5} stroke="#6b7280" strokeWidth="0.8" />
-                  </g>
-                ))}
-
-                {/* PCB traces (silk-screen style) */}
-                <line x1={BX + 26} y1={BY + 88} x2={BX + 50} y2={BY + 75} stroke="#a8c8ff" strokeWidth="0.5" opacity="0.15" />
-                <line x1={BX + 54} y1={BY + 80} x2={BX + 54} y2={BY + 165} stroke="#a8c8ff" strokeWidth="0.5" opacity="0.1" />
-
-                {/* Silk-screen board labels */}
-                <text x={BX + BW / 2} y={BY + 395} textAnchor="middle" fontFamily="monospace" fontSize="10" fill="#a8c8ff" fontWeight="bold" opacity="0.5" letterSpacing="2">ARDUINO</text>
-                <text x={BX + BW / 2} y={BY + 410} textAnchor="middle" fontFamily="monospace" fontSize="8" fill="#a8c8ff" opacity="0.4" letterSpacing="1">LEONARDO</text>
-                <text x={BX + BW / 2} y={BY + 422} textAnchor="middle" fontFamily="monospace" fontSize="6" fill="#a8c8ff" opacity="0.3">© Arduino SA</text>
-
-                {/* Made in Italy mark */}
-                <text x={BX + BW / 2} y={BY + BH - 25} textAnchor="middle" fontFamily="monospace" fontSize="5.5" fill="#a8c8ff" opacity="0.25">MADE IN ITALY</text>
-              </>
-            )}
+            {/* ── Arduino Pin Block (simplified — no board mockup) ── */}
+            <rect x={BX} y={BY + 50} width={BW} height={BH - 50} rx="6" fill="#0d1424" stroke="#1e3a5f" strokeWidth="1.5" />
+            <rect x={BX + 6} y={BY + 56} width={BW - 12} height={BH - 62} rx="4" fill="none" stroke="#1e3a5f" strokeWidth="0.5" opacity="0.5" />
+            {/* Label */}
+            <text x={BX + BW / 2} y={BY + 82} textAnchor="middle" fontFamily="monospace" fontSize="12" fill="#3b82f6" fontWeight="bold" letterSpacing="2">ARDUINO</text>
+            <text x={BX + BW / 2} y={BY + 98} textAnchor="middle" fontFamily="monospace" fontSize="8" fill="#1d4ed8" letterSpacing="1">{boardType === "micro" ? "MICRO" : "LEONARDO"}</text>
+            <line x1={BX + 14} y1={BY + 108} x2={BX + BW - 14} y2={BY + 108} stroke="#1e3a5f" strokeWidth="1" />
+            {/* GND marker */}
+            <text x={BX + BW / 2} y={BY + BH - 18} textAnchor="middle" fontFamily="monospace" fontSize="8" fill="#374151">GND</text>
 
             {/* ── Right Pin Header Bracket ── */}
             <rect x={515} y={BY + 52} width="10" height="470" fill="#1f2937" stroke="#374151" strokeWidth="1" />
@@ -2142,6 +2130,8 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
   );
 }
 
+
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function Home() {
@@ -2155,6 +2145,13 @@ export default function Home() {
   const [leds, setLeds] = useState<LedConfig>({ enabled: false, onPin: 11, offPin: 12 });
   const [showSketch, setShowSketch] = useState(false);
   const [sketchCode, setSketchCode] = useState("");
+  const [customSketch, setCustomSketch] = useState<string | null>(null);
+  const [railwayToken, setRailwayToken] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("railway_api_token") ?? "";
+    return "";
+  });
+  const [railwayUsage, setRailwayUsage] = useState<{ estimatedCost?: number; currentPeriodStart?: string; currentPeriodEnd?: string; error?: string } | null>(null);
+  const [railwayLoading, setRailwayLoading] = useState(false);
   const [uploadLog, setUploadLog] = useState<LogLine[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadDone, setUploadDone] = useState<boolean | null>(null);
@@ -2218,7 +2215,7 @@ export default function Home() {
   const [deleteConfirmUserId, setDeleteConfirmUserId] = useState<string | null>(null);
   const [userSaveCounts, setUserSaveCounts] = useState<Record<string, number>>({});
   const [userSearch, setUserSearch] = useState("");
-  const [adminSubTab, setAdminSubTab] = useState<"settings" | "users">("settings");
+  const [adminSubTab, setAdminSubTab] = useState<"settings" | "users" | "railway">("settings");
   const [isOffline, setIsOffline] = useState(false);
   const [arduinoDetected, setArduinoDetected] = useState(false);
   const arduinoDetectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -2650,13 +2647,36 @@ export default function Home() {
     setWsLog([]);
     const log = (msg: string) => setWsLog((p) => [...p, msg]);
     try {
-      const sketch = generateSketch(buttons, leds, portInputs, irSensors, sipPuffs, joysticks);
+      const sketch = customSketch ?? generateSketch(buttons, leds, portInputs, irSensors, sipPuffs, joysticks);
       await compileAndUpload(BACKEND_URL, sketch, log, forceNewPort);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       log(`✗ ${msg}`);
     } finally {
       setWsUploading(false);
+    }
+  };
+
+  const fetchRailwayUsage = async () => {
+    if (!railwayToken) return;
+    setRailwayLoading(true);
+    setRailwayUsage(null);
+    try {
+      const res = await fetch("https://backboard.railway.app/graphql/v2", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${railwayToken}` },
+        body: JSON.stringify({ query: `{ me { usage { currentPeriodStart currentPeriodEnd estimatedUsage } } }` }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json() as { data?: { me?: { usage?: { currentPeriodStart?: string; currentPeriodEnd?: string; estimatedUsage?: number } } }; errors?: Array<{ message: string }> };
+      if (json.errors?.length) throw new Error(json.errors[0].message);
+      const u = json.data?.me?.usage;
+      if (!u) throw new Error("No usage data returned");
+      setRailwayUsage({ estimatedCost: u.estimatedUsage, currentPeriodStart: u.currentPeriodStart, currentPeriodEnd: u.currentPeriodEnd });
+    } catch (e) {
+      setRailwayUsage({ error: e instanceof Error ? e.message : "Failed to fetch usage" });
+    } finally {
+      setRailwayLoading(false);
     }
   };
 
@@ -2824,6 +2844,8 @@ export default function Home() {
     try {
       const sketch = generateSketch(buttons, leds, portInputs, irSensors, sipPuffs, joysticks);
       setSketchCode(sketch);
+      // If no custom edits yet, seed customSketch to match generated code
+      if (customSketch === null) setCustomSketch(sketch);
       setShowSketch(true);
     } finally { setLoadingSketch(false); }
   };
@@ -2831,7 +2853,7 @@ export default function Home() {
   const startUpload = async () => {
     if (!selectedPort || uploading) return;
     setUploading(true); setUploadDone(null); setUploadLog([]);
-    const sketch = generateSketch(buttons, leds, portInputs, irSensors, sipPuffs, joysticks);
+    const sketch = customSketch ?? generateSketch(buttons, leds, portInputs, irSensors, sipPuffs, joysticks);
     try {
       const response = await fetch(`${BACKEND_URL}/api/upload`, {
         method: "POST",
@@ -3624,11 +3646,17 @@ export default function Home() {
                 </div>
                 <span className="text-[11px] font-semibold text-amber-400/80 uppercase tracking-wider">Admin</span>
               </div>
-              {(["settings", "users"] as const).map((st) => (
-                <button key={st} onClick={() => setAdminSubTab(st)}
-                  className={["px-3 py-1.5 rounded-lg text-xs font-medium transition-all capitalize",
-                    adminSubTab === st ? "bg-gray-800 text-gray-100" : "text-gray-500 hover:text-gray-300"].join(" ")}
-                >{st === "users" ? `Users (${allUsers.length})` : "Settings"}</button>
+              {([
+                { id: "settings", label: "Settings" },
+                { id: "users", label: `Users (${allUsers.length})` },
+                { id: "railway", label: "Railway" },
+              ] as const).map((st) => (
+                <button key={st.id} onClick={() => setAdminSubTab(st.id)}
+                  className={["px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
+                    adminSubTab === st.id
+                      ? st.id === "railway" ? "bg-yellow-900/40 text-yellow-200" : "bg-gray-800 text-gray-100"
+                      : "text-gray-500 hover:text-gray-300"].join(" ")}
+                >{st.label}</button>
               ))}
             </div>
           </div>
@@ -3986,6 +4014,105 @@ export default function Home() {
 
             </>)}
 
+            {/* ── RAILWAY SUB-TAB ── */}
+            {adminSubTab === "railway" && (<>
+
+              {/* Token + Check */}
+              <div className="bg-gray-900 border border-yellow-900/30 rounded-2xl overflow-hidden">
+                <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-800">
+                  <Zap size={13} className="text-yellow-400" />
+                  <h3 className="text-xs font-semibold text-gray-200">Railway Usage</h3>
+                  <span className="text-[10px] text-gray-600 ml-1">compile backend · free tier</span>
+                  <button
+                    onClick={fetchRailwayUsage}
+                    disabled={railwayLoading || !railwayToken}
+                    className="ml-auto flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-yellow-600/20 border border-yellow-600/30 text-yellow-300 text-xs font-semibold hover:bg-yellow-600/30 disabled:opacity-40 transition-colors"
+                  >
+                    {railwayLoading ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
+                    {railwayLoading ? "Checking…" : "Refresh"}
+                  </button>
+                </div>
+                <div className="p-5 flex flex-col gap-4">
+                  {/* Token input */}
+                  <div>
+                    <label className="text-[11px] text-gray-400 block mb-1.5">Railway API Token</label>
+                    <input
+                      type="password"
+                      value={railwayToken}
+                      onChange={e => { setRailwayToken(e.target.value); localStorage.setItem("railway_api_token", e.target.value); }}
+                      placeholder="Paste token from Railway Dashboard → Account → Tokens"
+                      className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-yellow-500 font-mono"
+                    />
+                    <p className="text-[10px] text-gray-600 mt-1.5">Stored in your browser only — never sent to our server.</p>
+                  </div>
+
+                  {/* Usage display */}
+                  {!railwayUsage && !railwayLoading && (
+                    <div className="flex flex-col items-center py-6 gap-2 text-center">
+                      <Zap size={24} className="text-gray-700" />
+                      <p className="text-xs text-gray-500">Enter your token and click Refresh to see usage.</p>
+                    </div>
+                  )}
+
+                  {railwayUsage?.error && (
+                    <div className="p-3 bg-red-950/30 border border-red-800/40 rounded-xl flex items-start gap-2">
+                      <XCircle size={13} className="text-red-400 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-[11px] text-red-400 font-semibold">API error</p>
+                        <p className="text-[11px] text-red-500/80 mt-0.5">{railwayUsage.error}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {railwayUsage && !railwayUsage.error && (
+                    <div className="flex flex-col gap-3">
+                      {/* Cost + progress bar */}
+                      {typeof railwayUsage.estimatedCost === "number" && (
+                        <div className="bg-gray-800/60 rounded-xl p-4 border border-gray-700/50">
+                          <div className="flex items-end justify-between mb-2">
+                            <div>
+                              <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Estimated cost this period</p>
+                              <p className="text-2xl font-black text-yellow-300 tabular-nums">${railwayUsage.estimatedCost.toFixed(3)}</p>
+                            </div>
+                            <p className="text-xs text-gray-600 mb-1">of $5.00 free</p>
+                          </div>
+                          <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all"
+                              style={{
+                                width: `${Math.min(100, (railwayUsage.estimatedCost / 5) * 100)}%`,
+                                background: railwayUsage.estimatedCost > 4 ? "#ef4444" : railwayUsage.estimatedCost > 3 ? "#f59e0b" : "#22c55e",
+                              }}
+                            />
+                          </div>
+                          <p className="text-[10px] text-gray-600 mt-1.5">
+                            {((1 - railwayUsage.estimatedCost / 5) * 100).toFixed(0)}% remaining on free tier
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Period info */}
+                      {railwayUsage.currentPeriodStart && railwayUsage.currentPeriodEnd && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="bg-gray-800/40 rounded-xl p-3 border border-gray-700/40">
+                            <p className="text-[10px] text-gray-600 mb-1">Period start</p>
+                            <p className="text-xs font-mono text-gray-300">{new Date(railwayUsage.currentPeriodStart).toLocaleDateString()}</p>
+                          </div>
+                          <div className="bg-gray-800/40 rounded-xl p-3 border border-gray-700/40">
+                            <p className="text-[10px] text-gray-600 mb-1">Days remaining</p>
+                            <p className="text-sm font-bold text-green-400">
+                              {Math.max(0, Math.ceil((new Date(railwayUsage.currentPeriodEnd).getTime() - Date.now()) / 86400000))} days
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+            </>)}
+
             </div>
           </div>
         </div>
@@ -4154,9 +4281,14 @@ export default function Home() {
         </div>
       )}
 
-      {/* Sketch modal */}
+      {/* IDE modal */}
       {showSketch && sketchCode && (
-        <SketchModal code={sketchCode} onClose={() => setShowSketch(false)} />
+        <IDEModal
+          originalCode={sketchCode}
+          editedCode={customSketch ?? sketchCode}
+          onCodeUpdate={(code) => setCustomSketch(code === sketchCode ? null : code)}
+          onClose={() => setShowSketch(false)}
+        />
       )}
 
       {/* LED info modal */}
