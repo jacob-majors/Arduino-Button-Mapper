@@ -521,7 +521,7 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose }: {
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
-      <div className={`relative z-10 flex flex-col bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl overflow-hidden transition-all ${showAIChat ? "w-full max-w-5xl h-[90vh]" : "w-full max-w-3xl max-h-[85vh]"}`}>
+      <div className={`relative z-10 flex flex-col bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl overflow-hidden transition-all ${showAIChat ? "w-full max-w-5xl h-[90vh]" : "w-full max-w-3xl h-[85vh]"}`}>
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-800 flex-shrink-0">
           <div className="flex items-center gap-2">
@@ -627,7 +627,8 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose }: {
                     <p className="text-[10px] text-gray-600 mb-0.5">Try asking:</p>
                     {SUGGESTIONS.map(s => (
                       <button key={s} onClick={() => setUserInput(s)}
-                        className="text-left px-3 py-2 rounded-xl border border-gray-700/60 bg-gray-800/40 text-[11px] text-gray-400 hover:text-violet-300 hover:border-violet-700/40 transition-colors"
+                        className="text-left px-3 py-2 rounded-xl border border-gray-700/30 bg-gray-800/20 text-[11px] text-gray-600 hover:text-violet-300 hover:border-violet-700/40 hover:bg-gray-800/50 transition-all backdrop-blur-sm opacity-60 hover:opacity-100"
+                        style={{ filter: "blur(0.3px)" }}
                       >{s}</button>
                     ))}
                   </div>
@@ -1427,135 +1428,86 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
     return () => window.removeEventListener("keydown", h);
   }, [onClose]);
 
-  const [showVCC, setShowVCC] = useState(false);
-  const [showGND, setShowGND] = useState(false);
   const [showResistorInfo, setShowResistorInfo] = useState(false);
   const [componentInfo, setComponentInfo] = useState<{ type: string; label: string } | null>(null);
-  const [boardType, setBoardType] = useState<"leonardo" | "micro">("leonardo");
 
-  const connNeedsVCC = (type: string) => ["ir", "sipPuff", "joystickX"].includes(type);
-  const connNeedsGND = (type: string) => type !== "joystickY";
-
-  // Leonardo Micro is narrower/shorter (Pro Micro-like form factor)
-  const isMicro = boardType === "micro";
-  const BX = isMicro ? 355 : 345, BY = 65, BW = isMicro ? 150 : 170, BH = isMicro ? 520 : 560;
-
-  const digitalPinY = (pin: number) => BY + 81 + (13 - pin) * 34;
-  const analogPinY = (pin: number) => BY + 291 + pin * 34;
-
-  // Collect all right-side (digital) connections
-  type RightConn = { pinY: number; color: string; label: string; type: "button" | "power" | "port" | "led" | "ir" | "swclick" | "sipPuff" };
-  const rightConns: RightConn[] = [];
+  // Build flat card list — one card per component connection
+  interface CompCard {
+    id: string; name: string;
+    compType: "button" | "power" | "port" | "led" | "ir" | "sipPuff" | "joystickX" | "joystickY" | "swclick";
+    color: string; signalPin: string;
+    needsVCC: boolean; needsGND: boolean; hasResistor: boolean;
+  }
+  const cards: CompCard[] = [];
 
   buttons.forEach((b) => {
-    if (!ALL_PINS.includes(b.pin)) return;
-    rightConns.push({
-      pinY: digitalPinY(b.pin),
-      color: b.mode === "power" ? "#f59e0b" : "#60a5fa",
-      label: b.name.slice(0, 15),
-      type: b.mode === "power" ? "power" : "button",
-    });
-    if (b.ledPin && ALL_PINS.includes(b.ledPin)) {
-      rightConns.push({
-        pinY: digitalPinY(b.ledPin),
-        color: "#fbbf24",
-        label: (b.name + " LED").slice(0, 15),
-        type: "led",
-      });
-    }
+    cards.push({ id: b.id, name: (b.name || "Button").slice(0, 14),
+      compType: b.mode === "power" ? "power" : "button",
+      color: b.mode === "power" ? "#f59e0b" : "#60a5fa", signalPin: `D${b.pin}`,
+      needsVCC: false, needsGND: true, hasResistor: false });
+    if (b.ledPin && b.ledPin > 0)
+      cards.push({ id: b.id + "-led", name: ((b.name || "Button") + " LED").slice(0, 14),
+        compType: "led", color: "#fbbf24", signalPin: `D${b.ledPin}`,
+        needsVCC: false, needsGND: true, hasResistor: true });
   });
 
   portInputs.forEach((p) => {
-    if (!ALL_PINS.includes(p.pin)) return;
-    rightConns.push({
-      pinY: digitalPinY(p.pin),
-      color: "#38bdf8",
-      label: p.name.slice(0, 15),
-      type: "port",
-    });
+    cards.push({ id: p.id, name: (p.name || "3.5mm Port").slice(0, 14),
+      compType: "port", color: "#38bdf8", signalPin: `D${p.pin}`,
+      needsVCC: false, needsGND: true, hasResistor: false });
   });
 
   if (leds.enabled) {
-    if (leds.onPin && ALL_PINS.includes(leds.onPin)) {
-      rightConns.push({ pinY: digitalPinY(leds.onPin), color: "#fbbf24", label: "LED (on)", type: "led" });
-    }
-    if (leds.offPin && ALL_PINS.includes(leds.offPin)) {
-      rightConns.push({ pinY: digitalPinY(leds.offPin), color: "#fbbf24", label: "LED (off)", type: "led" });
-    }
+    if (leds.onPin && leds.onPin > 0)
+      cards.push({ id: "led-on", name: "LED (Active)", compType: "led",
+        color: "#fbbf24", signalPin: `D${leds.onPin}`,
+        needsVCC: false, needsGND: true, hasResistor: true });
+    if (leds.offPin && leds.offPin > 0)
+      cards.push({ id: "led-off", name: "LED (Inactive)", compType: "led",
+        color: "#fbbf24", signalPin: `D${leds.offPin}`,
+        needsVCC: false, needsGND: true, hasResistor: true });
   }
 
   irSensors.forEach((ir) => {
-    if (!ALL_PINS.includes(ir.pin)) return;
-    rightConns.push({ pinY: digitalPinY(ir.pin), color: "#34d399", label: ir.name.slice(0, 15), type: "ir" });
+    cards.push({ id: ir.id, name: (ir.name || "IR Sensor").slice(0, 14),
+      compType: "ir", color: "#34d399", signalPin: `D${ir.pin}`,
+      needsVCC: true, needsGND: true, hasResistor: false });
+    if (ir.ledPin && ir.ledPin > 0)
+      cards.push({ id: ir.id + "-led", name: ((ir.name || "IR") + " LED").slice(0, 14),
+        compType: "led", color: "#fbbf24", signalPin: `D${ir.ledPin}`,
+        needsVCC: false, needsGND: true, hasResistor: true });
   });
-
-  joysticks.forEach((j) => {
-    if (j.buttonPin && ALL_PINS.includes(j.buttonPin)) {
-      rightConns.push({ pinY: digitalPinY(j.buttonPin), color: "#818cf8", label: (j.name + " SW").slice(0, 15), type: "swclick" });
-    }
-  });
-
-  // Collect all left-side (analog) connections
-  type LeftConn = { pinY: number; color: string; label: string; type: "sipPuff" | "joystickX" | "joystickY" };
-  const leftConns: LeftConn[] = [];
 
   sipPuffs.forEach((s) => {
-    rightConns.push({ pinY: digitalPinY(s.pin), color: "#22d3ee", label: s.name.slice(0, 15) || "Sip & Puff", type: "sipPuff" });
+    cards.push({ id: s.id, name: (s.name || "Sip & Puff").slice(0, 14),
+      compType: "sipPuff", color: "#22d3ee", signalPin: `D${s.pin}`,
+      needsVCC: true, needsGND: true, hasResistor: false });
   });
 
   joysticks.forEach((j) => {
-    if (ANALOG_PINS.includes(j.xPin)) {
-      leftConns.push({ pinY: analogPinY(j.xPin), color: "#a78bfa", label: (j.name + " X").slice(0, 15), type: "joystickX" });
-    }
-    if (ANALOG_PINS.includes(j.yPin)) {
-      leftConns.push({ pinY: analogPinY(j.yPin), color: "#c084fc", label: (j.name + " Y").slice(0, 15), type: "joystickY" });
-    }
+    cards.push({ id: j.id + "-x", name: ((j.name || "Joystick") + " X").slice(0, 14),
+      compType: "joystickX", color: "#a78bfa", signalPin: `A${j.xPin}`,
+      needsVCC: true, needsGND: true, hasResistor: false });
+    cards.push({ id: j.id + "-y", name: ((j.name || "Joystick") + " Y").slice(0, 14),
+      compType: "joystickY", color: "#c084fc", signalPin: `A${j.yPin}`,
+      needsVCC: false, needsGND: false, hasResistor: false });
+    if (j.buttonPin && j.buttonPin > 0)
+      cards.push({ id: j.id + "-sw", name: ((j.name || "Joystick") + " SW").slice(0, 14),
+        compType: "swclick", color: "#818cf8", signalPin: `D${j.buttonPin}`,
+        needsVCC: false, needsGND: true, hasResistor: false });
+    if (j.ledPin && j.ledPin > 0)
+      cards.push({ id: j.id + "-led", name: ((j.name || "Joystick") + " LED").slice(0, 14),
+        compType: "led", color: "#fbbf24", signalPin: `D${j.ledPin}`,
+        needsVCC: false, needsGND: true, hasResistor: true });
   });
 
-  const hasAny = rightConns.length > 0 || leftConns.length > 0;
-
-  // ── Spread component positions so they don't overlap ─────────────────────
-  // Returns adjusted Y values with at least minGap between each centre.
-  function spreadYPositions(pinYs: number[], minGap: number): number[] {
-    if (pinYs.length === 0) return [];
-    const order = pinYs.map((y, i) => ({ y, i })).sort((a, b) => a.y - b.y);
-    // Forward pass: push down if too close
-    for (let k = 1; k < order.length; k++) {
-      if (order[k].y < order[k - 1].y + minGap) order[k].y = order[k - 1].y + minGap;
-    }
-    // Backward pass: pull up to centre the group without bunching at bottom
-    for (let k = order.length - 2; k >= 0; k--) {
-      if (order[k].y > order[k + 1].y - minGap) order[k].y = order[k + 1].y - minGap;
-    }
-    const out = new Array(pinYs.length);
-    order.forEach(({ y, i }) => { out[i] = y; });
-    return out;
-  }
-
-  const rightCompY = spreadYPositions(rightConns.map((c) => c.pinY), 72);
-  const leftCompY  = spreadYPositions(leftConns.map((c) => c.pinY), 72);
-
-  // Left power pin labels/colors
-  const leftPowerPins = [
-    { label: "NC",    color: "#374151" },
-    { label: "IOREF", color: "#374151" },
-    { label: "RESET", color: "#ef4444" },
-    { label: "+3V3",  color: "#f87171" },
-    { label: "+5V",   color: "#f87171" },
-    { label: "GND",   color: "#6b7280" },
-    { label: "GND",   color: "#6b7280" },
-    { label: "VIN",   color: "#f59e0b" },
-  ];
-
-  const usedDigitalPins = new Set(rightConns.map((c) => {
-    // find which pin number yields this pinY
-    for (const p of ALL_PINS) { if (digitalPinY(p) === c.pinY) return p; }
-    return -1;
-  }));
-  const usedAnalogPins = new Set(leftConns.map((c) => {
-    for (const p of ANALOG_PINS) { if (analogPinY(p) === c.pinY) return p; }
-    return -1;
-  }));
+  const hasAny = cards.length > 0;
+  const COLS = 3;
+  const CELL_W = 280;
+  const CELL_H = 230;
+  const svgRows = Math.max(1, Math.ceil(cards.length / COLS));
+  const svgW = COLS * CELL_W + 20;
+  const svgH = svgRows * CELL_H + 50;
 
   // ── Physical-drawing style component icons ──────────────────────────────────
 
@@ -1744,248 +1696,133 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
           <div className="flex items-center gap-2">
             <Zap size={14} className="text-yellow-400" />
             <span className="text-sm font-semibold text-gray-200">Wiring Diagram</span>
+            <span className="text-xs text-gray-600">— click any component for details</span>
           </div>
-          <div className="flex items-center gap-2">
-            {/* Board selector */}
-            <div className="flex items-center gap-0.5 bg-gray-800 border border-gray-700 rounded-lg p-0.5">
-              <button
-                onClick={() => setBoardType("leonardo")}
-                className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors ${
-                  boardType === "leonardo"
-                    ? "bg-teal-700/80 text-teal-100 shadow"
-                    : "text-gray-500 hover:text-gray-300"
-                }`}
-              >
-                Leonardo
-              </button>
-              <button
-                onClick={() => setBoardType("micro")}
-                className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors ${
-                  boardType === "micro"
-                    ? "bg-teal-700/80 text-teal-100 shadow"
-                    : "text-gray-500 hover:text-gray-300"
-                }`}
-              >
-                Micro
-              </button>
-            </div>
-            <button
-              onClick={() => setShowVCC((v) => !v)}
-              className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors border ${
-                showVCC
-                  ? "bg-red-900/60 text-red-300 border-red-700"
-                  : "bg-gray-800 text-gray-500 border-gray-700 hover:text-red-400"
-              }`}
-            >
-              +5V
-            </button>
-            <button
-              onClick={() => setShowGND((v) => !v)}
-              className={`px-2.5 py-1 rounded text-xs font-semibold transition-colors border ${
-                showGND
-                  ? "bg-gray-700 text-gray-200 border-gray-500"
-                  : "bg-gray-800 text-gray-500 border-gray-700 hover:text-gray-300"
-              }`}
-            >
-              GND
-            </button>
-            <button
-              onClick={onClose}
-              className="p-1.5 rounded-lg text-gray-500 hover:text-gray-200 hover:bg-gray-800 transition-colors"
-            >
-              <X size={15} />
-            </button>
-          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-gray-500 hover:text-gray-200 hover:bg-gray-800 transition-colors">
+            <X size={15} />
+          </button>
         </div>
 
         {/* SVG Body */}
         <div className="flex-1 overflow-auto p-4">
-          <svg
-            viewBox="0 0 920 660"
-            xmlns="http://www.w3.org/2000/svg"
-            style={{ width: "100%", height: "auto", background: "#0a0f1a", borderRadius: 10 }}
-          >
-            {/* ── Background grid ── */}
-            <defs>
-              <pattern id="wdgrid" width="20" height="20" patternUnits="userSpaceOnUse">
-                <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1f2937" strokeWidth="0.5" />
-              </pattern>
-            </defs>
-            <rect width="920" height="660" fill="url(#wdgrid)" />
+          {!hasAny ? (
+            <div className="flex flex-col items-center justify-center h-48 text-center">
+              <span className="text-4xl mb-3">🔌</span>
+              <p className="text-sm text-gray-500">No components configured yet.</p>
+              <p className="text-xs text-gray-600 mt-1">Add buttons, sensors, or a joystick to see the wiring.</p>
+            </div>
+          ) : (
+            <svg
+              viewBox={`0 0 ${svgW} ${svgH}`}
+              xmlns="http://www.w3.org/2000/svg"
+              style={{ width: "100%", height: "auto", background: "#0a0f1a", borderRadius: 10 }}
+            >
+              {/* Background grid */}
+              <defs>
+                <pattern id="wdgrid" width="20" height="20" patternUnits="userSpaceOnUse">
+                  <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1f2937" strokeWidth="0.5" />
+                </pattern>
+              </defs>
+              <rect width={svgW} height={svgH} fill="url(#wdgrid)" />
 
-            {/* ── Arduino Pin Block (simplified — no board mockup) ── */}
-            <rect x={BX} y={BY + 50} width={BW} height={BH - 50} rx="6" fill="#0d1424" stroke="#1e3a5f" strokeWidth="1.5" />
-            <rect x={BX + 6} y={BY + 56} width={BW - 12} height={BH - 62} rx="4" fill="none" stroke="#1e3a5f" strokeWidth="0.5" opacity="0.5" />
-            {/* Label */}
-            <text x={BX + BW / 2} y={BY + 82} textAnchor="middle" fontFamily="monospace" fontSize="12" fill="#3b82f6" fontWeight="bold" letterSpacing="2">ARDUINO</text>
-            <text x={BX + BW / 2} y={BY + 98} textAnchor="middle" fontFamily="monospace" fontSize="8" fill="#1d4ed8" letterSpacing="1">{boardType === "micro" ? "MICRO" : "LEONARDO"}</text>
-            <line x1={BX + 14} y1={BY + 108} x2={BX + BW - 14} y2={BY + 108} stroke="#1e3a5f" strokeWidth="1" />
-            {/* GND marker */}
-            <text x={BX + BW / 2} y={BY + BH - 18} textAnchor="middle" fontFamily="monospace" fontSize="8" fill="#374151">GND</text>
+              {cards.map((card, idx) => {
+                const col = idx % COLS;
+                const row = Math.floor(idx / COLS);
+                const CX = col * CELL_W + 10;   // cell left x
+                const CY = row * CELL_H + 10;   // cell top y
+                const compX = CX + 140;         // component center x
+                const compY = CY + 95;          // component center y
+                const color = card.color;
 
-            {/* ── Right Pin Header Bracket ── */}
-            <rect x={515} y={BY + 52} width="10" height="470" fill="#1f2937" stroke="#374151" strokeWidth="1" />
+                // Signal wire endpoints
+                const sigBadgeX = CX + 10;
+                const sigBadgeW = 48;
+                const sigWireStart = sigBadgeX + sigBadgeW;  // CX + 58
+                const sigWireEnd   = compX - 26;              // CX + 114
+                const resMidX      = Math.round((sigWireStart + sigWireEnd) / 2); // CX + 86
 
-            {/* Right digital pins */}
-            {ALL_PINS.concat([0, 1]).map((pin) => {
-              const py = digitalPinY(pin);
-              const conn = rightConns.find((c) => c.pinY === py);
-              const color = conn ? conn.color : "#374151";
-              return (
-                <g key={`dp${pin}`}>
-                  <circle cx={520} cy={py} r="3" fill={color} />
-                  <text x={528} y={py + 4} fontFamily="monospace" fontSize="8" fill="#4b5563">D{pin}</text>
-                </g>
-              );
-            })}
+                // GND / VCC wire x positions
+                const gndX = card.needsVCC ? compX - 28 : compX;
+                const vccX = compX + 28;
+                const powerBadgeY = CY + 193;
 
-            {/* ── Left Power Header Bracket ── */}
-            <rect x={335} y={BY + 52} width="10" height="216" fill="#1f2937" stroke="#374151" strokeWidth="1" />
+                return (
+                  <g key={card.id}>
+                    {/* Cell background */}
+                    <rect x={CX} y={CY} width={CELL_W - 12} height={CELL_H - 14} rx="8"
+                      fill="#0d1424" stroke="#1e3a5f" strokeWidth="1" opacity="0.95" />
 
-            {/* Left power pins */}
-            {leftPowerPins.map((pp, i) => {
-              const py = BY + 55 + i * 26;
-              return (
-                <g key={`lpp${i}`}>
-                  <circle cx={340} cy={py} r="3" fill={pp.color} />
-                  <text x={332} y={py + 4} fontFamily="monospace" fontSize="8" fill="#4b5563" textAnchor="end">{pp.label}</text>
-                </g>
-              );
-            })}
+                    {/* Component name */}
+                    <text x={compX} y={CY + 19} textAnchor="middle" fontFamily="sans-serif"
+                      fontSize="9" fill={color} fontWeight="700" opacity="0.9">{card.name}</text>
 
-            {/* Left Analog Header Bracket */}
-            <rect x={335} y={BY + 278} width="10" height="200" fill="#1f2937" stroke="#374151" strokeWidth="1" />
+                    {/* GND wire (drawn before component so icon sits on top) */}
+                    {card.needsGND && (
+                      <line x1={gndX} y1={compY + 22} x2={gndX} y2={powerBadgeY}
+                        stroke="#6b7280" strokeWidth="1.5" strokeDasharray="4 2" opacity={0.65} />
+                    )}
+                    {/* VCC wire */}
+                    {card.needsVCC && (
+                      <line x1={vccX} y1={compY + 22} x2={vccX} y2={powerBadgeY}
+                        stroke="#f87171" strokeWidth="1.5" strokeDasharray="4 2" opacity={0.65} />
+                    )}
 
-            {/* Analog pins */}
-            {ANALOG_PINS.map((pin) => {
-              const py = analogPinY(pin);
-              const conn = leftConns.find((c) => c.pinY === py);
-              const color = conn ? conn.color : "#374151";
-              return (
-                <g key={`ap${pin}`}>
-                  <circle cx={340} cy={py} r="3" fill={color} />
-                  <text x={332} y={py + 4} fontFamily="monospace" fontSize="8" fill="#4b5563" textAnchor="end">A{pin}</text>
-                </g>
-              );
-            })}
+                    {/* GND badge */}
+                    {card.needsGND && (
+                      <>
+                        <rect x={gndX - 22} y={powerBadgeY} width={44} height={20} rx="5"
+                          fill="#6b728028" stroke="#6b728070" strokeWidth="1.2" />
+                        <text x={gndX} y={powerBadgeY + 14} textAnchor="middle"
+                          fontFamily="monospace" fontSize="9" fill="#9ca3af" fontWeight="700">GND</text>
+                      </>
+                    )}
+                    {/* VCC badge */}
+                    {card.needsVCC && (
+                      <>
+                        <rect x={vccX - 22} y={powerBadgeY} width={44} height={20} rx="5"
+                          fill="#f8717128" stroke="#f8717170" strokeWidth="1.2" />
+                        <text x={vccX} y={powerBadgeY + 14} textAnchor="middle"
+                          fontFamily="monospace" fontSize="9" fill="#f87171" fontWeight="700">+5V</text>
+                      </>
+                    )}
 
-            {/* ── Power Bus Bars ── */}
-            {showVCC && rightConns.some((c) => connNeedsVCC(c.type)) && (
-              <g>
-                <line x1={845} y1={BY + 60} x2={845} y2={BY + 460} stroke="#f87171" strokeWidth="2.5" strokeLinecap="round" />
-                <text x={845} y={BY + 52} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#f87171">+5V</text>
-              </g>
-            )}
-            {showGND && rightConns.some((c) => connNeedsGND(c.type)) && (
-              <g>
-                <line x1={860} y1={BY + 60} x2={860} y2={BY + 460} stroke="#6b7280" strokeWidth="2.5" strokeLinecap="round" />
-                <text x={860} y={BY + 52} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#6b7280">GND</text>
-              </g>
-            )}
-            {showVCC && leftConns.some((c) => connNeedsVCC(c.type)) && (
-              <g>
-                <line x1={50} y1={BY + 270} x2={50} y2={BY + 460} stroke="#f87171" strokeWidth="2.5" strokeLinecap="round" />
-                <text x={50} y={BY + 262} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#f87171">+5V</text>
-              </g>
-            )}
-            {showGND && leftConns.some((c) => connNeedsGND(c.type)) && (
-              <g>
-                <line x1={35} y1={BY + 270} x2={35} y2={BY + 460} stroke="#6b7280" strokeWidth="2.5" strokeLinecap="round" />
-                <text x={35} y={BY + 262} textAnchor="middle" fontFamily="monospace" fontSize="7" fill="#6b7280">GND</text>
-              </g>
-            )}
+                    {/* Signal wire (drawn before badge so badge covers wire start) */}
+                    {card.hasResistor ? (
+                      <>
+                        <line x1={sigWireStart} y1={compY} x2={resMidX - 12} y2={compY}
+                          stroke={color} strokeWidth="1.5" strokeDasharray="4 2" opacity={0.8} />
+                        <ResistorIcon cx={resMidX} cy={compY} onClick={() => setShowResistorInfo((v) => !v)} />
+                        <line x1={resMidX + 12} y1={compY} x2={sigWireEnd} y2={compY}
+                          stroke={color} strokeWidth="1.5" strokeDasharray="4 2" opacity={0.8} />
+                      </>
+                    ) : (
+                      <line x1={sigWireStart} y1={compY} x2={sigWireEnd} y2={compY}
+                        stroke={color} strokeWidth="1.5" strokeDasharray="4 2" opacity={0.8} />
+                    )}
 
-            {/* ── Wires + Components RIGHT side ── */}
-            {rightConns.map((conn, idx) => {
-              const py = conn.pinY;          // pin position on the board header
-              const ky = rightCompY[idx];    // spread component position
-              const color = conn.color;
-              // Bezier control points: exit board horizontally then curve to component
-              const wireEnd = RCX - 30;
-              const curveR = `M 530 ${py} C 600 ${py} 600 ${ky} ${wireEnd} ${ky}`;
-              // For LED: resistor sits at midpoint Y between pin and component
-              const resY = Math.round((py + ky) / 2);
-              const wireEndRes1 = 562;
-              const wireEndRes2 = 588;
-              const curveR1 = `M 530 ${py} C 580 ${py} 555 ${resY} ${wireEndRes1} ${resY}`;
-              const curveR2 = `M ${wireEndRes2} ${resY} C 615 ${resY} 620 ${ky} ${wireEnd} ${ky}`;
-              return (
-                <g key={`rc${idx}`}>
-                  {/* Curved signal wire (split around resistor for LEDs) */}
-                  {conn.type === "led" ? (
-                    <>
-                      <path d={curveR1} stroke={color} strokeWidth="1.5" strokeDasharray="5 3" fill="none" opacity={0.85} />
-                      <path d={curveR2} stroke={color} strokeWidth="1.5" strokeDasharray="5 3" fill="none" opacity={0.85} />
-                      <ResistorIcon cx={575} cy={resY} onClick={() => setShowResistorInfo((v) => !v)} />
-                    </>
-                  ) : (
-                    <path d={curveR} stroke={color} strokeWidth="1.5" strokeDasharray="5 3" fill="none" opacity={0.85} />
-                  )}
-                  {/* VCC stub */}
-                  {showVCC && connNeedsVCC(conn.type) && (
-                    <line x1={RCX + 28} y1={ky - 8} x2={845} y2={ky - 8} stroke="#f87171" strokeWidth="1" strokeDasharray="4 3" opacity={0.6} />
-                  )}
-                  {/* GND stub */}
-                  {showGND && connNeedsGND(conn.type) && (
-                    <line x1={RCX + 28} y1={ky + 8} x2={860} y2={ky + 8} stroke="#6b7280" strokeWidth="1" strokeDasharray="4 3" opacity={0.6} />
-                  )}
-                  {/* Component icon at spread position */}
-                  {conn.type === "button"  && <ButtonIcon cx={RCX} cy={ky} color={color} isPower={false} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
-                  {conn.type === "power"   && <ButtonIcon cx={RCX} cy={ky} color={color} isPower={true}  onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
-                  {conn.type === "port"    && <PortIcon   cx={RCX} cy={ky} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
-                  {conn.type === "led"     && <LedIcon    cx={RCX} cy={ky} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
-                  {conn.type === "ir"      && <IrIcon     cx={RCX} cy={ky} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
-                  {conn.type === "swclick" && <SwClickIcon cx={RCX} cy={ky} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
-                  {conn.type === "sipPuff" && <SipPuffIcon cx={RCX} cy={ky} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
-                  {/* Label */}
-                  <text x={RCX + 30} y={ky + 4} fontFamily="sans-serif" fontSize="9" fill={color} textAnchor="start">{conn.label}</text>
-                </g>
-              );
-            })}
+                    {/* Component icon (renders on top of wire endpoints) */}
+                    {card.compType === "button"    && <ButtonIcon     cx={compX} cy={compY} color={color} isPower={false} onClick={() => setComponentInfo({ type: card.compType, label: card.name })} />}
+                    {card.compType === "power"     && <ButtonIcon     cx={compX} cy={compY} color={color} isPower={true}  onClick={() => setComponentInfo({ type: card.compType, label: card.name })} />}
+                    {card.compType === "port"      && <PortIcon       cx={compX} cy={compY} color={color}                 onClick={() => setComponentInfo({ type: card.compType, label: card.name })} />}
+                    {card.compType === "led"       && <LedIcon        cx={compX} cy={compY} color={color}                 onClick={() => setComponentInfo({ type: card.compType, label: card.name })} />}
+                    {card.compType === "ir"        && <IrIcon         cx={compX} cy={compY} color={color}                 onClick={() => setComponentInfo({ type: card.compType, label: card.name })} />}
+                    {card.compType === "sipPuff"   && <SipPuffIcon    cx={compX} cy={compY} color={color}                 onClick={() => setComponentInfo({ type: card.compType, label: card.name })} />}
+                    {card.compType === "joystickX" && <JoystickAxisIcon cx={compX} cy={compY} color={color}               onClick={() => setComponentInfo({ type: card.compType, label: card.name })} />}
+                    {card.compType === "joystickY" && <JoystickAxisIcon cx={compX} cy={compY} color={color}               onClick={() => setComponentInfo({ type: card.compType, label: card.name })} />}
+                    {card.compType === "swclick"   && <SwClickIcon    cx={compX} cy={compY} color={color}                 onClick={() => setComponentInfo({ type: card.compType, label: card.name })} />}
 
-            {/* ── Wires + Components LEFT side ── */}
-            {leftConns.map((conn, idx) => {
-              const py = conn.pinY;
-              const ky = leftCompY[idx];
-              const color = conn.color;
-              const wireEnd = LCX + 30;
-              const curveL = `M 335 ${py} C 265 ${py} 265 ${ky} ${wireEnd} ${ky}`;
-              return (
-                <g key={`lc${idx}`}>
-                  {/* Curved signal wire */}
-                  <path d={curveL} stroke={color} strokeWidth="1.5" strokeDasharray="5 3" fill="none" opacity={0.85} />
-                  {/* VCC stub */}
-                  {showVCC && connNeedsVCC(conn.type) && (
-                    <line x1={LCX - 28} y1={ky - 8} x2={50} y2={ky - 8} stroke="#f87171" strokeWidth="1" strokeDasharray="4 3" opacity={0.6} />
-                  )}
-                  {/* GND stub */}
-                  {showGND && connNeedsGND(conn.type) && (
-                    <line x1={LCX - 28} y1={ky + 8} x2={35} y2={ky + 8} stroke="#6b7280" strokeWidth="1" strokeDasharray="4 3" opacity={0.6} />
-                  )}
-                  {/* Component icon at spread position */}
-                  {conn.type === "sipPuff" && <SipPuffIcon cx={LCX} cy={ky} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />}
-                  {(conn.type === "joystickX" || conn.type === "joystickY") && (
-                    <JoystickAxisIcon cx={LCX} cy={ky} color={color} onClick={() => setComponentInfo({ type: conn.type, label: conn.label })} />
-                  )}
-                  {/* Label */}
-                  <text x={LCX - 30} y={ky + 4} fontFamily="sans-serif" fontSize="9" fill={color} textAnchor="end">{conn.label}</text>
-                </g>
-              );
-            })}
-
-            {/* ── Empty state ── */}
-            {!hasAny && (
-              <text x={430} y={295} textAnchor="middle" fontFamily="sans-serif" fontSize="13" fill="#374151">
-                No components configured — add inputs to see wiring
-              </text>
-            )}
-
-            {/* ── Notes strip ── */}
-            <rect x={10} y={630} width={900} height={22} rx="4" fill="#111827" />
-            <text x={20} y={645} fontFamily="sans-serif" fontSize="8.5" fill="#6b7280">
-              Toggle +5V and GND in the header to show power connections. Sensors need +5V &amp; GND; buttons/LEDs need GND only.
-            </text>
-          </svg>
+                    {/* Signal pin badge (drawn last — sits on top of wire left end) */}
+                    <rect x={sigBadgeX} y={compY - 11} width={sigBadgeW} height={22} rx="5"
+                      fill={color + "28"} stroke={color + "80"} strokeWidth="1.2" />
+                    <text x={sigBadgeX + sigBadgeW / 2} y={compY + 5} textAnchor="middle"
+                      fontFamily="monospace" fontSize="10" fill={color} fontWeight="700">
+                      {card.signalPin}
+                    </text>
+                  </g>
+                );
+              })}
+            </svg>
+          )}
         </div>
 
         {/* ── Resistor Info Popup ── */}
@@ -2421,13 +2258,8 @@ export default function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Auto-show tutorial for guests (no stored login) every time
-  useEffect(() => {
-    if (!authReady) return;
-    if (!localStorage.getItem("appUser")) {
-      setShowTutorial(true);
-    }
-  }, [authReady]);
+  // Tutorial only shows when explicitly triggered (? button) or admin enables it
+  // (removed auto-show for guests)
 
   const handleLogin = async () => {
     if (!loginUsername.trim() || loginLoading) return;
