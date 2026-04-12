@@ -1516,11 +1516,9 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
       <g onClick={onClick} style={onClick ? { cursor: "pointer" } : undefined}>
         {/* PCB footprint / base plate */}
         <rect x={cx - 18} y={cy - 4} width="36" height="14" rx="2" fill="#111827" stroke="#374151" strokeWidth="1" />
-        {/* 4 legs */}
-        <line x1={cx - 12} y1={cy + 10} x2={cx - 12} y2={cy + 20} stroke={color} strokeWidth="2" strokeLinecap="round" />
-        <line x1={cx - 5}  y1={cy + 10} x2={cx - 5}  y2={cy + 20} stroke={color} strokeWidth="2" strokeLinecap="round" />
-        <line x1={cx + 5}  y1={cy + 10} x2={cx + 5}  y2={cy + 20} stroke={color} strokeWidth="2" strokeLinecap="round" />
-        <line x1={cx + 12} y1={cy + 10} x2={cx + 12} y2={cy + 20} stroke={color} strokeWidth="2" strokeLinecap="round" />
+        {/* 2 pins */}
+        <line x1={cx - 8} y1={cy + 10} x2={cx - 8} y2={cy + 20} stroke={color} strokeWidth="2" strokeLinecap="round" />
+        <line x1={cx + 8} y1={cy + 10} x2={cx + 8} y2={cy + 20} stroke={color} strokeWidth="2" strokeLinecap="round" />
         {/* Button body (raised cylinder) */}
         <ellipse cx={cx} cy={cy - 4} rx="13" ry="5" fill="#1e3a5f" stroke={color} strokeWidth="1.5" />
         <ellipse cx={cx} cy={cy - 10} rx="13" ry="5" fill={isPower ? color : "#2563eb"} opacity={0.9} />
@@ -1649,10 +1647,9 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
     return (
       <g onClick={onClick} style={onClick ? { cursor: "pointer" } : undefined}>
         <rect x={cx - 18} y={cy - 4} width="36" height="14" rx="2" fill="#111827" stroke="#374151" strokeWidth="1" />
-        <line x1={cx - 12} y1={cy + 10} x2={cx - 12} y2={cy + 20} stroke={color} strokeWidth="2" strokeLinecap="round" />
-        <line x1={cx - 5}  y1={cy + 10} x2={cx - 5}  y2={cy + 20} stroke={color} strokeWidth="2" strokeLinecap="round" />
-        <line x1={cx + 5}  y1={cy + 10} x2={cx + 5}  y2={cy + 20} stroke={color} strokeWidth="2" strokeLinecap="round" />
-        <line x1={cx + 12} y1={cy + 10} x2={cx + 12} y2={cy + 20} stroke={color} strokeWidth="2" strokeLinecap="round" />
+        {/* 2 pins */}
+        <line x1={cx - 8} y1={cy + 10} x2={cx - 8} y2={cy + 20} stroke={color} strokeWidth="2" strokeLinecap="round" />
+        <line x1={cx + 8} y1={cy + 10} x2={cx + 8} y2={cy + 20} stroke={color} strokeWidth="2" strokeLinecap="round" />
         <ellipse cx={cx} cy={cy - 4} rx="13" ry="5" fill="#1e3a5f" stroke={color} strokeWidth="1.5" />
         <ellipse cx={cx} cy={cy - 10} rx="13" ry="5" fill={color} opacity={0.9} />
         <rect x={cx - 13} y={cy - 14} width="26" height="10" fill={color} opacity={0.9} />
