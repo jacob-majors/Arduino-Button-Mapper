@@ -417,13 +417,14 @@ function ButtonCard({ button, index, usedPins, onUpdate, onRemove, typeLabel, is
 
 interface AIMessage { role: "user" | "assistant"; content: string }
 
-function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose }: {
+function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose, initialShowAI = false }: {
   originalCode: string;
   editedCode: string;
   onCodeUpdate: (code: string) => void;
   onClose: () => void;
+  initialShowAI?: boolean;
 }) {
-  const [showAIChat, setShowAIChat] = useState(false);
+  const [showAIChat, setShowAIChat] = useState(initialShowAI);
   const [messages, setMessages] = useState<AIMessage[]>([]);
   const [userInput, setUserInput] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
@@ -481,6 +482,14 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose }: {
         }),
       });
       const data = await res.json() as { text?: string; error?: string };
+      const isQuotaError = res.status === 429 || /quota|rate.?limit|resource_exhausted|limit.*exceeded/i.test(data.error ?? "");
+      if (isQuotaError && !apiKey) {
+        // Free server key hit the limit — ask user for their own key
+        setShowApiKeyInput(true);
+        setMessages(prev => [...prev, { role: "assistant" as const, content: "The free AI limit has been reached. Paste your own Gemini or Claude API key above — both have free tiers." }]);
+        setAiLoading(false);
+        return;
+      }
       if (!res.ok || data.error) throw new Error(data.error ?? `Error ${res.status}`);
       const cleaned = (data.text ?? "").replace(/^```(?:cpp|arduino|c\+\+)?\n?/i, "").replace(/\n?```$/i, "").trim();
       onCodeUpdate(cleaned);
@@ -2648,13 +2657,15 @@ export default function Home() {
     e.target.value = "";
   };
 
-  const openSketch = async () => {
+  const [openSketchWithAI, setOpenSketchWithAI] = useState(false);
+
+  const openSketch = async (withAI = false) => {
     setLoadingSketch(true);
     try {
       const sketch = generateSketch(buttons, leds, portInputs, irSensors, sipPuffs, joysticks);
       setSketchCode(sketch);
-      // If no custom edits yet, seed customSketch to match generated code
       if (customSketch === null) setCustomSketch(sketch);
+      setOpenSketchWithAI(withAI);
       setShowSketch(true);
     } finally { setLoadingSketch(false); }
   };
@@ -2872,10 +2883,15 @@ export default function Home() {
                 >
                   <Usb size={12} /> Board <ChevronDown size={10} />
                 </button>
-                <button onClick={openSketch} title="View sketch code"
-                  className="flex items-center gap-1 px-2.5 py-2 rounded-xl border border-gray-700 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 text-xs transition-all"
+                <button onClick={() => openSketch(false)} title="View sketch code"
+                  className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-gray-700 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 text-xs transition-all"
                 >
-                  <Code size={12} />
+                  <Code size={12} /> Sketch
+                </button>
+                <button onClick={() => openSketch(true)} title="Edit sketch with AI"
+                  className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-violet-700/50 bg-violet-900/20 hover:bg-violet-900/40 text-violet-400 hover:text-violet-200 text-xs font-medium transition-all"
+                >
+                  ✦ AI
                 </button>
                 <span className="text-[10px] text-gray-600 ml-auto hidden sm:block">Chrome / Edge only</span>
               </div>
@@ -4097,6 +4113,7 @@ export default function Home() {
           editedCode={customSketch ?? sketchCode}
           onCodeUpdate={(code) => setCustomSketch(code === sketchCode ? null : code)}
           onClose={() => setShowSketch(false)}
+          initialShowAI={openSketchWithAI}
         />
       )}
 
