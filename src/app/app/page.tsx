@@ -58,7 +58,7 @@ const BOARD_TEMPLATES = [
     buttons: [{ id: "t1", name: "Micro Switch", pin: 2, keyDisplay: "Space", arduinoKey: " ", mode: "momentary" as const, ledPin: -1, ledMode: "active" as const }],
     portInputs: [],
     irSensors: [{ id: "ti1", name: "IR Sensor", pin: 6, keyDisplay: "E", arduinoKey: "e", mode: "momentary" as const, activeHigh: false, ledPin: -1, ledMode: "active" as const }],
-    sipPuffs: [{ id: "tsp1", name: "Sip & Puff", pin: 7, key: "f", keyDisplay: "F", ledPin: -1, ledMode: "active" as const }],
+    sipPuffs: [{ id: "tsp1", name: "Sip & Puff", pin: 7, key: "f", keyDisplay: "F", ledPin: -1, ledMode: "active" as const, inputMode: "hold" as const }],
     joysticks: [{
       id: "tj1", name: "Joystick", xPin: 0, yPin: 1, buttonPin: -1,
       upKey: "w", upDisplay: "W", downKey: "s", downDisplay: "S",
@@ -121,7 +121,7 @@ const BOARD_TEMPLATES = [
     desc: "Sip = Left Arrow, Puff = Right Arrow. Mouth-operated switch.",
     buttons: [],
     portInputs: [], irSensors: [],
-    sipPuffs: [{ id: "tsp1", name: "Sip & Puff", pin: 2, key: "KEY_LEFT_ARROW", keyDisplay: "←", ledPin: -1, ledMode: "active" as const }],
+    sipPuffs: [{ id: "tsp1", name: "Sip & Puff", pin: 2, key: "KEY_LEFT_ARROW", keyDisplay: "←", ledPin: -1, ledMode: "active" as const, inputMode: "hold" as const }],
     joysticks: [],
     leds: { enabled: false, onPin: 11, offPin: 12 },
   },
@@ -1070,6 +1070,26 @@ function SipPuffCard({ sensor, index, usedPins, onUpdate, onRemove, isSelected, 
           />
         </div>
       </div>
+
+      {/* Hold vs Tap toggle */}
+      <div className="flex gap-2 items-center">
+        <label className="text-[10px] text-gray-500 uppercase tracking-wider w-6 flex-shrink-0">Mode</label>
+        <div className="flex items-center gap-0.5 bg-gray-900 border border-gray-700 rounded-lg p-0.5">
+          {(["hold", "tap"] as const).map((m) => (
+            <button key={m} onClick={(e) => { e.stopPropagation(); onUpdate(sensor.id, { inputMode: m }); }}
+              className={`px-2.5 py-1 rounded text-[10px] font-semibold transition-colors capitalize ${
+                (sensor.inputMode ?? "hold") === m
+                  ? "bg-cyan-700/60 text-cyan-100 shadow"
+                  : "text-gray-500 hover:text-gray-300"
+              }`}
+            >{m}</button>
+          ))}
+        </div>
+        <span className="text-[10px] text-gray-600">
+          {(sensor.inputMode ?? "hold") === "tap" ? "one key per activation" : "held while active"}
+        </span>
+      </div>
+
       {isSelected && (
         <LedPanel
           ledPin={sensor.ledPin ?? -1}
@@ -2420,7 +2440,7 @@ export default function Home() {
   // Sip & puff
   const addSipPuff = () => {
     const dp = ALL_PINS.find((p) => !usedPins.includes(p)) ?? 2;
-    setSipPuffs((prev) => [...prev, { id: generateId(), name: "", pin: dp, key: "", keyDisplay: "", ledPin: -1, ledMode: "active" }]);
+    setSipPuffs((prev) => [...prev, { id: generateId(), name: "", pin: dp, key: "", keyDisplay: "", ledPin: -1, ledMode: "active", inputMode: "hold" }]);
   };
   const updateSipPuff = (id: string, u: Partial<SipPuffConfig>) =>
     setSipPuffs((prev) => prev.map((s) => (s.id === id ? { ...s, ...u } : s)));

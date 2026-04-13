@@ -75,6 +75,7 @@ export interface SipPuffConfig {
   keyDisplay: string;
   ledPin: number;        // -1 = no LED
   ledMode: "active" | "always";
+  inputMode: "hold" | "tap"; // hold = key held while active; tap = single press per activation
 }
 
 /** Analog joystick (X/Y axes) with optional digital click button */
@@ -271,11 +272,22 @@ const int irLedModes[${m}] = {${irLedModesArr}}; // 0=active 1=always` : ""}
       const hasLed = (s.ledPin ?? -1) >= 0;
       const ledPin = s.ledPin ?? -1;
       const alwaysOn = s.ledMode === "always";
-      spLoop += `    { bool pressed = (digitalRead(SP${i}_PIN) == LOW);
+      const isTap = (s.inputMode ?? "hold") === "tap";
+      if (isTap) {
+        // Tap mode: one keypress per activation, even if held
+        spLoop += `    { bool pressed = (digitalRead(SP${i}_PIN) == LOW);
+      if (pressed && !sp${i}Pressed && SP${i}_KEY != 0) { Keyboard.press(SP${i}_KEY); delay(30); Keyboard.release(SP${i}_KEY); sp${i}Pressed = true; }
+      if (!pressed) { sp${i}Pressed = false; }${hasLed ? `
+      digitalWrite(${ledPin}, ${alwaysOn ? "HIGH" : "pressed ? HIGH : LOW"});` : ""}
+    }\n`;
+      } else {
+        // Hold mode: key held while sensor is active
+        spLoop += `    { bool pressed = (digitalRead(SP${i}_PIN) == LOW);
       if (pressed && !sp${i}Pressed && SP${i}_KEY != 0) { Keyboard.press(SP${i}_KEY); sp${i}Pressed = true; }
       if (!pressed && sp${i}Pressed && SP${i}_KEY != 0) { Keyboard.release(SP${i}_KEY); sp${i}Pressed = false; }${hasLed ? `
       digitalWrite(${ledPin}, ${alwaysOn ? "HIGH" : "pressed ? HIGH : LOW"});` : ""}
     }\n`;
+      }
     });
     spLoop += `  }`;
   }
