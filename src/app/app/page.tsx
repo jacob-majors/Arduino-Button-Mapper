@@ -451,8 +451,9 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose }: {
   const provider = isClaudeKey ? "Claude" : apiKey.startsWith("AIza") ? "Gemini" : apiKey ? "Gemini" : null;
 
   const saveApiKey = (key: string) => {
-    localStorage.setItem("gemini_api_key", key);
-    setApiKey(key);
+    const trimmed = key.trim();
+    localStorage.setItem("gemini_api_key", trimmed);
+    setApiKey(trimmed);
   };
 
   const copy = () => {
@@ -464,49 +465,27 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose }: {
 
   const sendToAI = async () => {
     if (!userInput.trim() || aiLoading) return;
-    if (!apiKey) { setShowApiKeyInput(true); return; }
     const userMsg: AIMessage = { role: "user", content: userInput };
     setMessages(prev => [...prev, userMsg]);
     setUserInput("");
     setAiLoading(true);
     const systemPrompt = "You are modifying Arduino-style code. You must NOT change pin assignments or wiring. Only enhance behavior (e.g., sensitivity, filtering, debounce, detection). Return ONLY the full updated code, no explanation, no markdown code blocks.";
     try {
-      let cleaned = "";
-      if (isClaudeKey) {
-        // Claude via server-side proxy (avoids CORS)
-        const res = await fetch("/api/ai-proxy", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ apiKey, systemPrompt, prompt: `Current code:\n${editedCode}\n\nUser request: ${userInput}` }),
-        });
-        const data = await res.json() as { error?: string; content?: Array<{ text?: string }> };
-        if (!res.ok) throw new Error(data.error ?? `API error ${res.status}`);
-        const raw = data.content?.[0]?.text ?? "";
-        cleaned = raw.replace(/^```(?:cpp|arduino|c\+\+)?\n?/i, "").replace(/\n?```$/i, "").trim();
-      } else {
-        // Gemini — direct from browser
-        const prompt = `${systemPrompt}\n\nCurrent code:\n${editedCode}\n\nUser request: ${userInput}`;
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: prompt }] }],
-              generationConfig: { temperature: 0.2, maxOutputTokens: 8192 },
-            }),
-          }
-        );
-        if (!response.ok) {
-          const errData = await response.json().catch(() => ({})) as { error?: { message?: string } };
-          throw new Error(errData?.error?.message ?? `API error ${response.status}`);
-        }
-        const data = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
-        const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
-        cleaned = raw.replace(/^```(?:cpp|arduino|c\+\+)?\n?/i, "").replace(/\n?```$/i, "").trim();
-      }
+      const res = await fetch("/api/ai-proxy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          apiKey: apiKey || undefined,
+          systemPrompt,
+          prompt: `Current code:\n${editedCode}\n\nUser request: ${userInput}`,
+        }),
+      });
+      const data = await res.json() as { text?: string; error?: string };
+      if (!res.ok || data.error) throw new Error(data.error ?? `Error ${res.status}`);
+      const cleaned = (data.text ?? "").replace(/^```(?:cpp|arduino|c\+\+)?\n?/i, "").replace(/\n?```$/i, "").trim();
       onCodeUpdate(cleaned);
-      setMessages(prev => [...prev, { role: "assistant" as const, content: "Done! Code updated in the editor." }]);
+      setShowDiff(true);
+      setMessages(prev => [...prev, { role: "assistant" as const, content: "Done! Diff view shows what changed — click Edit to keep editing." }]);
     } catch (err) {
       setMessages(prev => [...prev, { role: "assistant" as const, content: `Error: ${err instanceof Error ? err.message : "Something went wrong."}` }]);
     } finally {
@@ -583,66 +562,67 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose }: {
               {/* API Key */}
               <div className="px-3 py-2.5 border-b border-gray-800 flex-shrink-0">
                 {showApiKeyInput || !apiKey ? (
-                  <div className="flex flex-col gap-1.5">
-                    <p className="text-[10px] text-gray-500 font-medium">
-                      AI API Key <span className="text-gray-700">(stored locally only)</span>
-                      {provider && <span className={`ml-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-semibold ${isClaudeKey ? "bg-orange-900/40 text-orange-300" : "bg-blue-900/40 text-blue-300"}`}>{provider} detected</span>}
+                  <div className="flex flex-col gap-2">
+                    <p className="text-xs text-gray-400 font-medium">
+                      API Key <span className="text-gray-600 font-normal">(optional — stored locally)</span>
+                      {provider && <span className={`ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${isClaudeKey ? "bg-orange-900/40 text-orange-300" : "bg-blue-900/40 text-blue-300"}`}>{provider} detected</span>}
                     </p>
                     <input
-                      type="password"
+                      type="text"
                       placeholder="sk-ant-… (Claude) or AIza… (Gemini)"
                       value={apiKey}
                       onChange={e => saveApiKey(e.target.value)}
+                      onPaste={e => { e.preventDefault(); saveApiKey(e.clipboardData.getData("text")); }}
                       className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-violet-500 font-mono"
                     />
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <a href="https://console.anthropic.com/account/keys" target="_blank" rel="noopener noreferrer"
-                          className="text-[10px] text-orange-500 hover:text-orange-400 flex items-center gap-0.5"
-                        ><ExternalLink size={9} /> Claude key</a>
-                        <span className="text-[10px] text-gray-700">·</span>
+                          className="text-xs text-orange-500 hover:text-orange-400 flex items-center gap-0.5"
+                        ><ExternalLink size={10} /> Claude</a>
+                        <span className="text-gray-700">·</span>
                         <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer"
-                          className="text-[10px] text-blue-500 hover:text-blue-400 flex items-center gap-0.5"
-                        ><ExternalLink size={9} /> Gemini key</a>
+                          className="text-xs text-blue-500 hover:text-blue-400 flex items-center gap-0.5"
+                        ><ExternalLink size={10} /> Gemini</a>
                       </div>
-                      {apiKey && <button onClick={() => setShowApiKeyInput(false)} className="text-[10px] text-violet-400 hover:text-violet-300">Done</button>}
+                      {apiKey && <button onClick={() => setShowApiKeyInput(false)} className="text-xs text-violet-400 hover:text-violet-300 font-medium">Done</button>}
                     </div>
                   </div>
                 ) : (
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-1.5">
-                      <div className="w-1.5 h-1.5 rounded-full bg-green-400 flex-shrink-0" />
-                      <span className="text-[10px] text-gray-500">
-                        {provider ?? "API"} key set
-                      </span>
+                      <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
+                      <span className="text-xs text-gray-400 font-medium">{provider ?? "API"} key set</span>
                     </div>
-                    <button onClick={() => setShowApiKeyInput(true)} className="text-[10px] text-gray-600 hover:text-gray-400">Change</button>
+                    <button onClick={() => setShowApiKeyInput(true)} className="text-xs text-gray-500 hover:text-gray-300">Change</button>
                   </div>
                 )}
               </div>
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2 min-h-0">
+              <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2.5 min-h-0">
                 {messages.length === 0 && (
-                  <div className="flex flex-col gap-1.5">
-                    <p className="text-[10px] text-gray-600 mb-0.5">Try asking:</p>
+                  <div className="flex flex-col gap-2">
+                    <p className="text-xs text-gray-500 font-medium mb-0.5">Try asking:</p>
                     {SUGGESTIONS.map(s => (
                       <button key={s} onClick={() => setUserInput(s)}
-                        className="text-left px-3 py-2 rounded-xl border border-gray-700/30 bg-gray-800/20 text-[11px] text-gray-600 hover:text-violet-300 hover:border-violet-700/40 hover:bg-gray-800/50 transition-all backdrop-blur-sm opacity-60 hover:opacity-100"
-                        style={{ filter: "blur(0.3px)" }}
+                        className="text-left px-3 py-2.5 rounded-xl border border-gray-700/30 bg-gray-800/20 text-xs text-gray-500 hover:text-violet-200 hover:border-violet-700/50 hover:bg-violet-900/20 transition-all opacity-55 hover:opacity-100"
+                        style={{ filter: "blur(0.4px)", transition: "filter 0.15s, opacity 0.15s" }}
+                        onMouseEnter={e => (e.currentTarget.style.filter = "none")}
+                        onMouseLeave={e => (e.currentTarget.style.filter = "blur(0.4px)")}
                       >{s}</button>
                     ))}
                   </div>
                 )}
                 {messages.map((m, i) => (
                   <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[92%] px-3 py-2 rounded-xl text-xs leading-relaxed ${m.role === "user" ? "bg-violet-700/40 text-violet-100 border border-violet-600/30" : "bg-gray-800 text-gray-300 border border-gray-700"}`}>{m.content}</div>
+                    <div className={`max-w-[92%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${m.role === "user" ? "bg-violet-700/40 text-violet-100 border border-violet-600/30" : "bg-gray-800/80 text-gray-200 border border-gray-700/60"}`}>{m.content}</div>
                   </div>
                 ))}
                 {aiLoading && (
                   <div className="flex justify-start">
-                    <div className="bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 flex items-center gap-2">
-                      <Loader2 size={11} className="animate-spin text-violet-400" />
-                      <span className="text-xs text-gray-500">Thinking…</span>
+                    <div className="bg-gray-800/80 border border-gray-700/60 rounded-2xl px-3.5 py-2.5 flex items-center gap-2">
+                      <Loader2 size={12} className="animate-spin text-violet-400" />
+                      <span className="text-sm text-gray-400">Thinking…</span>
                     </div>
                   </div>
                 )}
@@ -650,7 +630,7 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose }: {
               </div>
               {/* Input */}
               <div className="px-3 py-2.5 border-t border-gray-800 flex-shrink-0">
-                {!apiKey && <p className="text-[10px] text-amber-400 mb-2">Add your API key above to use AI.</p>}
+                {!apiKey && <p className="text-xs text-gray-500 mb-2">No key? Send anyway — server AI may be available.</p>}
                 <div className="flex gap-1.5">
                   <input
                     type="text"
@@ -1481,7 +1461,7 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
   sipPuffs.forEach((s) => {
     cards.push({ id: s.id, name: (s.name || "Sip & Puff").slice(0, 14),
       compType: "sipPuff", color: "#22d3ee", signalPin: `D${s.pin}`,
-      needsVCC: true, needsGND: true, hasResistor: false });
+      needsVCC: false, needsGND: true, hasResistor: false });
   });
 
   joysticks.forEach((j) => {
