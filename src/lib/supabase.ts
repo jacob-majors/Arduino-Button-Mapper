@@ -244,6 +244,65 @@ export async function deleteDbTemplate(id: string): Promise<void> {
   await supabase.from("templates").delete().eq("id", id);
 }
 
+// ── Issues ───────────────────────────────────────────────────────────────────
+// Required SQL (run once in Supabase SQL editor):
+//
+// CREATE TABLE public.issues (
+//   id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+//   username text,
+//   title text NOT NULL,
+//   description text NOT NULL,
+//   category text NOT NULL DEFAULT 'bug',
+//   status text NOT NULL DEFAULT 'open',
+//   created_at timestamptz DEFAULT now()
+// );
+// ALTER TABLE public.issues ENABLE ROW LEVEL SECURITY;
+// CREATE POLICY "public read"   ON public.issues FOR SELECT USING (true);
+// CREATE POLICY "public insert" ON public.issues FOR INSERT WITH CHECK (true);
+// CREATE POLICY "public update" ON public.issues FOR UPDATE USING (true);
+// CREATE POLICY "public delete" ON public.issues FOR DELETE USING (true);
+
+export type Issue = {
+  id: string;
+  username: string | null;
+  title: string;
+  description: string;
+  category: "bug" | "feature" | "question" | "other";
+  status: "open" | "in_progress" | "resolved" | "wontfix";
+  created_at: string;
+};
+
+export async function submitIssue(
+  title: string,
+  description: string,
+  category: Issue["category"],
+  username?: string
+): Promise<void> {
+  await supabase.from("issues").insert({
+    title,
+    description,
+    category,
+    username: username ?? null,
+    status: "open",
+  });
+}
+
+export async function loadAllIssues(): Promise<Issue[]> {
+  const { data } = await supabase
+    .from("issues")
+    .select("id, username, title, description, category, status, created_at")
+    .order("created_at", { ascending: false });
+  return (data as Issue[]) ?? [];
+}
+
+export async function updateIssueStatus(id: string, status: Issue["status"]): Promise<void> {
+  await supabase.from("issues").update({ status }).eq("id", id);
+}
+
+export async function deleteIssue(id: string): Promise<void> {
+  await supabase.from("issues").delete().eq("id", id);
+}
+
 // ── Dino Leaderboard ────────────────────────────────────────────────────────
 // Required SQL (run once in Supabase SQL editor):
 //

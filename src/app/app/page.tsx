@@ -6,6 +6,7 @@ import {
   Loader2, CheckCircle2, XCircle, Terminal, Usb, Keyboard,
   RotateCcw, Pencil, Gamepad2, Settings, Lightbulb, Power, Code,
   Info, ExternalLink, Radio, Wind, Joystick, Minimize2, Maximize2, Download, Star, Square,
+  AlertCircle, MessageSquare, CheckCheck, Clock, Ban,
 } from "lucide-react";
 import {
   ButtonConfig, ButtonMode, LedConfig, PortConfig,
@@ -41,8 +42,12 @@ import {
   upsertDbTemplate,
   deleteDbTemplate,
   updateLastActive,
+  submitIssue,
+  loadAllIssues,
+  updateIssueStatus,
+  deleteIssue,
 } from "@/lib/supabase";
-import type { SaveSlot, AppUser, AdminSettings, DinoScore, DbTemplate } from "@/lib/supabase";
+import type { SaveSlot, AppUser, AdminSettings, DinoScore, DbTemplate, Issue } from "@/lib/supabase";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
 const ALL_PINS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
@@ -2279,7 +2284,15 @@ export default function Home() {
   const [deleteConfirmUserId, setDeleteConfirmUserId] = useState<string | null>(null);
   const [userSaveCounts, setUserSaveCounts] = useState<Record<string, number>>({});
   const [userSearch, setUserSearch] = useState("");
-  const [adminSubTab, setAdminSubTab] = useState<"settings" | "users" | "railway">("settings");
+  const [adminSubTab, setAdminSubTab] = useState<"settings" | "users" | "railway" | "issues">("settings");
+  const [allIssues, setAllIssues] = useState<Issue[]>([]);
+  const [issuesLoaded, setIssuesLoaded] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportTitle, setReportTitle] = useState("");
+  const [reportDesc, setReportDesc] = useState("");
+  const [reportCategory, setReportCategory] = useState<Issue["category"]>("bug");
+  const [reportSubmitting, setReportSubmitting] = useState(false);
+  const [reportDone, setReportDone] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
   const [arduinoDetected, setArduinoDetected] = useState(false);
   const arduinoDetectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -2518,6 +2531,18 @@ export default function Home() {
     setShadowSaves([]);
     supabase.auth.signOut().catch(() => {});
     if (tab === "admin") setTab("configure");
+  };
+
+  const handleSubmitIssue = async () => {
+    if (!reportTitle.trim() || !reportDesc.trim()) return;
+    setReportSubmitting(true);
+    await submitIssue(reportTitle.trim(), reportDesc.trim(), reportCategory, appUser?.username ?? undefined);
+    setReportSubmitting(false);
+    setReportDone(true);
+    setReportTitle("");
+    setReportDesc("");
+    setReportCategory("bug");
+    setTimeout(() => { setReportDone(false); setShowReportModal(false); }, 2000);
   };
 
   const handleGoogleSignIn = async () => {
@@ -2986,6 +3011,11 @@ export default function Home() {
             title="Show tutorial"
             className="w-7 h-7 rounded-lg bg-gray-800 border border-gray-700 text-gray-500 hover:text-gray-200 hover:border-gray-600 transition-colors flex items-center justify-center flex-shrink-0 text-xs font-bold"
           >?</button>
+          <button
+            onClick={() => setShowReportModal(true)}
+            title="Report an issue"
+            className="w-7 h-7 rounded-lg bg-gray-800 border border-gray-700 text-gray-500 hover:text-red-400 hover:border-red-700/60 transition-colors flex items-center justify-center flex-shrink-0"
+          ><AlertCircle size={13} /></button>
 
           <div className="flex bg-gray-800/60 border border-gray-700 rounded-xl p-0.5 gap-0.5">
             <button onClick={() => setTab("configure")} data-tutorial="configure-tab"
@@ -3708,13 +3738,19 @@ export default function Home() {
               {([
                 { id: "settings", label: "Settings" },
                 { id: "users", label: `Users (${allUsers.length})` },
+                { id: "issues", label: `Issues${allIssues.filter(i => i.status === "open").length > 0 ? ` (${allIssues.filter(i => i.status === "open").length})` : ""}` },
                 { id: "railway", label: "Railway" },
               ] as const).map((st) => (
-                <button key={st.id} onClick={() => setAdminSubTab(st.id)}
+                <button key={st.id} onClick={() => {
+                  setAdminSubTab(st.id);
+                  if (st.id === "issues" && !issuesLoaded) {
+                    loadAllIssues().then(d => { setAllIssues(d); setIssuesLoaded(true); });
+                  }
+                }}
                   className={["px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
                     adminSubTab === st.id
-                      ? st.id === "railway" ? "bg-yellow-900/40 text-yellow-200" : "bg-gray-800 text-gray-100"
-                      : "text-gray-500 hover:text-gray-300"].join(" ")}
+                      ? st.id === "railway" ? "bg-yellow-900/40 text-yellow-200" : st.id === "issues" ? "bg-red-900/40 text-red-200" : "bg-gray-800 text-gray-100"
+                      : st.id === "issues" && allIssues.some(i => i.status === "open") ? "text-red-400 hover:text-red-300" : "text-gray-500 hover:text-gray-300"].join(" ")}
                 >{st.label}</button>
               ))}
             </div>
@@ -4072,6 +4108,104 @@ export default function Home() {
               </div>
 
             </>)}
+
+            {/* ── ISSUES SUB-TAB ── */}
+            {adminSubTab === "issues" && (
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-200">Submitted Issues</h3>
+                    <p className="text-xs text-gray-500 mt-0.5">{allIssues.filter(i => i.status === "open").length} open · {allIssues.length} total</p>
+                  </div>
+                  <button
+                    onClick={() => loadAllIssues().then(d => setAllIssues(d))}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-xs text-gray-400 hover:text-gray-200 transition-colors"
+                  ><RefreshCw size={11} /> Refresh</button>
+                </div>
+
+                {allIssues.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-center border border-gray-800 rounded-xl bg-gray-900/30">
+                    <CheckCheck size={28} className="text-green-500/40 mb-2" />
+                    <p className="text-sm text-gray-500">No issues submitted yet.</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    {allIssues.map((issue) => {
+                      const statusStyles: Record<Issue["status"], string> = {
+                        open:        "bg-red-900/40 border-red-700/50 text-red-300",
+                        in_progress: "bg-yellow-900/40 border-yellow-700/50 text-yellow-300",
+                        resolved:    "bg-green-900/40 border-green-700/50 text-green-300",
+                        wontfix:     "bg-gray-800/60 border-gray-700/50 text-gray-500",
+                      };
+                      const categoryColors: Record<Issue["category"], string> = {
+                        bug:     "text-red-400",
+                        feature: "text-blue-400",
+                        question:"text-purple-400",
+                        other:   "text-gray-400",
+                      };
+                      const categoryIcons: Record<Issue["category"], React.ReactNode> = {
+                        bug:     <AlertCircle size={10} />,
+                        feature: <Star size={10} />,
+                        question:<Info size={10} />,
+                        other:   <MessageSquare size={10} />,
+                      };
+                      return (
+                        <div key={issue.id} className="border border-gray-800 rounded-xl bg-gray-900/40 p-3.5 flex flex-col gap-2.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex flex-col gap-1 flex-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className={["flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider", categoryColors[issue.category]].join(" ")}>
+                                  {categoryIcons[issue.category]} {issue.category}
+                                </span>
+                                <span className={["px-2 py-0.5 rounded-full border text-[10px] font-semibold", statusStyles[issue.status]].join(" ")}>
+                                  {issue.status.replace("_", " ")}
+                                </span>
+                                <span className="text-[10px] text-gray-600">
+                                  {new Date(issue.created_at).toLocaleDateString()}
+                                </span>
+                              </div>
+                              <p className="text-sm font-semibold text-gray-200 leading-snug">{issue.title}</p>
+                              {issue.username && (
+                                <p className="text-[11px] text-gray-500">from <span className="text-gray-400 font-medium">{issue.username}</span></p>
+                              )}
+                            </div>
+                            <button
+                              onClick={async () => { await deleteIssue(issue.id); setAllIssues(p => p.filter(i => i.id !== issue.id)); }}
+                              className="p-1 rounded text-gray-700 hover:text-red-400 hover:bg-red-400/10 transition-all flex-shrink-0"
+                            ><Trash2 size={12} /></button>
+                          </div>
+
+                          <p className="text-xs text-gray-400 leading-relaxed whitespace-pre-wrap border-t border-gray-800 pt-2">{issue.description}</p>
+
+                          {/* Status buttons */}
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[10px] text-gray-600 uppercase tracking-wider mr-1">Status:</span>
+                            {(["open", "in_progress", "resolved", "wontfix"] as Issue["status"][]).map((s) => (
+                              <button key={s}
+                                onClick={async () => {
+                                  await updateIssueStatus(issue.id, s);
+                                  setAllIssues(p => p.map(i => i.id === issue.id ? { ...i, status: s } : i));
+                                }}
+                                className={["px-2 py-0.5 rounded-lg border text-[10px] font-medium transition-colors",
+                                  issue.status === s
+                                    ? statusStyles[s]
+                                    : "bg-gray-800/40 border-gray-700/40 text-gray-600 hover:text-gray-300"
+                                ].join(" ")}
+                              >
+                                {s === "open" && <><AlertCircle size={9} className="inline mr-0.5" />Open</>}
+                                {s === "in_progress" && <><Clock size={9} className="inline mr-0.5" />In Progress</>}
+                                {s === "resolved" && <><CheckCheck size={9} className="inline mr-0.5" />Resolved</>}
+                                {s === "wontfix" && <><Ban size={9} className="inline mr-0.5" />Won&apos;t Fix</>}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* ── RAILWAY SUB-TAB ── */}
             {adminSubTab === "railway" && (<>
@@ -4480,6 +4614,90 @@ export default function Home() {
           irSensors={irSensors} sipPuffs={sipPuffs} joysticks={joysticks}
           onClose={() => setShowWiring(false)}
         />
+      )}
+
+      {/* ── Report Issue Modal ── */}
+      {showReportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={(e) => e.target === e.currentTarget && setShowReportModal(false)}>
+          <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowReportModal(false)} />
+          <div className="relative z-10 w-full max-w-md bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-800">
+              <div className="flex items-center gap-2">
+                <AlertCircle size={14} className="text-red-400" />
+                <span className="text-sm font-semibold text-gray-200">Report an Issue</span>
+              </div>
+              <button onClick={() => setShowReportModal(false)} className="p-1.5 rounded-lg text-gray-500 hover:text-gray-200 hover:bg-gray-800 transition-colors"><X size={14} /></button>
+            </div>
+
+            {reportDone ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-12 px-6 text-center">
+                <CheckCircle2 size={36} className="text-green-400" />
+                <p className="text-sm font-semibold text-gray-200">Thanks! Issue submitted.</p>
+                <p className="text-xs text-gray-500">We&apos;ll look into it shortly.</p>
+              </div>
+            ) : (
+              <div className="p-5 flex flex-col gap-4">
+                {/* Category */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Category</label>
+                  <div className="flex gap-2 flex-wrap">
+                    {([
+                      { v: "bug",      label: "Bug",     icon: <AlertCircle size={11} /> },
+                      { v: "feature",  label: "Feature", icon: <Star size={11} /> },
+                      { v: "question", label: "Question",icon: <Info size={11} /> },
+                      { v: "other",    label: "Other",   icon: <MessageSquare size={11} /> },
+                    ] as { v: Issue["category"]; label: string; icon: React.ReactNode }[]).map(({ v, label, icon }) => (
+                      <button key={v} onClick={() => setReportCategory(v)}
+                        className={["flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors",
+                          reportCategory === v
+                            ? "bg-blue-700/40 border-blue-600/60 text-blue-200"
+                            : "bg-gray-800 border-gray-700 text-gray-500 hover:text-gray-300"
+                        ].join(" ")}
+                      >{icon}{label}</button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Title */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Title</label>
+                  <input
+                    type="text"
+                    placeholder="Short summary of the issue…"
+                    value={reportTitle}
+                    onChange={(e) => setReportTitle(e.target.value)}
+                    className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                {/* Description */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Description</label>
+                  <textarea
+                    placeholder="What happened? What did you expect? Steps to reproduce…"
+                    value={reportDesc}
+                    onChange={(e) => setReportDesc(e.target.value)}
+                    rows={4}
+                    className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-blue-500 resize-none"
+                  />
+                </div>
+
+                {appUser && (
+                  <p className="text-xs text-gray-600">Submitting as <span className="text-gray-400 font-medium">{appUser.username}</span></p>
+                )}
+
+                <button
+                  onClick={handleSubmitIssue}
+                  disabled={!reportTitle.trim() || !reportDesc.trim() || reportSubmitting}
+                  className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-red-700 hover:bg-red-600 disabled:opacity-40 text-white text-sm font-semibold transition-colors"
+                >
+                  {reportSubmitting ? <Loader2 size={14} className="animate-spin" /> : <AlertCircle size={14} />}
+                  {reportSubmitting ? "Submitting…" : "Submit Issue"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Interactive tutorial */}
