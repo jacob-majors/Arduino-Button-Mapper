@@ -366,7 +366,7 @@ function ButtonCard({ button, index, usedPins, onUpdate, onRemove, typeLabel, is
       {/* Hold / Tap mode toggle */}
       {!isPower && button.mode !== "toggle" && (
         <div className="flex gap-2 items-center">
-          <label className="text-xs text-gray-500 uppercase tracking-wider w-6 flex-shrink-0">Mode</label>
+          <label className="text-xs text-gray-500 uppercase tracking-wider w-12 flex-shrink-0">Mode</label>
           <div className="flex items-center gap-0.5 bg-gray-900 border border-gray-700 rounded-lg p-0.5">
             {(["hold", "tap"] as const).map((m) => (
               <button key={m} onClick={(e) => { e.stopPropagation(); onUpdate(button.id, { inputMode: m }); }}
@@ -449,6 +449,8 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose, initialShow
 }) {
   const [showAIChat, setShowAIChat] = useState(initialShowAI);
   const [messages, setMessages] = useState<AIMessage[]>([]);
+  // Tracks real user↔AI exchanges to give the model conversation context
+  const [apiHistory, setApiHistory] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [userInput, setUserInput] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [apiKey, setApiKey] = useState(() => {
@@ -459,6 +461,7 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose, initialShow
   const [copied, setCopied] = useState(false);
   const [showDiff, setShowDiff] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const isModified = editedCode !== originalCode;
 
   useEffect(() => {
@@ -470,6 +473,11 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose, initialShow
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Focus input when AI panel opens
+  useEffect(() => {
+    if (showAIChat) setTimeout(() => inputRef.current?.focus(), 50);
+  }, [showAIChat]);
 
   const isClaudeKey = apiKey.startsWith("sk-ant-");
   const provider = isClaudeKey ? "Claude" : apiKey.startsWith("AIza") ? "Gemini" : apiKey ? "Gemini" : null;
@@ -489,11 +497,21 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose, initialShow
 
   const sendToAI = async () => {
     if (!userInput.trim() || aiLoading) return;
-    const userMsg: AIMessage = { role: "user", content: userInput };
-    setMessages(prev => [...prev, userMsg]);
+    const request = userInput.trim();
+    setMessages(prev => [...prev, { role: "user", content: request }]);
     setUserInput("");
     setAiLoading(true);
-    const systemPrompt = "You are modifying Arduino-style code. You must NOT change pin assignments or wiring. Only enhance behavior (e.g., sensitivity, filtering, debounce, detection). Return ONLY the full updated code, no explanation, no markdown code blocks.";
+
+    const systemPrompt =
+      "You are an expert Arduino programmer helping modify a HID (keyboard/mouse) input device sketch. " +
+      "The sketch uses Keyboard.h and optionally Mouse.h to map physical inputs (buttons, joysticks, IR sensors, sip & puff) to key presses. " +
+      "Rules: (1) Never change pin numbers — those are fixed by hardware. " +
+      "(2) Return ONLY the complete modified Arduino sketch — raw C++ code, no markdown fences, no backticks, no explanation. " +
+      "(3) If the user asks a question rather than requesting a code change, answer in plain text instead of code.";
+
+    const prompt =
+      `Current Arduino sketch:\n\`\`\`cpp\n${editedCode}\n\`\`\`\n\nRequest: ${request}`;
+
     try {
       const res = await fetch("/api/ai-proxy", {
         method: "POST",
@@ -501,31 +519,74 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose, initialShow
         body: JSON.stringify({
           apiKey: apiKey || undefined,
           systemPrompt,
-          prompt: `Current code:\n${editedCode}\n\nUser request: ${userInput}`,
+          prompt,
+          history: apiHistory,
         }),
       });
       const data = await res.json() as { text?: string; error?: string };
-      const isQuotaError = res.status === 429 || /quota|rate.?limit|resource_exhausted|limit.*exceeded/i.test(data.error ?? "");
+
+      const isQuotaError =
+        res.status === 429 ||
+        /quota|rate.?limit|resource_exhausted|limit.*exceeded/i.test(data.error ?? "");
       if (isQuotaError && !apiKey) {
-        // Free server key hit the limit — ask user for their own key
         setShowApiKeyInput(true);
-        setMessages(prev => [...prev, { role: "assistant" as const, content: "The free AI limit has been reached. Paste your own Gemini or Claude API key above — both have free tiers." }]);
+        setMessages(prev => [...prev, {
+          role: "assistant" as const,
+          content: "The free AI limit has been reached. Paste your own Claude or Gemini API key above to continue — both have free tiers.",
+        }]);
         setAiLoading(false);
         return;
       }
       if (!res.ok || data.error) throw new Error(data.error ?? `Error ${res.status}`);
-      const cleaned = (data.text ?? "").replace(/^```(?:cpp|arduino|c\+\+)?\n?/i, "").replace(/\n?```$/i, "").trim();
-      onCodeUpdate(cleaned);
-      setShowDiff(true);
-      setMessages(prev => [...prev, { role: "assistant" as const, content: "Done! Diff view shows what changed — click Edit to keep editing." }]);
+
+      const raw = (data.text ?? "")
+        .replace(/^```(?:cpp|arduino|c\+\+)?\n?/i, "")
+        .replace(/\n?```$/i, "")
+        .trim();
+
+      // Detect whether the response is code or a text answer
+      const looksLikeCode =
+        /^(\/\/|#include|void setup|void loop|bool |int |const |\/\*)/m.test(raw.slice(0, 300));
+
+      if (looksLikeCode) {
+        onCodeUpdate(raw);
+        setShowDiff(true);
+        setApiHistory(prev => [
+          ...prev,
+          { role: "user", content: prompt },
+          { role: "assistant", content: "Sketch updated successfully." },
+        ]);
+        setMessages(prev => [...prev, {
+          role: "assistant" as const,
+          content: "Sketch updated ✓ — check the Diff view to see exactly what changed.",
+        }]);
+      } else {
+        // AI answered a question — show the text response in chat
+        setApiHistory(prev => [
+          ...prev,
+          { role: "user", content: prompt },
+          { role: "assistant", content: raw },
+        ]);
+        setMessages(prev => [...prev, { role: "assistant" as const, content: raw }]);
+      }
     } catch (err) {
-      setMessages(prev => [...prev, { role: "assistant" as const, content: `Error: ${err instanceof Error ? err.message : "Something went wrong."}` }]);
+      setMessages(prev => [...prev, {
+        role: "assistant" as const,
+        content: `Error: ${err instanceof Error ? err.message : "Something went wrong."}`,
+      }]);
     } finally {
       setAiLoading(false);
+      setTimeout(() => inputRef.current?.focus(), 50);
     }
   };
 
-  const SUGGESTIONS = ["Make the joystick more sensitive", "Add debounce to the button", "Detect and smooth out tremors"];
+  const SUGGESTIONS = [
+    "Make the joystick more sensitive",
+    "Add debounce to all buttons",
+    "Detect and smooth out hand tremors",
+    "Add an LED flash on each keypress",
+    "Require a long press (500 ms) before firing",
+  ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -533,46 +594,70 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose, initialShow
     >
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
       <div className={`relative z-10 flex flex-col bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl overflow-hidden transition-all ${showAIChat ? "w-full max-w-5xl h-[90vh]" : "w-full max-w-3xl h-[85vh]"}`}>
+
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-800 flex-shrink-0">
           <div className="flex items-center gap-2">
             <Terminal size={14} className="text-green-400" />
             <span className="text-sm font-semibold text-gray-200">Arduino Sketch</span>
-            {isModified && <span className="text-[10px] text-amber-400 bg-amber-900/30 border border-amber-700/40 px-1.5 py-0.5 rounded-full">modified</span>}
+            {isModified && (
+              <span className="text-[10px] text-amber-400 bg-amber-900/30 border border-amber-700/40 px-1.5 py-0.5 rounded-full">
+                modified
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {isModified && (
-              <button onClick={() => { onCodeUpdate(originalCode); setShowDiff(false); }}
+              <button
+                onClick={() => { onCodeUpdate(originalCode); setShowDiff(false); }}
                 className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-amber-300 bg-amber-900/20 hover:bg-amber-900/40 border border-amber-700/30 transition-all"
-              ><RotateCcw size={11} /> Reset</button>
+              >
+                <RotateCcw size={11} /> Reset
+              </button>
             )}
             {isModified && (
-              <button onClick={() => setShowDiff(v => !v)}
+              <button
+                onClick={() => setShowDiff(v => !v)}
                 className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all border ${showDiff ? "bg-blue-800/40 text-blue-300 border-blue-700/50" : "text-gray-400 bg-gray-800 border-gray-700 hover:text-blue-300"}`}
-              >Diff</button>
+              >
+                Diff
+              </button>
             )}
-            <button onClick={() => setShowAIChat(v => !v)}
+            <button
+              onClick={() => setShowAIChat(v => !v)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${showAIChat ? "bg-violet-700/40 text-violet-200 border-violet-600/50" : "bg-violet-600/20 text-violet-300 border-violet-600/30 hover:bg-violet-600/30"}`}
-            ><span>✦</span> Edit with AI</button>
-            <button onClick={copy}
+            >
+              <span>✦</span> Edit with AI
+            </button>
+            <button
+              onClick={copy}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${copied ? "bg-green-600 text-white" : "bg-blue-600 hover:bg-blue-500 text-white"}`}
-            >{copied ? <><CheckCircle2 size={12} /> Copied!</> : <><Download size={12} /> Copy</>}</button>
-            <button onClick={onClose} className="p-1.5 rounded-lg text-gray-500 hover:text-gray-200 hover:bg-gray-800 transition-colors"><X size={15} /></button>
+            >
+              {copied ? <><CheckCircle2 size={12} /> Copied!</> : <><Download size={12} /> Copy</>}
+            </button>
+            <button onClick={onClose} className="p-1.5 rounded-lg text-gray-500 hover:text-gray-200 hover:bg-gray-800 transition-colors">
+              <X size={15} />
+            </button>
           </div>
         </div>
 
         {/* Body */}
         <div className="flex-1 overflow-hidden flex min-h-0">
-          {/* Code Editor */}
+
+          {/* Code panel */}
           <div className={`flex flex-col min-h-0 ${showAIChat ? "flex-1 border-r border-gray-800" : "flex-1"}`}>
             {showDiff && isModified ? (
               <div className="flex flex-1 min-h-0">
                 <div className="flex-1 flex flex-col min-h-0 border-r border-gray-800">
-                  <div className="px-3 py-1.5 bg-red-950/30 text-[10px] text-red-400 font-semibold flex-shrink-0 border-b border-gray-800">Before (original)</div>
+                  <div className="px-3 py-1.5 bg-red-950/30 text-[10px] text-red-400 font-semibold flex-shrink-0 border-b border-gray-800">
+                    Before
+                  </div>
                   <pre className="flex-1 overflow-auto p-4 text-xs font-mono text-red-300/70 leading-relaxed whitespace-pre">{originalCode}</pre>
                 </div>
                 <div className="flex-1 flex flex-col min-h-0">
-                  <div className="px-3 py-1.5 bg-green-950/30 text-[10px] text-green-400 font-semibold flex-shrink-0 border-b border-gray-800">After (modified)</div>
+                  <div className="px-3 py-1.5 bg-green-950/30 text-[10px] text-green-400 font-semibold flex-shrink-0 border-b border-gray-800">
+                    After
+                  </div>
                   <pre className="flex-1 overflow-auto p-4 text-xs font-mono text-green-300/70 leading-relaxed whitespace-pre">{editedCode}</pre>
                 </div>
               </div>
@@ -588,16 +673,22 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose, initialShow
             )}
           </div>
 
-          {/* AI Chat Panel */}
+          {/* AI Chat panel */}
           {showAIChat && (
-            <div className="w-80 flex flex-col min-h-0 bg-gray-950/50 flex-shrink-0">
-              {/* API Key */}
+            <div className="w-96 flex flex-col min-h-0 bg-gray-950/50 flex-shrink-0">
+
+              {/* API key row */}
               <div className="px-3 py-2.5 border-b border-gray-800 flex-shrink-0">
                 {showApiKeyInput || !apiKey ? (
                   <div className="flex flex-col gap-2">
                     <p className="text-xs text-gray-400 font-medium">
-                      API Key <span className="text-gray-600 font-normal">(optional — stored locally)</span>
-                      {provider && <span className={`ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${isClaudeKey ? "bg-orange-900/40 text-orange-300" : "bg-blue-900/40 text-blue-300"}`}>{provider} detected</span>}
+                      Your API key{" "}
+                      <span className="text-gray-600 font-normal">(optional — stored locally)</span>
+                      {provider && (
+                        <span className={`ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${isClaudeKey ? "bg-orange-900/40 text-orange-300" : "bg-blue-900/40 text-blue-300"}`}>
+                          {provider} detected
+                        </span>
+                      )}
                     </p>
                     <input
                       type="text"
@@ -617,7 +708,11 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose, initialShow
                           className="text-xs text-blue-500 hover:text-blue-400 flex items-center gap-0.5"
                         ><ExternalLink size={10} /> Gemini</a>
                       </div>
-                      {apiKey && <button onClick={() => setShowApiKeyInput(false)} className="text-xs text-violet-400 hover:text-violet-300 font-medium">Done</button>}
+                      {apiKey && (
+                        <button onClick={() => setShowApiKeyInput(false)} className="text-xs text-violet-400 hover:text-violet-300 font-medium">
+                          Done
+                        </button>
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -626,56 +721,70 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose, initialShow
                       <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
                       <span className="text-xs text-gray-400 font-medium">{provider ?? "API"} key set</span>
                     </div>
-                    <button onClick={() => setShowApiKeyInput(true)} className="text-xs text-gray-500 hover:text-gray-300">Change</button>
+                    <button onClick={() => setShowApiKeyInput(true)} className="text-xs text-gray-500 hover:text-gray-300">
+                      Change
+                    </button>
                   </div>
                 )}
               </div>
+
               {/* Messages */}
               <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2.5 min-h-0">
                 {messages.length === 0 && (
-                  <div className="flex flex-col gap-2">
-                    <p className="text-xs text-gray-500 font-medium mb-0.5">Try asking:</p>
+                  <div className="flex flex-col gap-2 pt-1">
+                    <p className="text-xs text-gray-500 font-medium mb-1">Suggestions:</p>
                     {SUGGESTIONS.map(s => (
-                      <button key={s} onClick={() => setUserInput(s)}
-                        className="text-left px-3 py-2.5 rounded-xl border border-gray-700/30 bg-gray-800/20 text-xs text-gray-500 hover:text-violet-200 hover:border-violet-700/50 hover:bg-violet-900/20 transition-all opacity-55 hover:opacity-100"
-                        style={{ filter: "blur(0.4px)", transition: "filter 0.15s, opacity 0.15s" }}
-                        onMouseEnter={e => (e.currentTarget.style.filter = "none")}
-                        onMouseLeave={e => (e.currentTarget.style.filter = "blur(0.4px)")}
-                      >{s}</button>
+                      <button key={s}
+                        onClick={() => { setUserInput(s); setTimeout(() => inputRef.current?.focus(), 10); }}
+                        className="text-left px-3 py-2.5 rounded-xl border border-gray-700/60 bg-gray-800/40 text-xs text-gray-400 hover:text-violet-200 hover:border-violet-600/60 hover:bg-violet-900/20 transition-all"
+                      >
+                        {s}
+                      </button>
                     ))}
                   </div>
                 )}
                 {messages.map((m, i) => (
                   <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[92%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed ${m.role === "user" ? "bg-violet-700/40 text-violet-100 border border-violet-600/30" : "bg-gray-800/80 text-gray-200 border border-gray-700/60"}`}>{m.content}</div>
+                    <div className={`max-w-[92%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
+                      m.role === "user"
+                        ? "bg-violet-700/40 text-violet-100 border border-violet-600/30"
+                        : "bg-gray-800/80 text-gray-200 border border-gray-700/60"
+                    }`}>
+                      {m.content}
+                    </div>
                   </div>
                 ))}
                 {aiLoading && (
                   <div className="flex justify-start">
                     <div className="bg-gray-800/80 border border-gray-700/60 rounded-2xl px-3.5 py-2.5 flex items-center gap-2">
                       <Loader2 size={12} className="animate-spin text-violet-400" />
-                      <span className="text-sm text-gray-400">Thinking…</span>
+                      <span className="text-sm text-gray-400">Updating sketch…</span>
                     </div>
                   </div>
                 )}
                 <div ref={messagesEndRef} />
               </div>
+
               {/* Input */}
-              <div className="px-3 py-2.5 border-t border-gray-800 flex-shrink-0">
-                {!apiKey && <p className="text-xs text-gray-500 mb-2">No key? Send anyway — server AI may be available.</p>}
+              <div className="px-3 py-3 border-t border-gray-800 flex-shrink-0">
                 <div className="flex gap-1.5">
                   <input
+                    ref={inputRef}
                     type="text"
-                    placeholder="Ask AI to modify code…"
+                    placeholder="Describe what to change…"
                     value={userInput}
                     onChange={e => setUserInput(e.target.value)}
                     onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendToAI(); } }}
-                    disabled={aiLoading || !apiKey}
-                    className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-3 py-1.5 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-violet-500 disabled:opacity-50"
+                    disabled={aiLoading}
+                    className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-violet-500 disabled:opacity-50"
                   />
-                  <button onClick={sendToAI} disabled={aiLoading || !userInput.trim() || !apiKey}
-                    className="px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white text-xs font-semibold transition-colors"
-                  >{aiLoading ? <Loader2 size={12} className="animate-spin" /> : "→"}</button>
+                  <button
+                    onClick={sendToAI}
+                    disabled={aiLoading || !userInput.trim()}
+                    className="px-3 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white font-semibold transition-colors flex-shrink-0"
+                  >
+                    {aiLoading ? <Loader2 size={14} className="animate-spin" /> : <span className="text-base leading-none">↑</span>}
+                  </button>
                 </div>
               </div>
             </div>
@@ -685,11 +794,16 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose, initialShow
         {/* Footer */}
         <div className="px-5 py-2.5 border-t border-gray-800 flex items-center justify-between flex-shrink-0">
           <p className="text-[11px] text-gray-600">
-            {isModified ? "Modified code will be used on next upload." : "Edit directly or use AI. Compile & Upload flashes from Chrome/Edge."}
+            {isModified
+              ? "Modified code will be used on next upload."
+              : "Edit directly or use AI. Upload flashes from Chrome/Edge."}
           </p>
-          <button onClick={copy}
+          <button
+            onClick={copy}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${copied ? "bg-green-600 text-white" : "bg-blue-600 hover:bg-blue-500 text-white"}`}
-          >{copied ? <><CheckCircle2 size={12} /> Copied!</> : <><Download size={12} /> Copy Code</>}</button>
+          >
+            {copied ? <><CheckCircle2 size={12} /> Copied!</> : <><Download size={12} /> Copy Code</>}
+          </button>
         </div>
       </div>
     </div>
@@ -1111,7 +1225,7 @@ function SipPuffCard({ sensor, index, usedPins, onUpdate, onRemove, isSelected, 
 
       {/* Hold vs Tap toggle */}
       <div className="flex gap-2 items-center">
-        <label className="text-xs text-gray-500 uppercase tracking-wider w-6 flex-shrink-0">Mode</label>
+        <label className="text-xs text-gray-500 uppercase tracking-wider w-12 flex-shrink-0">Mode</label>
         <div className="flex items-center gap-0.5 bg-gray-900 border border-gray-700 rounded-lg p-0.5">
           {(["hold", "tap"] as const).map((m) => (
             <button key={m} onClick={(e) => { e.stopPropagation(); onUpdate(sensor.id, { inputMode: m }); }}
@@ -1224,7 +1338,7 @@ function JoystickCard({ joy, index, usedPins, usedAnalogPins, onUpdate, onRemove
 
       {/* Mouse mode toggle */}
       <div className="flex items-center gap-2 pl-1 pt-1 border-t border-violet-900/40">
-        <span className="text-xs text-gray-500 uppercase tracking-wider w-16 flex-shrink-0">Mode</span>
+        <span className="text-xs text-gray-500 uppercase tracking-wider w-24 flex-shrink-0">Mode</span>
         <div className="flex rounded-lg overflow-hidden border border-gray-700">
           <button
             onClick={() => onUpdate(joy.id, { mouseMode: false })}
@@ -1244,7 +1358,7 @@ function JoystickCard({ joy, index, usedPins, usedAnalogPins, onUpdate, onRemove
       {/* Mouse speed slider — only when mouse mode */}
       {joy.mouseMode && (
         <div className="flex items-center gap-2 pl-1">
-          <span className="text-xs text-gray-500 uppercase tracking-wider w-16 flex-shrink-0">Speed</span>
+          <span className="text-xs text-gray-500 uppercase tracking-wider w-24 flex-shrink-0">Speed</span>
           <input type="range" min={1} max={20} value={joy.mouseSpeed ?? 8}
             onChange={(e) => onUpdate(joy.id, { mouseSpeed: parseInt(e.target.value) })}
             className="flex-1 accent-violet-500 h-1"
@@ -1255,7 +1369,7 @@ function JoystickCard({ joy, index, usedPins, usedAnalogPins, onUpdate, onRemove
 
       {/* Sensitivity slider (higher = more sensitive = lower internal deadzone) */}
       <div className="flex items-center gap-2 pl-1">
-        <span className="text-xs text-gray-500 uppercase tracking-wider w-16 flex-shrink-0">Sensitivity</span>
+        <span className="text-xs text-gray-500 uppercase tracking-wider w-24 flex-shrink-0">Sensitivity</span>
         <input type="range" min={0} max={400} value={400 - joy.deadzone}
           onChange={(e) => onUpdate(joy.id, { deadzone: 400 - parseInt(e.target.value) })}
           className="flex-1 accent-violet-500 h-1"
@@ -1266,7 +1380,7 @@ function JoystickCard({ joy, index, usedPins, usedAnalogPins, onUpdate, onRemove
 
       {/* Click button pin */}
       <div className="flex items-center gap-2 pl-1">
-        <span className="text-xs text-gray-500 uppercase tracking-wider w-16 flex-shrink-0">Click pin</span>
+        <span className="text-xs text-gray-500 uppercase tracking-wider w-24 flex-shrink-0">Click pin</span>
         <div className="relative" style={{ width: 68 }}>
           <select value={joy.buttonPin} onChange={(e) => onUpdate(joy.id, { buttonPin: parseInt(e.target.value) })}
             className="w-full appearance-none bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs text-gray-200 focus:outline-none cursor-pointer pr-5"
