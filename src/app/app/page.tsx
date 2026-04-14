@@ -2441,11 +2441,6 @@ export default function Home() {
       };
       setAdminSettings(merged);
       localStorage.setItem("adminSettings", JSON.stringify(merged));
-      // Auto-launch tutorial if admin enabled it and user hasn't seen this version
-      if (merged.show_tutorial) {
-        const key = `tutorial_v${merged.tutorial_version}_done`;
-        if (!localStorage.getItem(key)) setShowTutorial(true);
-      }
     });
 
     // Realtime subscription: update settings instantly for all users
@@ -2472,11 +2467,6 @@ export default function Home() {
           };
           setAdminSettings(next);
           localStorage.setItem("adminSettings", JSON.stringify(next));
-          // Launch tutorial live if admin just turned it on
-          if (next.show_tutorial) {
-            const key = `tutorial_v${next.tutorial_version}_done`;
-            if (!localStorage.getItem(key)) setShowTutorial(true);
-          }
         }
       )
       .subscribe();
