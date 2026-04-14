@@ -2536,13 +2536,32 @@ export default function Home() {
   const handleSubmitIssue = async () => {
     if (!reportTitle.trim() || !reportDesc.trim()) return;
     setReportSubmitting(true);
-    await submitIssue(reportTitle.trim(), reportDesc.trim(), reportCategory, appUser?.username ?? undefined);
+    try {
+      const res = await fetch("/api/report-issue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: reportTitle.trim(),
+          description: reportDesc.trim(),
+          category: reportCategory,
+          username: appUser?.username ?? undefined,
+        }),
+      });
+      if (!res.ok) {
+        const d = await res.json() as { error?: string };
+        throw new Error(d.error ?? `Error ${res.status}`);
+      }
+    } catch (err) {
+      alert(`Failed to submit: ${err instanceof Error ? err.message : "Unknown error"}`);
+      setReportSubmitting(false);
+      return;
+    }
     setReportSubmitting(false);
     setReportDone(true);
     setReportTitle("");
     setReportDesc("");
     setReportCategory("bug");
-    setTimeout(() => { setReportDone(false); setShowReportModal(false); }, 2000);
+    setTimeout(() => { setReportDone(false); setShowReportModal(false); }, 2500);
   };
 
   const handleGoogleSignIn = async () => {
