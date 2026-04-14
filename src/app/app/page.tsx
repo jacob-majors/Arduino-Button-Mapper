@@ -527,12 +527,15 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose, initialShow
 
       const isQuotaError =
         res.status === 429 ||
-        /quota|rate.?limit|resource_exhausted|limit.*exceeded/i.test(data.error ?? "");
-      if (isQuotaError && !apiKey) {
+        (data as { isQuota?: boolean }).isQuota === true ||
+        /quota|rate.?limit|resource.?exhausted|limit.*exceeded/i.test(data.error ?? "");
+      if (isQuotaError) {
         setShowApiKeyInput(true);
         setMessages(prev => [...prev, {
           role: "assistant" as const,
-          content: "The free AI limit has been reached. Paste your own Claude or Gemini API key above to continue — both have free tiers.",
+          content: apiKey
+            ? "Your API key has hit its quota. Try a different key, or wait and retry."
+            : "The free AI quota has been reached. Paste your own Claude (sk-ant-…) or Gemini (AIza…) key above — both have free tiers.",
         }]);
         setAiLoading(false);
         return;
@@ -1088,9 +1091,10 @@ function IRSensorCard({ sensor, index, usedPins, onUpdate, onRemove, isSelected,
         ><Trash2 size={12} /></button>
       </div>
 
-      <div className="flex gap-2 items-center flex-wrap">
-        <label className="text-[10px] text-gray-500 uppercase tracking-wider w-6 flex-shrink-0">Pin</label>
-        <div className="relative" style={{ width: 68 }}>
+      {/* Row 1: PIN + polarity */}
+      <div className="flex gap-2 items-center">
+        <label className="text-xs text-gray-500 uppercase tracking-wider w-12 flex-shrink-0">Pin</label>
+        <div className="relative" style={{ width: 80 }}>
           <select value={sensor.pin} onChange={(e) => onUpdate(sensor.id, { pin: parseInt(e.target.value) })}
             className="w-full appearance-none bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-blue-500 cursor-pointer pr-5"
           >
@@ -1098,12 +1102,21 @@ function IRSensorCard({ sensor, index, usedPins, onUpdate, onRemove, isSelected,
           </select>
           <ChevronDown size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
         </div>
+        <button onClick={(e) => { e.stopPropagation(); onUpdate(sensor.id, { activeHigh: !sensor.activeHigh }); }}
+          className={["px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors",
+            sensor.activeHigh ? "bg-emerald-800 border-emerald-600 text-emerald-300" : "bg-gray-900 border-gray-700 text-gray-500 hover:text-gray-300"
+          ].join(" ")}
+          title="Toggle whether HIGH or LOW means 'triggered'"
+        >{sensor.activeHigh ? "HIGH=on" : "LOW=on"}</button>
+      </div>
 
-        {/* Mode — Hold | Tap | Toggle */}
-        <div className="flex rounded-lg overflow-hidden border border-gray-700 flex-1">
+      {/* Row 2: MODE — Hold | Tap | Toggle */}
+      <div className="flex gap-2 items-center">
+        <label className="text-xs text-gray-500 uppercase tracking-wider w-12 flex-shrink-0">Mode</label>
+        <div className="flex items-center gap-0.5 bg-gray-900 border border-gray-700 rounded-lg p-0.5 flex-1">
           {([
-            { value: "hold" as const, label: "Hold" },
-            { value: "tap"  as const, label: "Tap"  },
+            { value: "hold"   as const, label: "Hold"   },
+            { value: "tap"    as const, label: "Tap"    },
             { value: "toggle" as const, label: "Toggle" },
           ]).map(({ value, label }) => {
             const active =
@@ -1112,25 +1125,17 @@ function IRSensorCard({ sensor, index, usedPins, onUpdate, onRemove, isSelected,
                                    sensor.mode === "momentary" && sensor.inputMode !== "tap";
             return (
               <button key={value}
-                onClick={() => onUpdate(sensor.id, {
+                onClick={(e) => { e.stopPropagation(); onUpdate(sensor.id, {
                   mode: value === "toggle" ? "toggle" : "momentary",
                   inputMode: value === "tap" ? "tap" : "hold",
-                })}
-                className={["flex-1 py-1.5 text-xs font-medium transition-colors",
-                  active ? "bg-emerald-700 text-white" : "bg-gray-900 text-gray-500 hover:text-gray-300"
+                }); }}
+                className={["flex-1 px-3 py-1 rounded text-xs font-semibold transition-colors",
+                  active ? "bg-emerald-700/80 text-emerald-100 shadow" : "text-gray-500 hover:text-gray-300"
                 ].join(" ")}
               >{label}</button>
             );
           })}
         </div>
-
-        {/* Active polarity */}
-        <button onClick={() => onUpdate(sensor.id, { activeHigh: !sensor.activeHigh })}
-          className={["px-2 py-1.5 rounded-lg border text-[10px] font-medium transition-colors",
-            sensor.activeHigh ? "bg-emerald-800 border-emerald-600 text-emerald-300" : "bg-gray-900 border-gray-700 text-gray-500 hover:text-gray-300"
-          ].join(" ")}
-          title="Toggle whether HIGH or LOW means 'triggered'"
-        >{sensor.activeHigh ? "HIGH=on" : "LOW=on"}</button>
       </div>
 
       <div className="flex gap-2 items-center">
@@ -1596,9 +1601,10 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
   // Build flat card list — one card per component connection
   interface CompCard {
     id: string; name: string;
-    compType: "button" | "power" | "port" | "led" | "ir" | "sipPuff" | "joystickX" | "joystickY" | "swclick";
+    compType: "button" | "power" | "port" | "led" | "ir" | "sipPuff" | "joystickX" | "joystickY" | "swclick" | "joystick";
     color: string; signalPin: string;
     needsVCC: boolean; needsGND: boolean; hasResistor: boolean;
+    joystickData?: { xPin: number; yPin: number; swPin: number };
   }
   const cards: CompCard[] = [];
 
@@ -1647,16 +1653,16 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
   });
 
   joysticks.forEach((j) => {
-    cards.push({ id: j.id + "-x", name: ((j.name || "Joystick") + " X").slice(0, 14),
-      compType: "joystickX", color: "#a78bfa", signalPin: `A${j.xPin}`,
-      needsVCC: true, needsGND: true, hasResistor: false });
-    cards.push({ id: j.id + "-y", name: ((j.name || "Joystick") + " Y").slice(0, 14),
-      compType: "joystickY", color: "#c084fc", signalPin: `A${j.yPin}`,
-      needsVCC: false, needsGND: false, hasResistor: false });
-    if (j.buttonPin && j.buttonPin > 0)
-      cards.push({ id: j.id + "-sw", name: ((j.name || "Joystick") + " SW").slice(0, 14),
-        compType: "swclick", color: "#818cf8", signalPin: `D${j.buttonPin}`,
-        needsVCC: false, needsGND: true, hasResistor: false });
+    // One unified card showing all 5 module pins (GND, +5V, VRX, VRY, SW)
+    cards.push({
+      id: j.id,
+      name: (j.name || "Joystick").slice(0, 14),
+      compType: "joystick",
+      color: "#a78bfa",
+      signalPin: "",
+      needsVCC: false, needsGND: false, hasResistor: false,
+      joystickData: { xPin: j.xPin, yPin: j.yPin, swPin: j.buttonPin ?? -1 },
+    });
     if (j.ledPin && j.ledPin > 0)
       cards.push({ id: j.id + "-led", name: ((j.name || "Joystick") + " LED").slice(0, 14),
         compType: "led", color: "#fbbf24", signalPin: `D${j.ledPin}`,
@@ -1905,6 +1911,71 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
                 const vccX = compX + 28;
                 const powerBadgeY = CY + 193;
 
+                // ── Joystick module card: shows all 5 pins in one unified cell ──
+                if (card.compType === "joystick" && card.joystickData) {
+                  const jd = card.joystickData;
+                  // 5 pin x positions, evenly spaced across the cell
+                  const jPins = [
+                    { label: "GND", arduinoLabel: "GND",        color: "#6b7280", fill: "#6b728028", stroke: "#6b728070", x: CX + 36  },
+                    { label: "+5V", arduinoLabel: "5V",         color: "#f87171", fill: "#f8717128", stroke: "#f8717170", x: CX + 82  },
+                    { label: "VRX", arduinoLabel: `A${jd.xPin}`, color: "#a78bfa", fill: "#a78bfa28", stroke: "#a78bfa70", x: CX + 128 },
+                    { label: "VRY", arduinoLabel: `A${jd.yPin}`, color: "#c084fc", fill: "#c084fc28", stroke: "#c084fc70", x: CX + 174 },
+                    { label: "SW",  arduinoLabel: jd.swPin >= 0 ? `D${jd.swPin}` : "N/C", color: jd.swPin >= 0 ? "#818cf8" : "#374151", fill: jd.swPin >= 0 ? "#818cf828" : "#37415128", stroke: jd.swPin >= 0 ? "#818cf870" : "#37415150", x: CX + 220 },
+                  ];
+                  const modTop = CY + 28;
+                  const modH   = 80;
+                  const modBot = modTop + modH;
+                  const pinBadgeY = modBot + 28;
+                  return (
+                    <g key={card.id}>
+                      {/* Cell bg */}
+                      <rect x={CX} y={CY} width={CELL_W - 12} height={CELL_H - 14} rx="8"
+                        fill="#0d1424" stroke="#2d1f5a" strokeWidth="1" opacity="0.95" />
+                      {/* Name */}
+                      <text x={CX + 134} y={CY + 18} textAnchor="middle" fontFamily="sans-serif"
+                        fontSize="9" fill="#a78bfa" fontWeight="700" opacity="0.9">{card.name}</text>
+
+                      {/* Module PCB */}
+                      <rect x={CX + 14} y={modTop} width={240} height={modH} rx="5"
+                        fill="#1a0a2a" stroke="#a78bfa" strokeWidth="1.5" />
+
+                      {/* Joystick stick + ball (centered on module) */}
+                      <circle cx={CX + 128} cy={modTop + modH / 2} r={14} fill="#120520" stroke="#a78bfa" strokeWidth="1" />
+                      <line x1={CX + 128} y1={modTop + modH / 2} x2={CX + 121} y2={modTop + 8} stroke="#a78bfa" strokeWidth="3" strokeLinecap="round" />
+                      <circle cx={CX + 121} cy={modTop + 5} r={8} fill="#5b21b6" stroke="#a78bfa" strokeWidth="1.5" />
+                      <ellipse cx={CX + 119} cy={modTop + 2} rx="3" ry="2" fill="white" opacity={0.2} />
+
+                      {/* Module pin header (5 stubs below module) */}
+                      {jPins.map((p) => (
+                        <line key={p.label} x1={p.x} y1={modBot} x2={p.x} y2={modBot + 10}
+                          stroke={p.color} strokeWidth="2" strokeLinecap="round" />
+                      ))}
+
+                      {/* Module pin labels (inside module, just above bottom edge) */}
+                      {jPins.map((p) => (
+                        <text key={p.label + "-lbl"} x={p.x} y={modBot - 5} textAnchor="middle"
+                          fontFamily="monospace" fontSize="7" fill={p.color} fontWeight="600">{p.label}</text>
+                      ))}
+
+                      {/* Wires from pin stubs to Arduino pin badges */}
+                      {jPins.map((p) => (
+                        <line key={p.label + "-wire"} x1={p.x} y1={modBot + 10} x2={p.x} y2={pinBadgeY}
+                          stroke={p.color} strokeWidth="1.5" strokeDasharray="4 2" opacity={0.7} />
+                      ))}
+
+                      {/* Arduino pin badges */}
+                      {jPins.map((p) => (
+                        <g key={p.label + "-badge"}>
+                          <rect x={p.x - 20} y={pinBadgeY} width={40} height={20} rx="5"
+                            fill={p.fill} stroke={p.stroke} strokeWidth="1.2" />
+                          <text x={p.x} y={pinBadgeY + 14} textAnchor="middle"
+                            fontFamily="monospace" fontSize="9" fill={p.color} fontWeight="700">{p.arduinoLabel}</text>
+                        </g>
+                      ))}
+                    </g>
+                  );
+                }
+
                 return (
                   <g key={card.id}>
                     {/* Cell background */}
@@ -1966,9 +2037,6 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
                     {card.compType === "led"       && <LedIcon        cx={compX} cy={compY} color={color}                 onClick={() => setComponentInfo({ type: card.compType, label: card.name })} />}
                     {card.compType === "ir"        && <IrIcon         cx={compX} cy={compY} color={color}                 onClick={() => setComponentInfo({ type: card.compType, label: card.name })} />}
                     {card.compType === "sipPuff"   && <SipPuffIcon    cx={compX} cy={compY} color={color}                 onClick={() => setComponentInfo({ type: card.compType, label: card.name })} />}
-                    {card.compType === "joystickX" && <JoystickAxisIcon cx={compX} cy={compY} color={color}               onClick={() => setComponentInfo({ type: card.compType, label: card.name })} />}
-                    {card.compType === "joystickY" && <JoystickAxisIcon cx={compX} cy={compY} color={color}               onClick={() => setComponentInfo({ type: card.compType, label: card.name })} />}
-                    {card.compType === "swclick"   && <SwClickIcon    cx={compX} cy={compY} color={color}                 onClick={() => setComponentInfo({ type: card.compType, label: card.name })} />}
 
                     {/* Signal pin badge (drawn last — sits on top of wire left end) */}
                     <rect x={sigBadgeX} y={compY - 11} width={sigBadgeW} height={22} rx="5"
