@@ -5,7 +5,7 @@ import {
   Zap, RefreshCw, Plus, Trash2, X, Upload, ChevronDown,
   Loader2, CheckCircle2, XCircle, Terminal, Usb, Keyboard,
   RotateCcw, Pencil, Gamepad2, Settings, Lightbulb, Power, Code,
-  Info, ExternalLink, Radio, Wind, Joystick, Minimize2, Maximize2, Download, Star,
+  Info, ExternalLink, Radio, Wind, Joystick, Minimize2, Maximize2, Download, Star, Square,
 } from "lucide-react";
 import {
   ButtonConfig, ButtonMode, LedConfig, PortConfig,
@@ -313,8 +313,10 @@ function ButtonCard({ button, index, usedPins, onUpdate, onRemove, typeLabel, is
             <Power size={8} /> Power
           </span>
         ) : typeLabel && (
-          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${
-            isPort ? "bg-sky-900/60 text-sky-400 border border-sky-800/60" : "bg-blue-900/60 text-blue-400 border border-blue-800/60"
+          <span className={`text-[11px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 ${
+            isPort ? "bg-sky-900/60 text-sky-400 border border-sky-800/60" :
+            typeLabel === "Button" ? "bg-indigo-900/60 text-indigo-400 border border-indigo-800/60" :
+            "bg-blue-900/60 text-blue-400 border border-blue-800/60"
           }`}>{typeLabel}</span>
         )}
         <input
@@ -358,6 +360,27 @@ function ButtonCard({ button, index, usedPins, onUpdate, onRemove, typeLabel, is
               onClear={() => onUpdate(button.id, { arduinoKey: "", keyDisplay: "" })}
             />
           </div>
+        </div>
+      )}
+
+      {/* Hold / Tap mode toggle */}
+      {!isPower && button.mode !== "toggle" && (
+        <div className="flex gap-2 items-center">
+          <label className="text-xs text-gray-500 uppercase tracking-wider w-6 flex-shrink-0">Mode</label>
+          <div className="flex items-center gap-0.5 bg-gray-900 border border-gray-700 rounded-lg p-0.5">
+            {(["hold", "tap"] as const).map((m) => (
+              <button key={m} onClick={(e) => { e.stopPropagation(); onUpdate(button.id, { inputMode: m }); }}
+                className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
+                  (button.inputMode ?? "hold") === m
+                    ? "bg-blue-700/60 text-blue-100 shadow"
+                    : "text-gray-500 hover:text-gray-300"
+                }`}
+              >{m === "hold" ? "Hold" : "Tap"}</button>
+            ))}
+          </div>
+          <span className="text-xs text-gray-600">
+            {(button.inputMode ?? "hold") === "tap" ? "one press per click" : "held while pressed"}
+          </span>
         </div>
       )}
 
@@ -962,14 +985,29 @@ function IRSensorCard({ sensor, index, usedPins, onUpdate, onRemove, isSelected,
           <ChevronDown size={10} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none" />
         </div>
 
-        {/* Mode */}
+        {/* Mode — Hold | Tap | Toggle */}
         <div className="flex rounded-lg overflow-hidden border border-gray-700 flex-1">
-          {(["momentary", "toggle"] as const).map((m) => (
-            <button key={m} onClick={() => onUpdate(sensor.id, { mode: m })}
-              className={["flex-1 py-1.5 text-[10px] font-medium transition-colors capitalize",
-                sensor.mode === m ? "bg-emerald-700 text-white" : "bg-gray-900 text-gray-500 hover:text-gray-300"
-              ].join(" ")}>{m === "momentary" ? "Hold" : "Toggle"}</button>
-          ))}
+          {([
+            { value: "hold" as const, label: "Hold" },
+            { value: "tap"  as const, label: "Tap"  },
+            { value: "toggle" as const, label: "Toggle" },
+          ]).map(({ value, label }) => {
+            const active =
+              value === "toggle" ? sensor.mode === "toggle" :
+              value === "tap"    ? sensor.mode === "momentary" && sensor.inputMode === "tap" :
+                                   sensor.mode === "momentary" && sensor.inputMode !== "tap";
+            return (
+              <button key={value}
+                onClick={() => onUpdate(sensor.id, {
+                  mode: value === "toggle" ? "toggle" : "momentary",
+                  inputMode: value === "tap" ? "tap" : "hold",
+                })}
+                className={["flex-1 py-1.5 text-xs font-medium transition-colors",
+                  active ? "bg-emerald-700 text-white" : "bg-gray-900 text-gray-500 hover:text-gray-300"
+                ].join(" ")}
+              >{label}</button>
+            );
+          })}
         </div>
 
         {/* Active polarity */}
@@ -1073,20 +1111,20 @@ function SipPuffCard({ sensor, index, usedPins, onUpdate, onRemove, isSelected, 
 
       {/* Hold vs Tap toggle */}
       <div className="flex gap-2 items-center">
-        <label className="text-[10px] text-gray-500 uppercase tracking-wider w-6 flex-shrink-0">Mode</label>
+        <label className="text-xs text-gray-500 uppercase tracking-wider w-6 flex-shrink-0">Mode</label>
         <div className="flex items-center gap-0.5 bg-gray-900 border border-gray-700 rounded-lg p-0.5">
           {(["hold", "tap"] as const).map((m) => (
             <button key={m} onClick={(e) => { e.stopPropagation(); onUpdate(sensor.id, { inputMode: m }); }}
-              className={`px-2.5 py-1 rounded text-[10px] font-semibold transition-colors capitalize ${
+              className={`px-3 py-1 rounded text-xs font-semibold transition-colors capitalize ${
                 (sensor.inputMode ?? "hold") === m
                   ? "bg-cyan-700/60 text-cyan-100 shadow"
                   : "text-gray-500 hover:text-gray-300"
               }`}
-            >{m}</button>
+            >{m === "hold" ? "Hold" : "Tap"}</button>
           ))}
         </div>
-        <span className="text-[10px] text-gray-600">
-          {(sensor.inputMode ?? "hold") === "tap" ? "one key per activation" : "held while active"}
+        <span className="text-xs text-gray-600">
+          {(sensor.inputMode ?? "hold") === "tap" ? "one press per activation" : "held while active"}
         </span>
       </div>
 
@@ -1186,7 +1224,7 @@ function JoystickCard({ joy, index, usedPins, usedAnalogPins, onUpdate, onRemove
 
       {/* Mouse mode toggle */}
       <div className="flex items-center gap-2 pl-1 pt-1 border-t border-violet-900/40">
-        <span className="text-[10px] text-gray-500 uppercase tracking-wider w-16 flex-shrink-0">Mode</span>
+        <span className="text-xs text-gray-500 uppercase tracking-wider w-16 flex-shrink-0">Mode</span>
         <div className="flex rounded-lg overflow-hidden border border-gray-700">
           <button
             onClick={() => onUpdate(joy.id, { mouseMode: false })}
@@ -1206,28 +1244,29 @@ function JoystickCard({ joy, index, usedPins, usedAnalogPins, onUpdate, onRemove
       {/* Mouse speed slider — only when mouse mode */}
       {joy.mouseMode && (
         <div className="flex items-center gap-2 pl-1">
-          <span className="text-[10px] text-gray-500 uppercase tracking-wider w-16 flex-shrink-0">Speed</span>
+          <span className="text-xs text-gray-500 uppercase tracking-wider w-16 flex-shrink-0">Speed</span>
           <input type="range" min={1} max={20} value={joy.mouseSpeed ?? 8}
             onChange={(e) => onUpdate(joy.id, { mouseSpeed: parseInt(e.target.value) })}
             className="flex-1 accent-violet-500 h-1"
           />
-          <span className="text-[10px] text-gray-500 font-mono w-8 text-right">{joy.mouseSpeed ?? 8}</span>
+          <span className="text-xs text-gray-500 font-mono w-8 text-right">{joy.mouseSpeed ?? 8}</span>
         </div>
       )}
 
-      {/* Deadzone slider */}
+      {/* Sensitivity slider (higher = more sensitive = lower internal deadzone) */}
       <div className="flex items-center gap-2 pl-1">
-        <span className="text-[10px] text-gray-500 uppercase tracking-wider w-16 flex-shrink-0">Deadzone</span>
-        <input type="range" min={0} max={400} value={joy.deadzone}
-          onChange={(e) => onUpdate(joy.id, { deadzone: parseInt(e.target.value) })}
+        <span className="text-xs text-gray-500 uppercase tracking-wider w-16 flex-shrink-0">Sensitivity</span>
+        <input type="range" min={0} max={400} value={400 - joy.deadzone}
+          onChange={(e) => onUpdate(joy.id, { deadzone: 400 - parseInt(e.target.value) })}
           className="flex-1 accent-violet-500 h-1"
+          title="Higher = triggers with less movement"
         />
-        <span className="text-[10px] text-gray-500 font-mono w-8 text-right">{joy.deadzone}</span>
+        <span className="text-xs text-gray-500 font-mono w-8 text-right">{400 - joy.deadzone}</span>
       </div>
 
       {/* Click button pin */}
       <div className="flex items-center gap-2 pl-1">
-        <span className="text-[10px] text-gray-500 uppercase tracking-wider w-16 flex-shrink-0">Click pin</span>
+        <span className="text-xs text-gray-500 uppercase tracking-wider w-16 flex-shrink-0">Click pin</span>
         <div className="relative" style={{ width: 68 }}>
           <select value={joy.buttonPin} onChange={(e) => onUpdate(joy.id, { buttonPin: parseInt(e.target.value) })}
             className="w-full appearance-none bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs text-gray-200 focus:outline-none cursor-pointer pr-5"
@@ -2408,10 +2447,10 @@ export default function Home() {
     ...joysticks.flatMap((j) => [j.xPin, j.yPin]),
   ];
 
-  const addButton = () => {
+  const addButton = (subtype: "switch" | "button" = "switch") => {
     if (buttons.length >= 12) return;
     const next = ALL_PINS.find((p) => !usedPins.includes(p)) ?? 2;
-    setButtons((prev) => [...prev, { id: generateId(), name: "", pin: next, keyDisplay: "", arduinoKey: "", mode: "momentary", ledPin: -1, ledMode: "active" }]);
+    setButtons((prev) => [...prev, { id: generateId(), name: "", pin: next, keyDisplay: "", arduinoKey: "", mode: "momentary", ledPin: -1, ledMode: "active", subtype }]);
   };
 
   const addPort = () => {
@@ -2467,7 +2506,8 @@ export default function Home() {
   const removeJoystick = (id: string) => setJoysticks((prev) => prev.filter((j) => j.id !== id));
 
   const addInputByType = (type: string) => {
-    if (type === "micro-switch") addButton();
+    if (type === "micro-switch") addButton("switch");
+    else if (type === "button") addButton("button");
     else if (type === "toggle-switch") {
       const next = ALL_PINS.find((p) => !usedPins.includes(p)) ?? 2;
       setButtons((prev) => [...prev, { id: generateId(), name: "", pin: next, keyDisplay: "", arduinoKey: "", mode: "toggle", ledPin: -1, ledMode: "active" }]);
@@ -3133,7 +3173,7 @@ export default function Home() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 min-w-0">
                   {buttons.map((btn, i) => (
                     <ButtonCard key={btn.id} button={btn} index={i} usedPins={usedPins}
-                      onUpdate={updateButton} onRemove={removeButton} typeLabel="Switch"
+                      onUpdate={updateButton} onRemove={removeButton} typeLabel={btn.subtype === "button" ? "Button" : "Switch"}
                       isSelected={selectedInputId === btn.id} onSelect={setSelectedInputId} />
                   ))}
                   {portInputs.map((p, i) => (
@@ -3177,10 +3217,11 @@ export default function Home() {
                 <div className="flex justify-center">
                 <div className="inline-flex flex-wrap justify-center gap-2">
                   {([
-                    { type: "micro-switch",  label: "Micro Switch",  icon: <Keyboard size={13} />,  color: "hover:bg-blue-600/20 hover:border-blue-500/50 hover:text-blue-300"  },
+                    { type: "micro-switch",  label: "Micro Switch",  icon: <Keyboard size={13} />,  color: "hover:bg-blue-600/20 hover:border-blue-500/50 hover:text-blue-300"    },
+                    { type: "button",        label: "Button",        icon: <Square size={13} />,    color: "hover:bg-indigo-600/20 hover:border-indigo-500/50 hover:text-indigo-300" },
                     { type: "joystick",      label: "Joystick",      icon: <Joystick size={13} />,  color: "hover:bg-violet-600/20 hover:border-violet-500/50 hover:text-violet-300" },
-                    { type: "ir-sensor",     label: "IR Sensor",     icon: <Radio size={13} />,     color: "hover:bg-green-600/20 hover:border-green-500/50 hover:text-green-300" },
-                    { type: "sip-puff",      label: "Sip & Puff",    icon: <Wind size={13} />,      color: "hover:bg-cyan-600/20 hover:border-cyan-500/50 hover:text-cyan-300"  },
+                    { type: "ir-sensor",     label: "IR Sensor",     icon: <Radio size={13} />,     color: "hover:bg-green-600/20 hover:border-green-500/50 hover:text-green-300"  },
+                    { type: "sip-puff",      label: "Sip & Puff",    icon: <Wind size={13} />,      color: "hover:bg-cyan-600/20 hover:border-cyan-500/50 hover:text-cyan-300"    },
                   ] as const).map(({ type, label, icon, color }) => (
                     <button key={type}
                       onClick={() => addInputByType(type)}

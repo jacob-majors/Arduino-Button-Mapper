@@ -54,7 +54,7 @@ function parseRemapConfig(json: string): RemapEntry[] {
     entries.push({
       id: `b-${i}`,
       name: b.n || `Button D${b.p}`,
-      type: b.m === 1 || b.m === 0 ? "button" : "port",
+      type: b.m === 2 ? "port" : "button",
       pin: `D${b.p}`,
       arduinoKey: b.k,
       newKey: b.k,

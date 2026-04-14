@@ -40,6 +40,8 @@ export interface ButtonConfig {
   mode: ButtonMode;
   ledPin: number;        // -1 = no LED
   ledMode: "active" | "always";  // active = on while pressed/toggled, always = always on
+  inputMode?: "hold" | "tap";    // hold = key held while pressed; tap = single press per click
+  subtype?: "switch" | "button"; // cosmetic UI label
 }
 
 export interface LedConfig {
@@ -64,6 +66,7 @@ export interface IRSensorConfig {
   activeHigh: boolean;   // true = trigger when pin reads HIGH (some modules invert)
   ledPin: number;        // -1 = no LED
   ledMode: "active" | "always";
+  inputMode?: "hold" | "tap";    // hold = key held while active; tap = single press per activation
 }
 
 /** Analog sip-and-puff sensor — sip and puff map to separate keys */
@@ -140,21 +143,6 @@ export function generateSketch(
   const configured = allInputs.filter((b) => b.mode === "power" || b.arduinoKey);
   const hasSensors = irSensors.length > 0 || sipPuffs.length > 0 || joysticks.length > 0;
 
-  if (configured.length === 0 && !hasSensors) {
-    return [
-      "#include <Keyboard.h>",
-      "",
-      "// No buttons or sensors configured yet.",
-      "// Add inputs and assign keys in the configurator.",
-      "",
-      "void setup() {",
-      "  Keyboard.begin();",
-      "}",
-      "",
-      "void loop() {}",
-    ].join("\n");
-  }
-
   // ── Buttons / ports ───────────────────────────────────────────────────────
 
   const n = configured.length;
@@ -172,7 +160,7 @@ export function generateSketch(
     b.mode === "power" ? "0" : keyLiteral(b.arduinoKey)
   ).join(", ");
   const btnModes   = configured.map((b) =>
-    b.mode === "power" ? "2" : b.mode === "toggle" ? "1" : "0"
+    b.mode === "power" ? "2" : b.mode === "toggle" ? "1" : (b.inputMode ?? "hold") === "tap" ? "3" : "0"
   ).join(", ");
   const btnLedPins = configured.map((b) => (b.ledPin ?? -1)).join(", ");
   const hasAnyLed  = configured.some((b) => (b.ledPin ?? -1) >= 0);
@@ -195,7 +183,7 @@ export function generateSketch(
     const m = irSensors.length;
     const irPins  = irSensors.map((s) => s.pin).join(", ");
     const irKeys  = irSensors.map((s) => keyLiteral(s.arduinoKey)).join(", ");
-    const irModes = irSensors.map((s) => s.mode === "toggle" ? "1" : "0").join(", ");
+    const irModes = irSensors.map((s) => s.mode === "toggle" ? "1" : (s.inputMode ?? "hold") === "tap" ? "2" : "0").join(", ");
     const irAH    = irSensors.map((s) => s.activeHigh ? "true" : "false").join(", ");
     const irCmt   = irSensors
       .map((s, i) => `// IR ${i + 1}${s.name ? `: ${s.name}` : ""} — Pin ${s.pin} active ${s.activeHigh ? "HIGH" : "LOW"}`)
@@ -209,7 +197,7 @@ ${irCmt}
 const int numIR = ${m};
 const int irPins[${m}] = {${irPins}};
 const int irKeys[${m}] = {${irKeys}};
-const int irModes[${m}] = {${irModes}}; // 0=momentary 1=toggle
+const int irModes[${m}] = {${irModes}}; // 0=hold 1=toggle 2=tap
 const bool irActiveHigh[${m}] = {${irAH}};
 bool lastIRState[${m}];
 bool irToggleState[${m}] = {${irSensors.map(() => "false").join(", ")}};${hasIrLed ? `
@@ -234,6 +222,8 @@ const int irLedModes[${m}] = {${irLedModesArr}}; // 0=active 1=always` : ""}
       if (now != last) {
         if (irModes[i] == 0) {
           if (now) Keyboard.press(irKeys[i]); else Keyboard.release(irKeys[i]);
+        } else if (irModes[i] == 2) {
+          if (now) { Keyboard.press(irKeys[i]); delay(30); Keyboard.release(irKeys[i]); }
         } else if (now) {
           irToggleState[i] = !irToggleState[i];
           if (irToggleState[i]) Keyboard.press(irKeys[i]); else Keyboard.release(irKeys[i]);
@@ -419,7 +409,7 @@ ${btnComments}
 const int numButtons = ${n};
 const int buttonPins[${n}] = {${btnPins}};
 const int keyValues[${n}] = {${btnKeys}};
-const int buttonModes[${n}] = {${btnModes}}; // 0=momentary 1=toggle 2=power
+const int buttonModes[${n}] = {${btnModes}}; // 0=hold 1=toggle 2=power 3=tap
 const int buttonLedPins[${n}] = {${btnLedPins}}; // -1 = no LED
 bool lastButtonState[${n}];
 bool toggleState[${n}] = {${configured.map(() => "false").join(", ")}};` : "";
@@ -441,6 +431,9 @@ bool toggleState[${n}] = {${configured.map(() => "false").join(", ")}};` : "";
           if (buttonModes[i] == 0) {
             if (state == LOW) Keyboard.press(keyValues[i]);
             else Keyboard.release(keyValues[i]);
+            if (buttonLedPins[i] >= 0) digitalWrite(buttonLedPins[i], state == LOW ? HIGH : LOW);
+          } else if (buttonModes[i] == 3) {
+            if (state == LOW) { Keyboard.press(keyValues[i]); delay(30); Keyboard.release(keyValues[i]); }
             if (buttonLedPins[i] >= 0) digitalWrite(buttonLedPins[i], state == LOW ? HIGH : LOW);
           } else {
             if (state == LOW) {
@@ -475,7 +468,7 @@ ${btnLedSetup}` : "";
   const remapConfig = JSON.stringify({
     v: 1,
     id: configId,
-    b: [...buttons, ...ports].map((b) => ({ p: b.pin, k: b.arduinoKey, kd: b.keyDisplay, n: b.name, m: b.mode === "toggle" ? 1 : b.mode === "power" ? 2 : 0 })),
+    b: [...buttons, ...ports].map((b) => ({ p: b.pin, k: b.arduinoKey, kd: b.keyDisplay, n: b.name, m: b.mode === "toggle" ? 1 : b.mode === "power" ? 2 : (b.inputMode ?? "hold") === "tap" ? 3 : 0 })),
     ir: irSensors.map((ir) => ({ p: ir.pin, k: ir.arduinoKey, kd: ir.keyDisplay, n: ir.name })),
     sp: sipPuffs.map((sp) => ({ p: sp.pin, k: sp.key, kd: sp.keyDisplay, n: sp.name || "Sip & Puff" })),
     j: joysticks.map((j) => ({ x: j.xPin, y: j.yPin, bp: j.buttonPin, u: j.upKey, ud: j.upDisplay, d: j.downKey, dd: j.downDisplay, l: j.leftKey, ld: j.leftDisplay, r: j.rightKey, rd: j.rightDisplay, bk: j.buttonKey, bkd: j.buttonDisplay, n: j.name })),
