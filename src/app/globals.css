@@ -2,6 +2,74 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Light Mode ──────────────────────────────────────────────────────────── */
+html.light,
+html.light body {
+  background-color: #f1f5f9;
+  color: #0f172a;
+  color-scheme: light;
+}
+
+/* Page / section backgrounds */
+html.light .bg-gray-900  { background-color: #f1f5f9 !important; }
+html.light .bg-gray-800  { background-color: #ffffff !important; }
+
+/* Opacity-modified card backgrounds */
+html.light .bg-gray-800\/60 { background-color: rgba(255,255,255,0.95) !important; }
+html.light .bg-gray-800\/50 { background-color: rgba(255,255,255,0.85) !important; }
+html.light .bg-gray-800\/40 { background-color: rgba(255,255,255,0.75) !important; }
+html.light .bg-gray-800\/30 { background-color: rgba(255,255,255,0.6)  !important; }
+
+/* Inputs, selects, textareas */
+html.light select,
+html.light input:not([type="range"]),
+html.light textarea {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+html.light input::placeholder,
+html.light textarea::placeholder { color: #94a3b8 !important; }
+
+/* Text colors — light on dark → dark on light */
+html.light .text-gray-100 { color: #0f172a !important; }
+html.light .text-gray-200 { color: #1e293b !important; }
+html.light .text-gray-300 { color: #334155 !important; }
+html.light .text-gray-400 { color: #475569 !important; }
+html.light .text-gray-500 { color: #64748b !important; }
+html.light .text-gray-600 { color: #94a3b8 !important; }
+html.light .text-gray-700 { color: #94a3b8 !important; }
+
+/* Borders */
+html.light .border-gray-900 { border-color: #e2e8f0 !important; }
+html.light .border-gray-800 { border-color: #e2e8f0 !important; }
+html.light .border-gray-700 { border-color: #cbd5e1 !important; }
+html.light .border-gray-600 { border-color: #94a3b8 !important; }
+
+/* Opacity border variants */
+html.light .border-gray-800\/80 { border-color: rgba(226,232,240,0.8) !important; }
+html.light .border-gray-700\/80 { border-color: rgba(203,213,225,0.8) !important; }
+html.light .border-gray-700\/60 { border-color: rgba(203,213,225,0.8) !important; }
+html.light .border-gray-700\/40 { border-color: rgba(203,213,225,0.6) !important; }
+html.light .border-gray-600\/50 { border-color: rgba(148,163,184,0.7) !important; }
+
+/* Button hover states */
+html.light .hover\:bg-gray-800:hover  { background-color: #f1f5f9 !important; }
+html.light .hover\:bg-gray-700:hover  { background-color: #e2e8f0 !important; }
+html.light .hover\:border-gray-600:hover { border-color: #94a3b8 !important; }
+html.light .hover\:text-gray-200:hover   { color: #1e293b !important; }
+html.light .hover\:text-gray-300:hover   { color: #334155 !important; }
+
+/* Input card tinted backgrounds */
+html.light .bg-gray-800\/50  { background-color: rgba(255,255,255,0.9) !important; }
+html.light .bg-gray-900\/40  { background-color: rgba(241,245,249,0.8) !important; }
+html.light .bg-gray-900\/20  { background-color: rgba(241,245,249,0.5) !important; }
+
+/* Tab / pill toggles */
+html.light .bg-gray-800\/60 { background-color: rgba(255,255,255,0.95) !important; }
+html.light .bg-gray-700    { background-color: #e2e8f0 !important; }
+html.light .bg-gray-700\/60 { background-color: rgba(226,232,240,0.9) !important; }
+
 /* Hide scrollbars globally while keeping scroll functionality */
 * {
   scrollbar-width: none; /* Firefox */

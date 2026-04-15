@@ -6,7 +6,7 @@ import {
   Loader2, CheckCircle2, XCircle, Terminal, Usb, Keyboard,
   RotateCcw, Pencil, Gamepad2, Settings, Lightbulb, Power, Code,
   Info, ExternalLink, Radio, Wind, Joystick, Minimize2, Maximize2, Download, Star, Square,
-  AlertCircle, MessageSquare, CheckCheck, Clock, Ban,
+  AlertCircle, MessageSquare, CheckCheck, Clock, Ban, Sun, Moon,
 } from "lucide-react";
 import {
   ButtonConfig, ButtonMode, LedConfig, PortConfig,
@@ -2287,6 +2287,11 @@ export default function Home() {
   const [adminSubTab, setAdminSubTab] = useState<"settings" | "users" | "railway" | "issues">("settings");
   const [allIssues, setAllIssues] = useState<Issue[]>([]);
   const [issuesLoaded, setIssuesLoaded] = useState(false);
+  const [lightMode, setLightMode] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("lightMode") === "1";
+    return false;
+  });
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportTitle, setReportTitle] = useState("");
   const [reportDesc, setReportDesc] = useState("");
@@ -2363,6 +2368,14 @@ export default function Home() {
       window.removeEventListener("online",  goOnline);
     };
   }, []);
+
+  // ── Light mode: apply/remove class on <html> ─────────────────────────────
+  useEffect(() => {
+    const root = document.documentElement;
+    if (lightMode) root.classList.add("light");
+    else root.classList.remove("light");
+    localStorage.setItem("lightMode", lightMode ? "1" : "0");
+  }, [lightMode]);
 
   // ── Serial port auto-detection banner ────────────────────────────────────
   useEffect(() => {
@@ -2998,20 +3011,69 @@ export default function Home() {
           {/* Auth — left side, right after logo */}
           {authReady && (
             appUser ? (
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <div className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-800/60 border border-gray-700 rounded-xl">
+              <div className="relative flex-shrink-0">
+                {/* Profile pill */}
+                <button
+                  onClick={() => setShowProfileMenu(v => !v)}
+                  className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-800/60 border border-gray-700 rounded-xl hover:border-gray-600 transition-colors"
+                >
                   <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
                     <span className="text-white text-[9px] font-bold">{appUser.username[0].toUpperCase()}</span>
                   </div>
                   <span className="text-xs text-gray-300 hidden sm:block max-w-[100px] truncate">{appUser.username}</span>
-                  <button onClick={handleSignOut} className="text-[10px] text-gray-600 hover:text-red-400 transition-colors ml-1">Sign out</button>
-                </div>
+                  <ChevronDown size={10} className="text-gray-500" />
+                </button>
+
+                {/* Dropdown */}
+                {showProfileMenu && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowProfileMenu(false)} />
+                    <div className="absolute left-0 top-full mt-1.5 z-50 w-52 bg-gray-800 border border-gray-600 rounded-xl shadow-2xl overflow-hidden">
+                      {/* Username row */}
+                      <div className="px-3.5 py-2.5 border-b border-gray-700">
+                        <p className="text-xs font-semibold text-gray-200 truncate">{appUser.username}</p>
+                        <p className="text-[10px] text-gray-500 mt-0.5">Signed in</p>
+                      </div>
+                      {/* Light mode toggle */}
+                      <button
+                        onClick={() => setLightMode(v => !v)}
+                        className="w-full flex items-center justify-between px-3.5 py-2.5 hover:bg-gray-700/60 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          {lightMode ? <Sun size={13} className="text-amber-400" /> : <Moon size={13} className="text-blue-400" />}
+                          <span className="text-xs text-gray-300">{lightMode ? "Light Mode" : "Dark Mode"}</span>
+                        </div>
+                        <div className={`w-8 h-4 rounded-full border transition-colors flex items-center ${lightMode ? "bg-amber-500 border-amber-400" : "bg-gray-700 border-gray-600"}`}>
+                          <div className={`w-3 h-3 rounded-full bg-white shadow transition-transform mx-0.5 ${lightMode ? "translate-x-4" : "translate-x-0"}`} />
+                        </div>
+                      </button>
+                      {/* Sign out */}
+                      <button
+                        onClick={() => { handleSignOut(); setShowProfileMenu(false); }}
+                        className="w-full flex items-center gap-2 px-3.5 py-2.5 hover:bg-red-900/30 text-gray-400 hover:text-red-400 transition-colors border-t border-gray-700"
+                      >
+                        <XCircle size={13} />
+                        <span className="text-xs">Sign out</span>
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             ) : (
-              <button
-                onClick={() => setShowAuthModal(true)}
-                className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition-colors flex-shrink-0"
-              >Sign In</button>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  onClick={() => setShowAuthModal(true)}
+                  className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition-colors"
+                >Sign In</button>
+                {/* Light mode toggle for guests */}
+                <button
+                  onClick={() => setLightMode(v => !v)}
+                  title={lightMode ? "Switch to dark mode" : "Switch to light mode"}
+                  className="w-7 h-7 rounded-lg bg-gray-800 border border-gray-700 flex items-center justify-center hover:border-gray-600 transition-colors"
+                >
+                  {lightMode ? <Sun size={13} className="text-amber-400" /> : <Moon size={13} className="text-blue-400" />}
+                </button>
+              </div>
             )
           )}
 
