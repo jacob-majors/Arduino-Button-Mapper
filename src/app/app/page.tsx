@@ -305,8 +305,8 @@ function ButtonCard({ button, index, usedPins, onUpdate, onRemove, typeLabel, is
     <div
       className={["border rounded-xl p-3 flex flex-col gap-2 transition-colors group cursor-pointer relative",
         isPower
-          ? isSelected ? "bg-amber-900/40 border-amber-600/60" : "bg-amber-900/20 border-amber-700/50 hover:border-amber-600/60"
-          : isSelected ? "bg-gray-800 border-blue-600/50" : "bg-gray-800/50 border-gray-700/80 hover:border-gray-600/80"
+          ? isSelected ? "bg-amber-900/70 border-amber-500" : "bg-amber-950/50 border-amber-700/60 hover:border-amber-600/70"
+          : isSelected ? "bg-blue-900/70 border-blue-500" : "bg-blue-950/50 border-blue-800/50 hover:border-blue-700/60"
       ].join(" ")}
       onClick={() => onSelect?.(isSelected ? null : button.id)}
       onContextMenu={(e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY }); }}
@@ -1073,7 +1073,7 @@ function IRSensorCard({ sensor, index, usedPins, onUpdate, onRemove, isSelected,
   return (
     <div
       className={["border rounded-xl p-3 flex flex-col gap-2 transition-colors group cursor-pointer",
-        isSelected ? "bg-emerald-900/40 border-blue-600/50" : "bg-emerald-900/20 border-emerald-700/50 hover:border-emerald-600/60"
+        isSelected ? "bg-emerald-900/70 border-emerald-500" : "bg-emerald-950/50 border-emerald-700/60 hover:border-emerald-600/70"
       ].join(" ")}
       onClick={() => onSelect?.(isSelected ? null : sensor.id)}
     >
@@ -1187,7 +1187,7 @@ function SipPuffCard({ sensor, index, usedPins, onUpdate, onRemove, isSelected, 
   return (
     <div
       className={["border rounded-xl p-3 flex flex-col gap-2 transition-colors group cursor-pointer",
-        isSelected ? "bg-cyan-900/40 border-blue-600/50" : "bg-cyan-900/20 border-cyan-700/50 hover:border-cyan-600/60"
+        isSelected ? "bg-cyan-900/70 border-cyan-500" : "bg-cyan-950/50 border-cyan-700/60 hover:border-cyan-600/70"
       ].join(" ")}
       onClick={() => onSelect?.(isSelected ? null : sensor.id)}
     >
@@ -1284,7 +1284,7 @@ function JoystickCard({ joy, index, usedPins, usedAnalogPins, onUpdate, onRemove
   return (
     <div
       className={["border rounded-xl p-3 flex flex-col gap-2 transition-colors group cursor-pointer",
-        isSelected ? "bg-violet-900/40 border-blue-600/50" : "bg-violet-900/20 border-violet-700/50 hover:border-violet-600/60"
+        isSelected ? "bg-violet-900/70 border-violet-500" : "bg-violet-950/50 border-violet-700/60 hover:border-violet-600/70"
       ].join(" ")}
       onClick={() => onSelect?.(isSelected ? null : joy.id)}
     >
@@ -3213,7 +3213,7 @@ export default function Home() {
           <div className="h-full max-w-[1400px] mx-auto px-4 sm:px-6 py-4 w-full flex flex-col gap-4 min-w-0">
 
             {/* Top bar: Get Code */}
-            {adminSettings.show_upload && <section className="bg-gray-800/60 border border-gray-700/60 rounded-2xl px-4 py-3 flex-shrink-0">
+            {adminSettings.show_upload && <section className="bg-gray-800/80 border border-gray-700/70 rounded-2xl px-4 py-3 flex-shrink-0">
               <div className="flex flex-wrap items-center gap-2">
                 <button onClick={() => handleWebSerialUpload(false)} disabled={wsUploading} data-tutorial="upload-btn"
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-green-700 to-teal-700 hover:from-green-600 hover:to-teal-600 disabled:opacity-50 text-white font-semibold text-xs transition-all"
@@ -3307,7 +3307,7 @@ export default function Home() {
             </section>}
 
             {/* ── Board Templates ── */}
-            <section className="bg-gray-800/60 border border-gray-700/60 rounded-2xl px-4 py-3 flex-shrink-0">
+            <section className="bg-gray-800/80 border border-gray-700/70 rounded-2xl px-4 py-3 flex-shrink-0">
               <button
                 onClick={() => setShowTemplates((v) => !v)}
                 className="flex items-center gap-2 w-full text-left"
@@ -3441,7 +3441,7 @@ export default function Home() {
               </section>}
 
             {/* Inputs — full width below */}
-            {adminSettings.show_buttons && <section className="bg-gray-800/60 border border-gray-700/60 rounded-2xl p-4 flex flex-col flex-1 min-h-0">
+            {adminSettings.show_buttons && <section className="bg-gray-800/80 border border-gray-700/70 rounded-2xl p-4 flex flex-col flex-1 min-h-0">
               <div className="flex items-center justify-between mb-3 flex-shrink-0">
                 <div className="flex items-center gap-2">
                   <Pencil size={13} className="text-purple-400" />
@@ -3626,7 +3626,7 @@ export default function Home() {
               {/* Game area + selector */}
               {(adminSettings.show_games ?? true) && <div className="flex gap-4 items-start">
                 {/* Game canvas */}
-                <div className="flex-1 bg-gray-800/60 border border-gray-700/60 rounded-2xl overflow-hidden min-w-0">
+                <div className="flex-1 bg-gray-800/80 border border-gray-700/70 rounded-2xl overflow-hidden min-w-0">
                   <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-800">
                     <Gamepad2 size={14} className="text-purple-400" />
                     <h2 className="text-sm font-semibold text-gray-200">
@@ -3648,7 +3648,7 @@ export default function Home() {
                 </div>
                 {/* Game selector + leaderboard */}
                 <div className="w-40 flex-shrink-0 flex flex-col gap-3">
-                  <div className="bg-gray-800/60 border border-gray-700/60 rounded-2xl p-3 flex flex-col gap-1.5">
+                  <div className="bg-gray-800/80 border border-gray-700/70 rounded-2xl p-3 flex flex-col gap-1.5">
                     <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide px-1 mb-1">Games</p>
                     {([
                       { id: "dino",  label: "Dino",  emoji: "🦕", hint: "↑ jump ↓ duck" },
@@ -3671,7 +3671,7 @@ export default function Home() {
                     ))}
                   </div>
                   {selectedGame === "dino" && (
-                    <div className="bg-gray-800/60 border border-gray-700/60 rounded-2xl p-3">
+                    <div className="bg-gray-800/80 border border-gray-700/70 rounded-2xl p-3">
                       <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide px-1 mb-2">Top Scores</p>
                       {dinoLeaderboard.length === 0 ? (
                         <p className="text-[11px] text-gray-600 px-1">No scores yet</p>
@@ -3692,7 +3692,7 @@ export default function Home() {
               </div>}
 
               {/* Device Tester — tabbed: Mockup / All Inputs / Controller */}
-              <div className="bg-gray-800/60 border border-gray-700/60 rounded-2xl overflow-hidden">
+              <div className="bg-gray-800/80 border border-gray-700/70 rounded-2xl overflow-hidden">
                 {/* Sub-tab bar */}
                 <div className="flex items-center gap-1 px-4 py-2.5 border-b border-gray-800 bg-gray-900/80">
                   <Zap size={13} className="text-blue-400 mr-1" />
@@ -3844,7 +3844,7 @@ export default function Home() {
             {adminSubTab === "settings" && (<>
 
               {/* Feature Toggles */}
-              <div className="bg-gray-800/60 border border-gray-700/60 rounded-2xl overflow-hidden">
+              <div className="bg-gray-800/80 border border-gray-700/70 rounded-2xl overflow-hidden">
                 <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-800">
                   <Power size={13} className="text-blue-400" />
                   <h3 className="text-xs font-semibold text-gray-200">Feature Visibility</h3>
@@ -3925,7 +3925,7 @@ export default function Home() {
               )}
 
               {/* Templates */}
-              <div className="bg-gray-800/60 border border-gray-700/60 rounded-2xl overflow-hidden">
+              <div className="bg-gray-800/80 border border-gray-700/70 rounded-2xl overflow-hidden">
                 <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-800">
                   <Code size={13} className="text-violet-400" />
                   <h3 className="text-xs font-semibold text-gray-200">Templates</h3>
@@ -3986,7 +3986,7 @@ export default function Home() {
               </div>
 
               {/* App Config (read-only info) */}
-              <div className="bg-gray-800/60 border border-gray-700/60 rounded-2xl overflow-hidden">
+              <div className="bg-gray-800/80 border border-gray-700/70 rounded-2xl overflow-hidden">
                 <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-800">
                   <Terminal size={13} className="text-purple-400" />
                   <h3 className="text-xs font-semibold text-gray-200">System Info</h3>
@@ -4023,7 +4023,7 @@ export default function Home() {
                   { label: "Total Saves", value: Object.values(userSaveCounts).reduce((a, b) => a + b, 0), color: "text-violet-400" },
                   { label: "Admin Accounts", value: allUsers.filter((u) => isAdmin(u.username)).length, color: "text-amber-400" },
                 ].map((s) => (
-                  <div key={s.label} className="bg-gray-800/60 border border-gray-700/60 rounded-2xl p-4 text-center">
+                  <div key={s.label} className="bg-gray-800/80 border border-gray-700/70 rounded-2xl p-4 text-center">
                     <p className={`text-2xl font-black ${s.color} leading-none mb-1`}>{s.value}</p>
                     <p className="text-[10px] text-gray-600 uppercase tracking-wider">{s.label}</p>
                   </div>
@@ -4031,7 +4031,7 @@ export default function Home() {
               </div>
 
               {/* User list */}
-              <div className="bg-gray-800/60 border border-gray-700/60 rounded-2xl overflow-hidden">
+              <div className="bg-gray-800/80 border border-gray-700/70 rounded-2xl overflow-hidden">
                 <div className="flex items-center gap-2 px-5 py-4 border-b border-gray-800">
                   <h3 className="text-xs font-semibold text-gray-200">All Users</h3>
                   <div className="flex-1 ml-3">
@@ -4434,7 +4434,7 @@ export default function Home() {
             </div>
 
             {/* ── How to connect ── */}
-            <div className="bg-gray-800/60 border border-gray-700/60 rounded-2xl p-5">
+            <div className="bg-gray-800/80 border border-gray-700/70 rounded-2xl p-5">
               <div className="flex items-center gap-2 mb-3">
                 <Usb size={14} className="text-green-400" />
                 <h3 className="text-sm font-semibold text-gray-200">How to Use This App</h3>
@@ -4486,7 +4486,7 @@ export default function Home() {
             </div>
 
             {/* ── How code generation works ── */}
-            <div className="bg-gray-800/60 border border-gray-700/60 rounded-2xl p-5">
+            <div className="bg-gray-800/80 border border-gray-700/70 rounded-2xl p-5">
               <div className="flex items-center gap-2 mb-4">
                 <Code size={14} className="text-yellow-400" />
                 <h3 className="text-sm font-semibold text-gray-200">How the Code is Generated</h3>
@@ -4519,7 +4519,7 @@ export default function Home() {
             </div>
 
             {/* ── Tech stack ── */}
-            <div className="bg-gray-800/60 border border-gray-700/60 rounded-2xl p-5">
+            <div className="bg-gray-800/80 border border-gray-700/70 rounded-2xl p-5">
               <div className="flex items-center gap-2 mb-4">
                 <Terminal size={14} className="text-purple-400" />
                 <h3 className="text-sm font-semibold text-gray-200">How This Was Built</h3>
