@@ -402,6 +402,7 @@ const int irLedModes[${m}] = {${irLedModesArr}}; // 0=active 1=always` : ""}
   // ── Assemble ──────────────────────────────────────────────────────────────
 
   const allLoopParts = [irLoop, spLoop, joyLoop].filter(Boolean);
+  const hasMouseJoy = joysticks.some((j) => j.mouseMode);
 
   const btnSection = n > 0 ? `
 ${btnComments}
@@ -414,6 +415,62 @@ const int buttonLedPins[${n}] = {${btnLedPins}}; // -1 = no LED
 bool lastButtonState[${n}];
 bool toggleState[${n}] = {${configured.map(() => "false").join(", ")}};` : "";
 
+  const resetRuntimeStateParts: string[] = [`  Keyboard.releaseAll();`];
+  if (hasMouseJoy) {
+    resetRuntimeStateParts.push(
+      "  Mouse.release(MOUSE_LEFT);",
+      "  Mouse.release(MOUSE_RIGHT);",
+      "  Mouse.release(MOUSE_MIDDLE);",
+    );
+  }
+  if (n > 0) {
+    resetRuntimeStateParts.push(
+      `  for (int i = 0; i < numButtons; i++) {
+    if (buttonModes[i] != 2) {
+      lastButtonState[i] = HIGH;
+      if (buttonModes[i] == 1) toggleState[i] = false;
+      if (buttonLedPins[i] >= 0) digitalWrite(buttonLedPins[i], LOW);
+    }
+  }`,
+    );
+  }
+  if (irSensors.length > 0) {
+    resetRuntimeStateParts.push(
+      `  for (int i = 0; i < numIR; i++) {
+    lastIRState[i] = irActiveHigh[i] ? LOW : HIGH;
+    irToggleState[i] = false;${irSensors.some((s) => (s.ledPin ?? -1) >= 0) ? `
+    if (irLedPins[i] >= 0) digitalWrite(irLedPins[i], irLedModes[i] == 1 ? HIGH : LOW);` : ""}
+  }`,
+    );
+  }
+  if (sipPuffs.length > 0) {
+    resetRuntimeStateParts.push(...sipPuffs.map((s, i) => {
+      const hasLed = (s.ledPin ?? -1) >= 0;
+      return `  sp${i}Pressed = false;${hasLed ? `\n  digitalWrite(${s.ledPin}, ${s.ledMode === "always" ? "HIGH" : "LOW"});` : ""}`;
+    }));
+  }
+  if (joysticks.length > 0) {
+    resetRuntimeStateParts.push(...joysticks.flatMap((j, i) => {
+      const lines = [
+        `  joy${i}U = false;`,
+        `  joy${i}D = false;`,
+        `  joy${i}L = false;`,
+        `  joy${i}R = false;`,
+      ];
+      if ((j.ledPin ?? -1) >= 0) lines.push(`  digitalWrite(JOY${i}_LED, ${j.ledMode === "always" ? "HIGH" : "LOW"});`);
+      if (j.buttonPin >= 0 && j.buttonKey) lines.push(`  joy${i}BtnLast = HIGH;`);
+      return lines;
+    }));
+  }
+
+  const resetRuntimeStateSection = `
+void resetRuntimeState(int powerButtonIndex) {
+${resetRuntimeStateParts.join("\n")}
+  if (powerButtonIndex >= 0 && powerButtonIndex < ${Math.max(n, 1)}) {
+    lastButtonState[powerButtonIndex] = LOW;
+  }
+}`;
+
   const btnLoopBody = n > 0 ? `  for (int i = 0; i < numButtons; i++) {
     bool state = digitalRead(buttonPins[i]);
     if (state != lastButtonState[i]) {
@@ -423,7 +480,7 @@ bool toggleState[${n}] = {${configured.map(() => "false").join(", ")}};` : "";
         if (buttonModes[i] == 2) {
           if (state == LOW) {
             systemActive = !systemActive;
-            if (!systemActive) Keyboard.releaseAll();
+            resetRuntimeState(i);
             updateLEDs();
             if (buttonLedPins[i] >= 0) digitalWrite(buttonLedPins[i], systemActive ? HIGH : LOW);
           }
@@ -497,12 +554,10 @@ void checkSerial() {
   }
 }`;
 
-  const hasMouseJoy = joysticks.some((j) => j.mouseMode);
-
   return `${headerComment}#include <Keyboard.h>${hasMouseJoy ? "\n#include <Mouse.h>" : ""}
 ${btnSection}
 bool systemActive = true;
-${ledSection}${irGlobals}${spGlobals}${joyGlobals}${remapSection}
+${ledSection}${irGlobals}${spGlobals}${joyGlobals}${remapSection}${resetRuntimeStateSection}
 void setup() {
   Serial.begin(9600);
 ${allSetupParts.join("\n")}

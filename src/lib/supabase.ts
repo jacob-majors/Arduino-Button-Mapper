@@ -62,10 +62,48 @@ export type AdminSettings = {
 // );
 // INSERT INTO public.admin_settings VALUES (1, true, true, now()) ON CONFLICT DO NOTHING;
 // ALTER TABLE public.admin_settings ENABLE ROW LEVEL SECURITY;
-// CREATE POLICY "public read"   ON public.admin_settings FOR SELECT USING (true);
-// CREATE POLICY "public update" ON public.admin_settings FOR UPDATE USING (true);
+// CREATE POLICY "public read" ON public.admin_settings FOR SELECT USING (true);
+// Do not grant public UPDATE/DELETE policies here. Admin writes should go through a server route
+// that uses the Supabase service role key after verifying an admin session.
 //
-// ALTER TABLE public.user_configs DISABLE ROW LEVEL SECURITY;
+// Keep RLS enabled on public.user_configs. Reads/writes for other users' data should happen
+// through trusted server code, not directly from the browser with the anon key.
+
+async function readJson<T>(res: Response): Promise<T> {
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const message =
+      typeof data === "object" && data && "error" in data && typeof data.error === "string"
+        ? data.error
+        : `Request failed (${res.status})`;
+    throw new Error(message);
+  }
+  return data as T;
+}
+
+export async function getAdminSessionStatus(): Promise<boolean> {
+  const res = await fetch("/api/admin?action=session", { credentials: "same-origin" });
+  const data = await readJson<{ active: boolean }>(res);
+  return data.active;
+}
+
+export async function createAdminSession(username: string, password: string): Promise<void> {
+  const res = await fetch("/api/admin", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "session", username, password }),
+  });
+  await readJson<{ active: boolean }>(res);
+}
+
+export async function clearAdminSession(): Promise<void> {
+  const res = await fetch("/api/admin?action=session", {
+    method: "DELETE",
+    credentials: "same-origin",
+  });
+  await readJson<{ active: boolean }>(res);
+}
 
 export async function loginOrCreate(username: string): Promise<AppUser | null> {
   const trimmed = username.trim().toLowerCase();
@@ -141,10 +179,13 @@ export async function getAdminSettings(): Promise<AdminSettings> {
 }
 
 export async function updateAdminSettings(settings: Partial<AdminSettings>): Promise<void> {
-  await supabase
-    .from("admin_settings")
-    .update({ ...settings, updated_at: new Date().toISOString() })
-    .eq("id", 1);
+  const res = await fetch("/api/admin", {
+    method: "PATCH",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "settings", settings }),
+  });
+  await readJson<{ ok: boolean }>(res);
 }
 
 export async function updateLastActive(userId: string): Promise<void> {
@@ -155,16 +196,30 @@ export async function updateLastActive(userId: string): Promise<void> {
 }
 
 export async function loadAllUsers(): Promise<AppUser[]> {
-  const { data } = await supabase
-    .from("app_users")
-    .select("id, username, created_at, last_active_at")
-    .order("created_at", { ascending: false });
-  return (data as AppUser[]) ?? [];
+  const res = await fetch("/api/admin?action=users", { credentials: "same-origin" });
+  const data = await readJson<{ users: AppUser[] }>(res);
+  return data.users ?? [];
 }
 
 export async function deleteUser(userId: string): Promise<void> {
-  await supabase.from("user_configs").delete().eq("user_id", userId);
-  await supabase.from("app_users").delete().eq("id", userId);
+  const res = await fetch(`/api/admin?action=user&userId=${encodeURIComponent(userId)}`, {
+    method: "DELETE",
+    credentials: "same-origin",
+  });
+  await readJson<{ ok: boolean }>(res);
+}
+
+export async function loadAdminUsersOverview(): Promise<{ users: AppUser[]; saveCounts: Record<string, number> }> {
+  const res = await fetch("/api/admin?action=users", { credentials: "same-origin" });
+  return readJson<{ users: AppUser[]; saveCounts: Record<string, number> }>(res);
+}
+
+export async function loadAdminUserSaves(userId: string): Promise<SaveSlot[]> {
+  const res = await fetch(`/api/admin?action=user-saves&userId=${encodeURIComponent(userId)}`, {
+    credentials: "same-origin",
+  });
+  const data = await readJson<{ saves: SaveSlot[] }>(res);
+  return data.saves ?? [];
 }
 
 // ── Setup Sharing ────────────────────────────────────────────────────────────
@@ -186,9 +241,15 @@ function randomShareId(): string {
 }
 
 export async function saveSharedSetup(name: string, config: UserConfig): Promise<string> {
-  const id = randomShareId();
-  await supabase.from("shared_setups").insert({ id, name, config });
-  return id;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const id = randomShareId();
+    const { error } = await supabase.from("shared_setups").insert({ id, name, config });
+    if (!error) return id;
+    if (error.code !== "23505") {
+      throw new Error(error.message);
+    }
+  }
+  throw new Error("Could not create a unique share link. Please try again.");
 }
 
 export async function loadSharedSetup(id: string): Promise<{ name: string; config: UserConfig } | null> {
@@ -228,20 +289,22 @@ export async function upsertDbTemplate(
   description: string,
   config: UserConfig
 ): Promise<string> {
-  if (id) {
-    await supabase.from("templates").update({ label, emoji, description, config }).eq("id", id);
-    return id;
-  }
-  const { data } = await supabase
-    .from("templates")
-    .insert({ label, emoji, description, config })
-    .select("id")
-    .single();
-  return data?.id ?? "";
+  const res = await fetch("/api/admin", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "template-upsert", id, label, emoji, description, config }),
+  });
+  const data = await readJson<{ id: string | null }>(res);
+  return data.id ?? "";
 }
 
 export async function deleteDbTemplate(id: string): Promise<void> {
-  await supabase.from("templates").delete().eq("id", id);
+  const res = await fetch(`/api/admin?action=template&id=${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    credentials: "same-origin",
+  });
+  await readJson<{ ok: boolean }>(res);
 }
 
 // ── Issues ───────────────────────────────────────────────────────────────────
@@ -288,19 +351,27 @@ export async function submitIssue(
 }
 
 export async function loadAllIssues(): Promise<Issue[]> {
-  const { data } = await supabase
-    .from("issues")
-    .select("id, username, title, description, category, status, created_at")
-    .order("created_at", { ascending: false });
-  return (data as Issue[]) ?? [];
+  const res = await fetch("/api/admin?action=issues", { credentials: "same-origin" });
+  const data = await readJson<{ issues: Issue[] }>(res);
+  return data.issues ?? [];
 }
 
 export async function updateIssueStatus(id: string, status: Issue["status"]): Promise<void> {
-  await supabase.from("issues").update({ status }).eq("id", id);
+  const res = await fetch("/api/admin", {
+    method: "PATCH",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "issue-status", id, status }),
+  });
+  await readJson<{ ok: boolean }>(res);
 }
 
 export async function deleteIssue(id: string): Promise<void> {
-  await supabase.from("issues").delete().eq("id", id);
+  const res = await fetch(`/api/admin?action=issue&issueId=${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    credentials: "same-origin",
+  });
+  await readJson<{ ok: boolean }>(res);
 }
 
 // ── Dino Leaderboard ────────────────────────────────────────────────────────

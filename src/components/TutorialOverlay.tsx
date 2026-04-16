@@ -64,17 +64,19 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     id: "wiring",
-    target: "[data-tutorial='wiring-btn']",
-    title: "Wiring Diagram",
-    body: "Not sure how to physically connect your components? Click the Wiring icon to see an interactive diagram showing every connection for your setup.",
+    target: "[data-tutorial='wiring-tab']",
+    title: "Wiring Tab",
+    body: "Start here if you want a clear picture of what to plug in. The Wiring tab gives you a live diagram and a quick setup summary for your current build.",
     position: "bottom",
+    tab: "wiring",
   },
   {
     id: "remap",
-    target: "[data-tutorial='remap-tab']",
+    target: "[data-tutorial='remap-btn']",
     title: "Remap a Device",
-    body: "Already have a device? Click the Remap tab to read its current key mappings and reassign them — no starting from scratch.",
+    body: "Already have a device? Use Remap to read its current key mappings and reassign them without rebuilding your setup from scratch.",
     position: "bottom",
+    tab: "configure",
   },
   {
     id: "test-tab",
@@ -82,7 +84,7 @@ export const TUTORIAL_STEPS: TutorialStep[] = [
     title: "Test Tab",
     body: "After uploading, come here to verify everything is working. Press inputs on your device and watch the keystrokes appear in real time.",
     position: "bottom",
-    tab: "configure",
+    tab: "test",
   },
   {
     id: "save",

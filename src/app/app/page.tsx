@@ -30,10 +30,10 @@ import {
   deleteSave,
   getAdminSettings,
   updateAdminSettings,
-  loadAllUsers,
+  loadAdminUsersOverview,
+  loadAdminUserSaves,
   deleteUser,
   isAdmin,
-  ADMIN_USERNAME,
   submitDinoScore,
   getTopDinoScores,
   saveSharedSetup,
@@ -46,6 +46,9 @@ import {
   loadAllIssues,
   updateIssueStatus,
   deleteIssue,
+  createAdminSession,
+  clearAdminSession,
+  getAdminSessionStatus,
 } from "@/lib/supabase";
 import type { SaveSlot, AppUser, AdminSettings, DinoScore, DbTemplate, Issue } from "@/lib/supabase";
 
@@ -2204,7 +2207,7 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function Home() {
-  const [tab, setTab] = useState<"configure" | "remap" | "test" | "info" | "admin">("configure");
+  const [tab, setTab] = useState<"wiring" | "configure" | "test" | "admin">("configure");
   const [ports, setPorts] = useState<Port[]>([]);
   const [selectedPort, setSelectedPort] = useState("");
   const [buttons, setButtons] = useState<ButtonConfig[]>([
@@ -2239,7 +2242,10 @@ export default function Home() {
   const [appUser, setAppUser] = useState<AppUser | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [loginUsername, setLoginUsername] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
+  const [adminAuthError, setAdminAuthError] = useState("");
   const [loginLoading, setLoginLoading] = useState(false);
+  const [hasAdminSession, setHasAdminSession] = useState(false);
   const [adminSettings, setAdminSettings] = useState<AdminSettings>({ show_ports: true, show_leds: true, show_upload: true, show_sensors: true, show_buttons: true, show_games: true, show_wiring: true, show_controller: true, maintenance_mode: false, welcome_message: "", show_tutorial: false, tutorial_version: 0 });
   const [allUsers, setAllUsers] = useState<AppUser[]>([]);
   const [dbTemplates, setDbTemplates] = useState<DbTemplate[]>([]);
@@ -2288,7 +2294,10 @@ export default function Home() {
   const [allIssues, setAllIssues] = useState<Issue[]>([]);
   const [issuesLoaded, setIssuesLoaded] = useState(false);
   const [lightMode, setLightMode] = useState(() => {
-    if (typeof window !== "undefined") return localStorage.getItem("lightMode") === "1";
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("lightMode");
+      return stored === null ? true : stored === "1";
+    }
     return false;
   });
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -2423,6 +2432,9 @@ export default function Home() {
       if (stored) {
         const u = JSON.parse(stored) as AppUser;
         setAppUser(u);
+        if (isAdmin(u.username)) {
+          getAdminSessionStatus().then(setHasAdminSession).catch(() => setHasAdminSession(false));
+        }
         updateLastActive(u.id).catch(() => {});
         loadAllSaves(u.id).then((allSaves) => {
           setSaves(allSaves);
@@ -2507,12 +2519,28 @@ export default function Home() {
   const handleLogin = async () => {
     if (!loginUsername.trim() || loginLoading) return;
     setLoginLoading(true);
-    const u = await loginOrCreate(loginUsername);
-    if (u) setShowAuthModal(false);
-    if (u) {
+    setAdminAuthError("");
+    try {
+      const u = await loginOrCreate(loginUsername);
+      if (!u) return;
+
+      let adminUnlocked = false;
+      if (isAdmin(u.username)) {
+        if (adminPassword.trim()) {
+          await createAdminSession(u.username, adminPassword);
+          adminUnlocked = true;
+        } else {
+          setAdminAuthError("Admin tools stay locked until you enter the admin password.");
+        }
+      }
+
+      if (!isAdmin(u.username) || adminUnlocked) {
+        setShowAuthModal(false);
+      }
       updateLastActive(u.id).catch(() => {});
       localStorage.setItem("appUser", JSON.stringify(u));
       setAppUser(u);
+      setHasAdminSession(adminUnlocked);
       const allSaves = await loadAllSaves(u.id);
       setSaves(allSaves);
       if (allSaves.length > 0) {
@@ -2527,16 +2555,25 @@ export default function Home() {
         if (cfg.sipPuffs)   setSipPuffs(cfg.sipPuffs as SipPuffConfig[]);
         if (cfg.joysticks)  setJoysticks(cfg.joysticks as JoystickConfig[]);
       }
-      if (isAdmin(u.username)) {
-        loadAllUsers().then(setAllUsers);
+      if (isAdmin(u.username) && adminUnlocked) {
+        const overview = await loadAdminUsersOverview();
+        setAllUsers(overview.users);
+        setUserSaveCounts(overview.saveCounts);
       }
+    } catch (err) {
+      setAdminAuthError(err instanceof Error ? err.message : "Sign-in failed.");
+      setHasAdminSession(false);
     }
     setLoginLoading(false);
   };
 
   const handleSignOut = () => {
     localStorage.removeItem("appUser");
+    clearAdminSession().catch(() => {});
     setAppUser(null);
+    setHasAdminSession(false);
+    setAdminPassword("");
+    setAdminAuthError("");
     setSaves([]);
     setCurrentSaveId(null);
     setCurrentSaveName("My Setup");
@@ -2596,6 +2633,7 @@ export default function Home() {
         updateLastActive(u.id).catch(() => {});
         localStorage.setItem("appUser", JSON.stringify(u));
         setAppUser(u);
+        setHasAdminSession(false);
         setShowAuthModal(false);
         const allSaves = await loadAllSaves(u.id);
         setSaves(allSaves);
@@ -2662,16 +2700,19 @@ export default function Home() {
     finally { setLoadingPorts(false); }
   };
 
-  const usedPins = [
+  const usedPins = Array.from(new Set([
     ...buttons.map((b) => b.pin),
     ...buttons.filter((b) => b.ledPin >= 0).map((b) => b.ledPin),
     ...portInputs.map((p) => p.pin),
     ...portInputs.filter((p) => p.ledPin >= 0).map((p) => p.ledPin),
     ...irSensors.map((s) => s.pin),
+    ...irSensors.filter((s) => s.ledPin >= 0).map((s) => s.ledPin),
     ...sipPuffs.map((s) => s.pin),
+    ...sipPuffs.filter((s) => s.ledPin >= 0).map((s) => s.ledPin),
     ...joysticks.filter((j) => j.buttonPin >= 0).map((j) => j.buttonPin),
+    ...joysticks.filter((j) => j.ledPin >= 0).map((j) => j.ledPin),
     ...(leds.enabled ? [leds.onPin, leds.offPin] : []),
-  ];
+  ]));
   const usedAnalogPins = [
     ...joysticks.flatMap((j) => [j.xPin, j.yPin]),
   ];
@@ -2909,7 +2950,9 @@ export default function Home() {
       await navigator.clipboard.writeText(url);
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 3000);
-    } catch { /* ignore */ } finally {
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Could not create a share link.");
+    } finally {
       setSharingLink(false);
     }
   };
@@ -3000,137 +3043,144 @@ export default function Home() {
   };
 
   return (
-    <div className="h-screen bg-gray-900 flex flex-col overflow-hidden">
+    <div className="h-screen bg-gray-900 flex flex-col overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.12),_transparent_30%),linear-gradient(180deg,_rgba(15,23,42,0.96)_0%,_rgba(15,23,42,1)_24%,_rgba(2,6,23,1)_100%)]">
       {/* Header */}
-      <header className="border-b border-gray-700/60 bg-gray-800/50 backdrop-blur-sm flex-shrink-0 relative z-50">
-        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-2.5 flex items-center gap-3">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg flex-shrink-0">
-            <Zap size={14} className="text-white" />
+      <header className="border-b border-gray-700/40 bg-gray-800/70 backdrop-blur-xl flex-shrink-0 relative z-50 shadow-[0_18px_45px_rgba(15,23,42,0.12)]">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-3 grid grid-cols-[auto_1fr_auto] items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center shadow-lg shadow-sky-500/20 flex-shrink-0">
+              <Zap size={16} className="text-white" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-gray-200 truncate">Arduino Button Mapper</p>
+              <p className="text-[11px] text-gray-500 truncate">Simple setup for adaptive controllers</p>
+            </div>
           </div>
 
-          {/* Auth — left side, right after logo */}
-          {authReady && (
-            appUser ? (
-              <div className="relative flex-shrink-0">
-                {/* Profile pill */}
+          <div className="flex justify-center">
+            <div className="flex items-center gap-1 rounded-2xl border border-gray-700/70 bg-gray-800/70 p-1 shadow-sm">
+              {(adminSettings.show_wiring ? ([
+                { id: "wiring", label: "Wiring", icon: <Zap size={13} /> },
+                { id: "configure", label: "Configure", icon: <Settings size={13} /> },
+                { id: "test", label: "Test", icon: <Gamepad2 size={13} /> },
+              ] as const) : ([
+                { id: "configure", label: "Configure", icon: <Settings size={13} /> },
+                { id: "test", label: "Test", icon: <Gamepad2 size={13} /> },
+              ] as const)).map((item) => (
                 <button
-                  onClick={() => setShowProfileMenu(v => !v)}
-                  className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-800/60 border border-gray-700 rounded-xl hover:border-gray-600 transition-colors"
+                  key={item.id}
+                  onClick={() => setTab(item.id)}
+                  data-tutorial={item.id === "configure" ? "configure-tab" : item.id === "test" ? "test-tab" : "wiring-tab"}
+                  className={[
+                    "flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all",
+                    tab === item.id
+                      ? "bg-white text-slate-900 shadow-sm"
+                      : "text-gray-500 hover:text-gray-200 hover:bg-gray-700/70",
+                  ].join(" ")}
                 >
-                  <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
-                    <span className="text-white text-[9px] font-bold">{appUser.username[0].toUpperCase()}</span>
-                  </div>
-                  <span className="text-xs text-gray-300 hidden sm:block max-w-[100px] truncate">{appUser.username}</span>
-                  <ChevronDown size={10} className="text-gray-500" />
+                  {item.icon}
+                  {item.label}
                 </button>
+              ))}
+            </div>
+          </div>
 
-                {/* Dropdown */}
-                {showProfileMenu && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setShowProfileMenu(false)} />
-                    <div className="absolute left-0 top-full mt-1.5 z-50 w-52 bg-gray-800 border border-gray-600 rounded-xl shadow-2xl overflow-hidden">
-                      {/* Username row */}
-                      <div className="px-3.5 py-2.5 border-b border-gray-700">
-                        <p className="text-xs font-semibold text-gray-200 truncate">{appUser.username}</p>
-                        <p className="text-[10px] text-gray-500 mt-0.5">Signed in</p>
-                      </div>
-                      {/* Light mode toggle */}
-                      <button
-                        onClick={() => setLightMode(v => !v)}
-                        className="w-full flex items-center justify-between px-3.5 py-2.5 hover:bg-gray-700/60 transition-colors"
-                      >
-                        <div className="flex items-center gap-2">
-                          {lightMode ? <Sun size={13} className="text-amber-400" /> : <Moon size={13} className="text-blue-400" />}
-                          <span className="text-xs text-gray-300">{lightMode ? "Light Mode" : "Dark Mode"}</span>
-                        </div>
-                        <div className={`w-8 h-4 rounded-full border transition-colors flex items-center ${lightMode ? "bg-amber-500 border-amber-400" : "bg-gray-700 border-gray-600"}`}>
-                          <div className={`w-3 h-3 rounded-full bg-white shadow transition-transform mx-0.5 ${lightMode ? "translate-x-4" : "translate-x-0"}`} />
-                        </div>
-                      </button>
-                      {/* Sign out */}
-                      <button
-                        onClick={() => { handleSignOut(); setShowProfileMenu(false); }}
-                        className="w-full flex items-center gap-2 px-3.5 py-2.5 hover:bg-red-900/30 text-gray-400 hover:text-red-400 transition-colors border-t border-gray-700"
-                      >
-                        <XCircle size={13} />
-                        <span className="text-xs">Sign out</span>
-                      </button>
+          <div className="flex items-center justify-end gap-2">
+            {authReady && (
+              appUser ? (
+                <div className="relative flex-shrink-0">
+                  <button
+                    onClick={() => setShowProfileMenu(v => !v)}
+                    className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-800/70 border border-gray-700 rounded-xl hover:border-gray-600 transition-colors"
+                  >
+                    <div className="w-5 h-5 rounded-full bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center flex-shrink-0">
+                      <span className="text-white text-[9px] font-bold">{appUser.username[0].toUpperCase()}</span>
                     </div>
-                  </>
-                )}
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <button
-                  onClick={() => setShowAuthModal(true)}
-                  className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium transition-colors"
-                >Sign In</button>
-                {/* Light mode toggle for guests */}
-                <button
-                  onClick={() => setLightMode(v => !v)}
-                  title={lightMode ? "Switch to dark mode" : "Switch to light mode"}
-                  className="w-7 h-7 rounded-lg bg-gray-800 border border-gray-700 flex items-center justify-center hover:border-gray-600 transition-colors"
-                >
-                  {lightMode ? <Sun size={13} className="text-amber-400" /> : <Moon size={13} className="text-blue-400" />}
-                </button>
-              </div>
-            )
-          )}
+                    <span className="text-xs text-gray-300 hidden sm:block max-w-[100px] truncate">{appUser.username}</span>
+                    <ChevronDown size={10} className="text-gray-500" />
+                  </button>
 
-          {/* Spacer */}
-          <div className="flex-1" />
-
-          {/* Wiring icon + tutorial ? */}
-          <button
-            onClick={() => setShowWiring(true)}
-            title="Wiring diagram"
-            data-tutorial="wiring-btn"
-            className="w-7 h-7 rounded-lg bg-gray-800 border border-gray-700 text-yellow-500 hover:text-yellow-300 hover:border-yellow-700/60 transition-colors flex items-center justify-center flex-shrink-0"
-          ><Zap size={13} /></button>
-          <button
-            onClick={() => setShowTutorial(true)}
-            title="Show tutorial"
-            className="w-7 h-7 rounded-lg bg-gray-800 border border-gray-700 text-gray-500 hover:text-gray-200 hover:border-gray-600 transition-colors flex items-center justify-center flex-shrink-0 text-xs font-bold"
-          >?</button>
-          <button
-            onClick={() => { setReportDone(false); setShowReportModal(true); }}
-            title="Report an issue"
-            className="w-7 h-7 rounded-lg bg-gray-800 border border-gray-700 text-gray-500 hover:text-red-400 hover:border-red-700/60 transition-colors flex items-center justify-center flex-shrink-0"
-          ><AlertCircle size={13} /></button>
-
-          <div className="flex bg-gray-800/60 border border-gray-700 rounded-xl p-0.5 gap-0.5">
-            <button onClick={() => setTab("configure")} data-tutorial="configure-tab"
-              className={["flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
-                tab === "configure" ? "bg-gray-700 text-gray-100" : "text-gray-500 hover:text-gray-300"].join(" ")}
-            ><Settings size={12} /> Configure</button>
-            <button onClick={() => setTab("remap")} data-tutorial="remap-tab"
-              className={["flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
-                tab === "remap" ? "bg-gray-700 text-gray-100" : "text-gray-500 hover:text-gray-300"].join(" ")}
-            ><RefreshCw size={12} /> Remap</button>
-            <button onClick={() => setTab("test")} data-tutorial="test-tab"
-              className={["flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
-                tab === "test" ? "bg-gray-700 text-gray-100" : "text-gray-500 hover:text-gray-300"].join(" ")}
-            ><Gamepad2 size={12} /> Test</button>
-            <button onClick={() => setTab("info")}
-              className={["flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
-                tab === "info" ? "bg-gray-700 text-gray-100" : "text-gray-500 hover:text-gray-300"].join(" ")}
-            ><Info size={12} /> Info</button>
-            {appUser && isAdmin(appUser.username) && (
+                  {showProfileMenu && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowProfileMenu(false)} />
+                      <div className="absolute right-0 top-full mt-1.5 z-50 w-56 bg-gray-800 border border-gray-600 rounded-xl shadow-2xl overflow-hidden">
+                        <div className="px-3.5 py-2.5 border-b border-gray-700">
+                          <p className="text-xs font-semibold text-gray-200 truncate">{appUser.username}</p>
+                          <p className="text-[10px] text-gray-500 mt-0.5">Signed in</p>
+                        </div>
+                        <button
+                          onClick={() => setLightMode(v => !v)}
+                          className="w-full flex items-center justify-between px-3.5 py-2.5 hover:bg-gray-700/60 transition-colors"
+                        >
+                          <div className="flex items-center gap-2">
+                            {lightMode ? <Sun size={13} className="text-amber-400" /> : <Moon size={13} className="text-blue-400" />}
+                            <span className="text-xs text-gray-300">{lightMode ? "Light Mode" : "Dark Mode"}</span>
+                          </div>
+                          <div className={`w-8 h-4 rounded-full border transition-colors flex items-center ${lightMode ? "bg-amber-500 border-amber-400" : "bg-gray-700 border-gray-600"}`}>
+                            <div className={`w-3 h-3 rounded-full bg-white shadow transition-transform mx-0.5 ${lightMode ? "translate-x-4" : "translate-x-0"}`} />
+                          </div>
+                        </button>
+                        <button
+                          onClick={() => { handleSignOut(); setShowProfileMenu(false); }}
+                          className="w-full flex items-center gap-2 px-3.5 py-2.5 hover:bg-red-900/30 text-gray-400 hover:text-red-400 transition-colors border-t border-gray-700"
+                        >
+                          <XCircle size={13} />
+                          <span className="text-xs">Sign out</span>
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setShowAuthModal(true)}
+                    className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-colors"
+                  >Sign In</button>
+                  <button
+                    onClick={() => setLightMode(v => !v)}
+                    title={lightMode ? "Switch to dark mode" : "Switch to light mode"}
+                    className="w-8 h-8 rounded-xl bg-gray-800 border border-gray-700 flex items-center justify-center hover:border-gray-600 transition-colors"
+                  >
+                    {lightMode ? <Sun size={13} className="text-amber-400" /> : <Moon size={13} className="text-blue-400" />}
+                  </button>
+                </>
+              )
+            )}
+            <button
+              onClick={() => setShowTutorial(true)}
+              title="Show tutorial"
+              className="w-8 h-8 rounded-xl bg-gray-800 border border-gray-700 text-gray-500 hover:text-gray-200 hover:border-gray-600 transition-colors flex items-center justify-center flex-shrink-0 text-xs font-bold"
+            >?</button>
+            <button
+              onClick={() => { setReportDone(false); setShowReportModal(true); }}
+              title="Report an issue"
+              className="w-8 h-8 rounded-xl bg-gray-800 border border-gray-700 text-gray-500 hover:text-red-400 hover:border-red-700/60 transition-colors flex items-center justify-center flex-shrink-0"
+            ><AlertCircle size={13} /></button>
+            {appUser && isAdmin(appUser.username) && !hasAdminSession && (
+              <button
+                onClick={() => {
+                  setLoginUsername(appUser.username);
+                  setAuthTab("username");
+                  setShowAuthModal(true);
+                  setAdminAuthError("");
+                }}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all text-amber-500 hover:text-amber-300 border border-amber-700/40 bg-amber-950/20"
+              ><Settings size={12} /> Unlock Admin</button>
+            )}
+            {appUser && isAdmin(appUser.username) && hasAdminSession && (
               <button onClick={() => {
                 setTab("admin");
                 loadDbTemplates().then(setDbTemplates);
-                loadAllUsers().then(async (users) => {
+                loadAdminUsersOverview().then(({ users, saveCounts }) => {
                   setAllUsers(users);
-                  const counts: Record<string, number> = {};
-                  await Promise.all(users.map(async (u) => {
-                    const s = await loadAllSaves(u.id);
-                    counts[u.id] = s.length;
-                  }));
-                  setUserSaveCounts(counts);
+                  setUserSaveCounts(saveCounts);
+                }).catch((err) => {
+                  alert(err instanceof Error ? err.message : "Could not load admin data.");
                 });
               }}
-                className={["flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
-                  tab === "admin" ? "bg-amber-700/60 text-amber-200" : "text-amber-600 hover:text-amber-400"].join(" ")}
+                className={["hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all",
+                  tab === "admin" ? "bg-amber-700/60 text-amber-200" : "text-amber-600 hover:text-amber-400 border border-amber-700/30 bg-amber-950/10"].join(" ")}
               ><Settings size={12} /> Admin</button>
             )}
           </div>
@@ -3171,6 +3221,87 @@ export default function Home() {
               <span className="font-semibold">Maintenance in progress.</span>{" "}
               {adminSettings.welcome_message || "The app is temporarily unavailable. Please check back soon."}
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* ══ WIRING TAB ═════════════════════════════════════════════════════ */}
+      {tab === "wiring" && (
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 flex flex-col gap-5">
+            <section className="bg-gray-800/80 border border-gray-700/70 rounded-3xl p-6">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-500 mb-2">Wiring</p>
+                  <h1 className="text-2xl sm:text-3xl font-semibold text-gray-100 tracking-tight">A clearer wiring view for your build</h1>
+                  <p className="text-sm text-gray-500 mt-2 max-w-2xl leading-relaxed">
+                    See every active pin at a glance, keep your layout simple, and open the full wiring diagram when you want component-by-component detail.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setTab("configure")}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-colors"
+                  >
+                    <Settings size={12} /> Edit Setup
+                  </button>
+                  <button
+                    onClick={() => setShowWiring(true)}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-gray-700 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-semibold transition-colors"
+                  >
+                    <ExternalLink size={12} /> Full Diagram
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <div className="grid lg:grid-cols-[1.6fr_0.9fr] gap-5">
+              <section className="bg-gray-800/80 border border-gray-700/70 rounded-3xl p-5">
+                <div className="flex items-center gap-2 mb-4">
+                  <Zap size={14} className="text-yellow-400" />
+                  <h2 className="text-sm font-semibold text-gray-200">Live Board Layout</h2>
+                </div>
+                <div className="rounded-2xl border border-gray-700/60 bg-gray-900/40 p-3">
+                  <LiveWiringDiagram
+                    buttons={buttons}
+                    portInputs={portInputs}
+                    leds={leds}
+                    irSensors={irSensors}
+                    sipPuffs={sipPuffs}
+                    joysticks={joysticks}
+                  />
+                </div>
+              </section>
+
+              <div className="flex flex-col gap-5">
+                <section className="bg-gray-800/80 border border-gray-700/70 rounded-3xl p-5">
+                  <h2 className="text-sm font-semibold text-gray-200 mb-4">Current Setup</h2>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { label: "Buttons", value: buttons.length + portInputs.length, tone: "text-blue-400" },
+                      { label: "Sensors", value: irSensors.length + sipPuffs.length, tone: "text-emerald-400" },
+                      { label: "Joysticks", value: joysticks.length, tone: "text-violet-400" },
+                      { label: "LEDs", value: buttons.filter((b) => b.ledPin >= 0).length + portInputs.filter((p) => p.ledPin >= 0).length + irSensors.filter((s) => s.ledPin >= 0).length + sipPuffs.filter((s) => s.ledPin >= 0).length + joysticks.filter((j) => j.ledPin >= 0).length + (leds.enabled ? 2 : 0), tone: "text-yellow-400" },
+                    ].map((item) => (
+                      <div key={item.label} className="rounded-2xl border border-gray-700/60 bg-gray-900/40 px-4 py-3">
+                        <p className="text-[11px] uppercase tracking-wider text-gray-600">{item.label}</p>
+                        <p className={`text-2xl font-semibold mt-1 ${item.tone}`}>{item.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="bg-gray-800/80 border border-gray-700/70 rounded-3xl p-5">
+                  <h2 className="text-sm font-semibold text-gray-200 mb-3">Quick Rules</h2>
+                  <div className="space-y-3 text-xs text-gray-500 leading-relaxed">
+                    <p>Each input or LED gets its own pin. The mapper now blocks pin reuse so your wiring stays valid.</p>
+                    <p>Buttons, ports, IR sensors, and sip & puff inputs wire from the assigned digital pin to GND unless the component needs power.</p>
+                    <p>Joysticks use two analog pins for X/Y and an optional digital pin for click.</p>
+                    <p>Open the detailed diagram for a component-by-component view with resistor notes and module wiring.</p>
+                  </div>
+                </section>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -3236,6 +3367,14 @@ export default function Home() {
                   className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-violet-700/50 bg-violet-900/20 hover:bg-violet-900/40 text-violet-400 hover:text-violet-200 text-xs font-medium transition-all"
                 >
                   ✦ AI
+                </button>
+                <button
+                  onClick={() => setShowRemap(true)}
+                  title="Read and remap a connected device"
+                  data-tutorial="remap-btn"
+                  className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-gray-700 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 text-xs transition-all"
+                >
+                  <RefreshCw size={12} /> Remap
                 </button>
                 <span className="text-[10px] text-gray-600 ml-auto hidden sm:block">Chrome / Edge only</span>
               </div>
@@ -3523,13 +3662,11 @@ export default function Home() {
         </div>
       )}
 
-      {/* ══ REMAP TAB ══════════════════════════════════════════════════════ */}
-      {tab === "remap" && (
+      {showRemap && (
         <RemapModal
-          inline
           backendUrl={BACKEND_URL}
           selectedPort={selectedPort}
-          onClose={() => setTab("configure")}
+          onClose={() => setShowRemap(false)}
           onSave={(remapEntries: RemapEntry[]) => {
             const applyRemap = (entries: RemapEntry[]) => {
               setButtons((prev) => prev.map((b) => {
@@ -3566,9 +3703,10 @@ export default function Home() {
               }));
             };
             applyRemap(remapEntries);
+            setShowRemap(false);
           }}
           onUploadSketch={(remapEntries: RemapEntry[]) => {
-            setTab("configure");
+            setShowRemap(false);
             const updatedButtons = buttons.map((b) => {
               const entry = remapEntries.find((e) => (e.type === "button" || e.type === "port") && e.pin === `D${b.pin}` && e.arduinoKey === b.arduinoKey);
               if (!entry || entry.newKey === entry.arduinoKey) return b;
@@ -3805,7 +3943,7 @@ export default function Home() {
       )}
 
       {/* ══ ADMIN TAB ══════════════════════════════════════════════════════ */}
-      {tab === "admin" && appUser && isAdmin(appUser.username) && (
+      {tab === "admin" && appUser && isAdmin(appUser.username) && hasAdminSession && (
         <div className="flex-1 overflow-hidden flex flex-col">
           {/* Admin sub-nav */}
           <div className="flex-shrink-0 border-b border-gray-700/60 bg-gray-800/40 px-4 sm:px-6">
@@ -3825,7 +3963,9 @@ export default function Home() {
                 <button key={st.id} onClick={() => {
                   setAdminSubTab(st.id);
                   if (st.id === "issues" && !issuesLoaded) {
-                    loadAllIssues().then(d => { setAllIssues(d); setIssuesLoaded(true); });
+                    loadAllIssues().then(d => { setAllIssues(d); setIssuesLoaded(true); }).catch((err) => {
+                      alert(err instanceof Error ? err.message : "Could not load issues.");
+                    });
                   }
                 }}
                   className={["px-3 py-1.5 rounded-lg text-xs font-medium transition-all",
@@ -3855,7 +3995,7 @@ export default function Home() {
                     { key: "show_upload"      as const, label: "Compile & Upload",    desc: "Show the upload button and compile log",              icon: <Upload size={13} className="text-green-400" />,    group: "core" },
                     { key: "show_buttons"     as const, label: "Configure Inputs",    desc: "Show the main input configuration panel",             icon: <Keyboard size={13} className="text-blue-400" />,   group: "core" },
                     { key: "show_sensors"     as const, label: "Sensors & Joysticks", desc: "Show IR, sip & puff, and joystick input types",       icon: <Radio size={13} className="text-emerald-400" />,   group: "core" },
-                    { key: "show_wiring"      as const, label: "Wiring Diagram",      desc: "Show the wiring diagram icon in the header",          icon: <Zap size={13} className="text-orange-400" />,      group: "core" },
+                    { key: "show_wiring"      as const, label: "Wiring Tab",          desc: "Show the Wiring tab in the top navigation",           icon: <Zap size={13} className="text-orange-400" />,      group: "core" },
                     { key: "show_games"       as const, label: "Games Section",       desc: "Show Dino, Snake, and Pong in the Test tab",          icon: <Gamepad2 size={13} className="text-violet-400" />, group: "test" },
                     { key: "show_controller"  as const, label: "Controller View",     desc: "Show the controller mockup in the Test tab",          icon: <Gamepad2 size={13} className="text-pink-400" />,   group: "test" },
                     { key: "show_tutorial"    as const, label: "Interactive Tutorial", desc: "Enable the guided tour (guests always see it)",      icon: <Info size={13} className="text-violet-400" />,     group: "ux" },
@@ -3873,7 +4013,12 @@ export default function Home() {
                         onClick={async () => {
                           const next = !(adminSettings[key] as boolean);
                           setAdminSettings((s) => { const n = { ...s, [key]: next }; localStorage.setItem("adminSettings", JSON.stringify(n)); return n; });
-                          await updateAdminSettings({ [key]: next } as Partial<AdminSettings>);
+                          try {
+                            await updateAdminSettings({ [key]: next } as Partial<AdminSettings>);
+                          } catch (err) {
+                            setAdminSettings((s) => ({ ...s, [key]: !next }));
+                            alert(err instanceof Error ? err.message : "Could not update settings.");
+                          }
                         }}
                         className={["relative w-10 h-6 rounded-full transition-colors cursor-pointer flex-shrink-0 ml-6",
                           (adminSettings[key] as boolean) ? "bg-blue-600" : "bg-gray-700"].join(" ")}
@@ -3897,7 +4042,11 @@ export default function Home() {
                     onChange={async (e) => {
                       const msg = e.target.value;
                       setAdminSettings((s) => { const n = { ...s, welcome_message: msg }; localStorage.setItem("adminSettings", JSON.stringify(n)); return n; });
-                      await updateAdminSettings({ welcome_message: msg });
+                      try {
+                        await updateAdminSettings({ welcome_message: msg });
+                      } catch (err) {
+                        alert(err instanceof Error ? err.message : "Could not update the maintenance message.");
+                      }
                     }}
                     placeholder="The app is temporarily unavailable…"
                     className="w-full bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-red-500 transition-colors"
@@ -3916,7 +4065,11 @@ export default function Home() {
                       onClick={async () => {
                         const next = (adminSettings.tutorial_version ?? 0) + 1;
                         setAdminSettings((s) => { const n = { ...s, tutorial_version: next }; localStorage.setItem("adminSettings", JSON.stringify(n)); return n; });
-                        await updateAdminSettings({ tutorial_version: next });
+                        try {
+                          await updateAdminSettings({ tutorial_version: next });
+                        } catch (err) {
+                          alert(err instanceof Error ? err.message : "Could not update the tutorial version.");
+                        }
                       }}
                       className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-700/40 hover:bg-violet-700/70 border border-violet-600/50 text-violet-200 transition-colors"
                     >Reset for Everyone</button>
@@ -4058,7 +4211,7 @@ export default function Home() {
                               setExpandedUserId(null); setShadowUser(null); setShadowSaves([]);
                             } else {
                               setExpandedUserId(u.id); setShadowUser(u);
-                              const saves = await loadAllSaves(u.id);
+                              const saves = await loadAdminUserSaves(u.id);
                               setShadowSaves(saves); setShadowSaveIndex(0);
                               setUserSaveCounts((prev) => ({ ...prev, [u.id]: saves.length }));
                             }
@@ -4199,7 +4352,9 @@ export default function Home() {
                     <p className="text-xs text-gray-500 mt-0.5">{allIssues.filter(i => i.status === "open").length} open · {allIssues.length} total</p>
                   </div>
                   <button
-                    onClick={() => loadAllIssues().then(d => setAllIssues(d))}
+                    onClick={() => loadAllIssues().then(d => setAllIssues(d)).catch((err) => {
+                      alert(err instanceof Error ? err.message : "Could not refresh issues.");
+                    })}
                     className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gray-800 border border-gray-700 text-xs text-gray-400 hover:text-gray-200 transition-colors"
                   ><RefreshCw size={11} /> Refresh</button>
                 </div>
@@ -4251,7 +4406,14 @@ export default function Home() {
                               )}
                             </div>
                             <button
-                              onClick={async () => { await deleteIssue(issue.id); setAllIssues(p => p.filter(i => i.id !== issue.id)); }}
+                              onClick={async () => {
+                                try {
+                                  await deleteIssue(issue.id);
+                                  setAllIssues(p => p.filter(i => i.id !== issue.id));
+                                } catch (err) {
+                                  alert(err instanceof Error ? err.message : "Could not delete the issue.");
+                                }
+                              }}
                               className="p-1 rounded text-gray-700 hover:text-red-400 hover:bg-red-400/10 transition-all flex-shrink-0"
                             ><Trash2 size={12} /></button>
                           </div>
@@ -4264,8 +4426,12 @@ export default function Home() {
                             {(["open", "in_progress", "resolved", "wontfix"] as Issue["status"][]).map((s) => (
                               <button key={s}
                                 onClick={async () => {
-                                  await updateIssueStatus(issue.id, s);
-                                  setAllIssues(p => p.map(i => i.id === issue.id ? { ...i, status: s } : i));
+                                  try {
+                                    await updateIssueStatus(issue.id, s);
+                                    setAllIssues(p => p.map(i => i.id === issue.id ? { ...i, status: s } : i));
+                                  } catch (err) {
+                                    alert(err instanceof Error ? err.message : "Could not update the issue status.");
+                                  }
                                 }}
                                 className={["px-2 py-0.5 rounded-lg border text-[10px] font-medium transition-colors",
                                   issue.status === s
@@ -4393,168 +4559,6 @@ export default function Home() {
       )}
 
       {/* ══ INFO TAB ═══════════════════════════════════════════════════════ */}
-      {tab === "info" && (
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 flex flex-col gap-6">
-
-            {/* ── Made by Jacob ── */}
-            <div className="relative bg-gradient-to-br from-blue-950/60 to-purple-950/60 border border-blue-700/30 rounded-2xl p-6 overflow-hidden">
-              <div className="absolute inset-0 rounded-2xl" style={{
-                background: "radial-gradient(ellipse at 70% 20%, rgba(59,130,246,0.12) 0%, transparent 60%)",
-                pointerEvents: "none",
-              }} />
-              <div className="relative flex items-start gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-xl shadow-blue-900/40 flex-shrink-0">
-                  <span className="text-white text-2xl font-black">J</span>
-                </div>
-                <div>
-                  <h2 className="text-lg font-bold text-gray-100">Made by Jacob Majors</h2>
-                  <p className="text-sm text-gray-400 mt-1 leading-relaxed">
-                    Arduino Button Mapper was built to make adaptive controller programming
-                    accessible — no Arduino IDE required. Configure buttons, sensors, and
-                    input devices visually, then upload directly to your Arduino Leonardo
-                    with one click.
-                  </p>
-                  <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-blue-950/50 border border-blue-800/40 rounded-xl w-fit">
-                    <Zap size={11} className="text-blue-400 flex-shrink-0" />
-                    <span className="text-xs text-blue-300 font-medium">
-                      Developed for Ramsey Mussalum&apos;s <span className="text-white">Design for Social Good</span> class
-                    </span>
-                  </div>
-                  <a
-                    href="https://github.com/jacob-majors/Arduino-Button-Mapper"
-                    target="_blank" rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 mt-3 text-xs text-blue-400 hover:text-blue-300 transition-colors"
-                  >
-                    <ExternalLink size={11} />
-                    github.com/jacob-majors/Arduino-Button-Mapper
-                  </a>
-                </div>
-              </div>
-            </div>
-
-            {/* ── How to connect ── */}
-            <div className="bg-gray-800/80 border border-gray-700/70 rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-3">
-                <Usb size={14} className="text-green-400" />
-                <h3 className="text-sm font-semibold text-gray-200">How to Use This App</h3>
-              </div>
-
-              {/* Nothing to install */}
-              <div className="mb-4 px-3 py-2.5 bg-green-950/30 border border-green-800/40 rounded-xl">
-                <p className="text-xs text-green-300 font-medium mb-0.5">Nothing to install — works entirely in your browser</p>
-                <p className="text-xs text-gray-500 leading-relaxed">
-                  Configure inputs, assign keys, generate sketches, and flash your Arduino — all from Chrome or Edge with no software to download.
-                </p>
-              </div>
-
-              <ol className="space-y-4">
-                {([
-                  {
-                    n: 1, title: "Configure your inputs",
-                    body: "Add micro switches, toggle switches, joysticks, IR sensors, or sip & puff sensors. Assign a pin and key binding to each. All configuration happens live in the browser.",
-                  },
-                  {
-                    n: 2, title: "Plug in your Arduino Leonardo",
-                    body: "Use a USB data cable — not a charge-only cable. Chrome will prompt you to select the serial port when you click Compile & Upload.",
-                  },
-                  {
-                    n: 3, title: "Click Compile & Upload",
-                    body: "The sketch is sent to a cloud compile server (Railway + arduino-cli), which returns a compiled .hex file. The browser then flashes it directly to your board over Web Serial — no Arduino IDE or local tools needed.",
-                    note: "Requires Chrome or Edge. Firefox and Safari do not support Web Serial.",
-                  },
-                  {
-                    n: 4, title: "Test your controller",
-                    body: "Switch to the Test tab to confirm key presses are working correctly. Play Dino, Snake, or Pong with your newly mapped inputs.",
-                  },
-                ] as { n: number; title: string; body: string; code?: string; note?: string }[]).map(({ n, title, body, code, note }) => (
-                  <li key={n} className="flex gap-3">
-                    <div className="w-5 h-5 rounded-full bg-green-500/20 border border-green-500/40 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <span className="text-green-400 text-[10px] font-bold">{n}</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-200">{title}</p>
-                      <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{body}</p>
-                      {code && (
-                        <code className="inline-block mt-1.5 px-2.5 py-1 bg-gray-800 border border-gray-700 rounded-lg text-[11px] text-green-400 font-mono">{code}</code>
-                      )}
-                      {note && <p className="text-[11px] text-gray-600 mt-1 italic">{note}</p>}
-                    </div>
-                  </li>
-                ))}
-              </ol>
-            </div>
-
-            {/* ── How code generation works ── */}
-            <div className="bg-gray-800/80 border border-gray-700/70 rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Code size={14} className="text-yellow-400" />
-                <h3 className="text-sm font-semibold text-gray-200">How the Code is Generated</h3>
-              </div>
-              <div className="space-y-4 text-sm text-gray-400 leading-relaxed">
-                <p className="text-xs text-gray-500 leading-relaxed">
-                  Everything you configure is translated into a single Arduino{" "}
-                  <span className="text-yellow-300 font-mono">.ino</span> sketch by{" "}
-                  <span className="text-gray-300 font-mono">generateSketch()</span> in{" "}
-                  <span className="text-yellow-300 font-mono">src/lib/keymap.ts</span>.
-                  No code is stored on a server — it is generated in your browser on demand.
-                  Click <span className="text-gray-200 font-medium">Sketch</span> in the Configure tab to preview the full output before uploading.
-                </p>
-                <div className="space-y-2.5">
-                  {[
-                    { label: "Buttons & ports", color: "text-blue-400", desc: "Each input maps to a digital pin, a key, and a mode. Momentary holds the key while pressed; Toggle alternates on/off each press. Uses INPUT_PULLUP wiring with 20 ms debounce." },
-                    { label: "Power button", color: "text-amber-400", desc: "One button can be set as a power toggle. It flips a systemActive flag — when off, all other inputs stop sending keys and Keyboard.releaseAll() is called immediately." },
-                    { label: "LED indicators", color: "text-yellow-400", desc: "Two digital output pins — one goes HIGH when the system is active, the other when off. Wire each through a 220Ω resistor to an LED." },
-                    { label: "IR sensors", color: "text-emerald-400", desc: "Digital inputs with configurable active polarity (HIGH=on or LOW=on). Most IR proximity modules pull output LOW when triggered, so LOW=on is the default." },
-                    { label: "Sip & puff", color: "text-cyan-400", desc: "A digital input on any Arduino pin using INPUT_PULLUP. Pressing triggers the assigned key, releasing it sends key up. Simple on/off activation — no analog thresholds needed." },
-                    { label: "Joystick", color: "text-violet-400", desc: "Two analog axes read via analogRead(). Center is 512 — if deviation from center exceeds the deadzone, the matching direction key is pressed. Optional click button uses a digital pin with INPUT_PULLUP." },
-                  ].map(({ label, color, desc }) => (
-                    <div key={label} className="flex gap-2.5">
-                      <span className={`${color} font-semibold w-28 flex-shrink-0 text-xs mt-0.5`}>{label}</span>
-                      <span className="text-gray-500 text-xs leading-relaxed">{desc}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* ── Tech stack ── */}
-            <div className="bg-gray-800/80 border border-gray-700/70 rounded-2xl p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Terminal size={14} className="text-purple-400" />
-                <h3 className="text-sm font-semibold text-gray-200">How This Was Built</h3>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  { name: "Next.js 14", tag: "Frontend", color: "text-blue-400", desc: "App Router, React, TypeScript" },
-                  { name: "Tailwind CSS", tag: "Styling", color: "text-cyan-400", desc: "Utility-first, dark theme" },
-                  { name: "Supabase", tag: "Auth + DB", color: "text-emerald-400", desc: "Google login + save slots" },
-                  { name: "Express.js", tag: "Backend", color: "text-green-400", desc: "Cloud compile server on Railway" },
-                  { name: "arduino-cli", tag: "Compiler", color: "text-yellow-400", desc: "Compile sketches to .hex in cloud" },
-                  { name: "Canvas API", tag: "Games", color: "text-purple-400", desc: "Dino + Snake, no sprites" },
-                  { name: "SSE stream", tag: "Upload log", color: "text-orange-400", desc: "Real-time compile output" },
-                  { name: "Claude AI", tag: "Coded with", color: "text-indigo-400", desc: "AI-assisted development" },
-                ].map(({ name, tag, color, desc }) => (
-                  <div key={name} className="bg-gray-800/50 border border-gray-700/60 rounded-xl p-3">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className={`text-xs font-bold ${color}`}>{name}</span>
-                      <span className="text-[9px] text-gray-600 bg-gray-900 px-1.5 py-0.5 rounded-full border border-gray-700">{tag}</span>
-                    </div>
-                    <p className="text-[11px] text-gray-500">{desc}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* ── Footer credit ── */}
-            <p className="text-center text-xs text-gray-700 pb-2">
-              Arduino Button Mapper · Jacob Majors · Design for Social Good · Open source on GitHub
-            </p>
-
-          </div>
-        </div>
-      )}
-
       {/* IDE modal */}
       {showSketch && sketchCode && (
         <IDEModal
@@ -4657,13 +4661,29 @@ export default function Home() {
                     <label className="text-[11px] text-gray-500 mb-1 block">Username</label>
                     <input
                       value={loginUsername}
-                      onChange={(e) => setLoginUsername(e.target.value.replace(/\s+/g, "."))}
+                      onChange={(e) => { setLoginUsername(e.target.value.replace(/\s+/g, ".")); setAdminAuthError(""); }}
                       placeholder="troy.pappas"
                       autoFocus
                       className="w-full px-3 py-2 rounded-xl bg-gray-800 border border-gray-700 focus:border-blue-500 focus:outline-none text-sm text-gray-200 placeholder-gray-600 transition-colors"
                     />
                     <p className="text-[10px] text-gray-600 mt-1">New usernames are created automatically.</p>
                   </div>
+                  {isAdmin(loginUsername.trim().toLowerCase()) && (
+                    <div>
+                      <label className="text-[11px] text-gray-500 mb-1 block">Admin Password</label>
+                      <input
+                        type="password"
+                        value={adminPassword}
+                        onChange={(e) => { setAdminPassword(e.target.value); setAdminAuthError(""); }}
+                        placeholder="Required to unlock admin tools"
+                        className="w-full px-3 py-2 rounded-xl bg-gray-800 border border-gray-700 focus:border-amber-500 focus:outline-none text-sm text-gray-200 placeholder-gray-600 transition-colors"
+                      />
+                      <p className="text-[10px] text-gray-600 mt-1">Verified server-side and stored in an HTTP-only session cookie.</p>
+                    </div>
+                  )}
+                  {adminAuthError && (
+                    <p className="text-[11px] text-red-400">{adminAuthError}</p>
+                  )}
                   <button
                     type="submit"
                     disabled={loginLoading || !loginUsername.trim()}
@@ -4790,7 +4810,7 @@ export default function Home() {
             const key = `tutorial_v${adminSettings.tutorial_version ?? 0}_done`;
             localStorage.setItem(key, "1");
           }}
-          onTabChange={(t) => setTab(t as "configure" | "remap" | "test" | "info" | "admin")}
+          onTabChange={(t) => setTab(t as "wiring" | "configure" | "test" | "admin")}
         />
       )}
 

@@ -34,13 +34,13 @@
 
 html.light,
 html.light body {
-  background-color: #e8edf5;
+  background-color: #f5f7fb;
   color: #0f172a;
   color-scheme: light;
 }
 
 /* ── Page / structural backgrounds ──────────────────────── */
-html.light .bg-gray-900   { background-color: #e8edf5 !important; }
+html.light .bg-gray-900   { background-color: #f5f7fb !important; }
 html.light .bg-gray-800   { background-color: #ffffff !important; }
 
 html.light .bg-gray-800\/80 { background-color: rgba(255,255,255,0.97) !important; }
@@ -49,10 +49,15 @@ html.light .bg-gray-800\/60 { background-color: rgba(255,255,255,0.92) !importan
 html.light .bg-gray-800\/50 { background-color: rgba(255,255,255,0.88) !important; }
 html.light .bg-gray-800\/40 { background-color: rgba(255,255,255,0.80) !important; }
 html.light .bg-gray-800\/30 { background-color: rgba(255,255,255,0.65) !important; }
-html.light .bg-gray-700   { background-color: #dde3ee !important; }
+html.light .bg-gray-700   { background-color: #e9eef6 !important; }
 
-html.light .bg-gray-900\/40 { background-color: rgba(232,237,245,0.8) !important; }
-html.light .bg-gray-900\/20 { background-color: rgba(232,237,245,0.5) !important; }
+html.light .bg-gray-900\/40 { background-color: rgba(245,247,251,0.88) !important; }
+html.light .bg-gray-900\/20 { background-color: rgba(245,247,251,0.6) !important; }
+html.light .bg-\[radial-gradient\(circle_at_top\,_rgba\(56\,189\,248\,0\.12\)\,_transparent_30\%\)\,linear-gradient\(180deg\,_rgba\(15\,23\,42\,0\.96\)_0\%\,_rgba\(15\,23\,42\,1\)_24\%\,_rgba\(2\,6\,23\,1\)_100\%\)\] {
+  background-image:
+    radial-gradient(circle at top, rgba(56, 189, 248, 0.1), transparent 30%),
+    linear-gradient(180deg, #f8fbff 0%, #f5f7fb 22%, #eef3f9 100%) !important;
+}
 
 /* ── Inputs / selects / textareas ──────────────────────── */
 html.light select,
@@ -84,6 +89,8 @@ html.light .border-gray-700\/60 { border-color: rgba(203,213,225,0.85) !importan
 html.light .border-gray-700\/40 { border-color: rgba(203,213,225,0.7) !important; }
 html.light .border-gray-600 { border-color: #94a3b8 !important; }
 html.light .border-gray-600\/50 { border-color: rgba(148,163,184,0.8) !important; }
+html.light .shadow-\[0_18px_45px_rgba\(15\,23\,42\,0\.12\)\] { box-shadow: 0 18px 45px rgba(148, 163, 184, 0.16) !important; }
+html.light .shadow-\[0_8px_30px_rgba\(15\,23\,42\,0\.05\)\] { box-shadow: 0 8px 30px rgba(148, 163, 184, 0.12) !important; }
 
 /* ── Button / Switch / Port cards — BLUE ───────────────── */
 html.light .bg-blue-950\/60  { background-color: #dbeafe !important; }

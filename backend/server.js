@@ -11,6 +11,11 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+const ALLOWED_FQBNS = new Set([
+  'arduino:avr:leonardo',
+  'arduino:avr:micro',
+]);
+
 // ─── Resolve arduino-cli path ─────────────────────────────────────────────────
 
 const CLI_CANDIDATES = [
@@ -148,6 +153,8 @@ app.post('/api/compile', async (req, res) => {
   const { sketch, fqbn = 'arduino:avr:leonardo' } = req.body;
   if (!sketch || typeof sketch !== 'string' || !sketch.trim())
     return res.status(400).json({ error: 'No sketch provided' });
+  if (typeof fqbn !== 'string' || !ALLOWED_FQBNS.has(fqbn))
+    return res.status(400).json({ error: 'Unsupported board target' });
 
   const cli = await findCli();
   if (!cli) return res.status(500).json({ error: 'arduino-cli not found. Please install it and restart the backend.' });
@@ -161,20 +168,31 @@ app.post('/api/compile', async (req, res) => {
   const outDir = path.join(tmpDir, 'out');
   fs.mkdirSync(outDir);
 
-  exec(`"${cli}" compile --fqbn ${fqbn} --output-dir "${outDir}" "${sketchDir}" 2>&1`, (err, stdout) => {
-    if (err) {
+  const compile = spawn(cli, ['compile', '--fqbn', fqbn, '--output-dir', outDir, sketchDir]);
+  let compileLog = '';
+
+  compile.stdout.on('data', (d) => { compileLog += d.toString(); });
+  compile.stderr.on('data', (d) => { compileLog += d.toString(); });
+
+  compile.on('close', (code) => {
+    if (code !== 0) {
       try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
-      return res.status(400).json({ error: 'Compilation failed', log: stdout });
+      return res.status(400).json({ error: 'Compilation failed', log: compileLog });
     }
     // arduino-cli outputs <name>.ino.hex
     const hexFile = path.join(outDir, `${sketchName}.ino.hex`);
     if (!fs.existsSync(hexFile)) {
       try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
-      return res.status(500).json({ error: 'No .hex file produced', log: stdout });
+      return res.status(500).json({ error: 'No .hex file produced', log: compileLog });
     }
     const hex = fs.readFileSync(hexFile, 'utf8');
     try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
     res.json({ hex });
+  });
+
+  compile.on('error', (err) => {
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+    res.status(500).json({ error: `Failed to start arduino-cli: ${err.message}` });
   });
 });
 
