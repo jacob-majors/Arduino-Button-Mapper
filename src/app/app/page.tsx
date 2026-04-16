@@ -2433,6 +2433,8 @@ export default function Home() {
   const [serialLog, setSerialLog] = useState<{ key: string; time: string }[]>([]);
   const serialLogRef = useRef<HTMLDivElement>(null);
   const [showSerialMonitor, setShowSerialMonitor] = useState(false);
+  const [testKeyEvents, setTestKeyEvents] = useState<{ id: number; label: string; color: string }[]>([]);
+  const testKeyEventIdRef = useRef(0);
   const [selectedInputId, setSelectedInputId] = useState<string | null>(null);
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const [deleteConfirmUserId, setDeleteConfirmUserId] = useState<string | null>(null);
@@ -2444,7 +2446,7 @@ export default function Home() {
   const [lightMode, setLightMode] = useState(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("lightMode");
-      return stored === null ? true : stored === "1";
+      return stored === null ? false : stored === "1";
     }
     return false;
   });
@@ -2479,6 +2481,33 @@ export default function Home() {
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, []);
+  // Keystroke + mouse click display on test tab
+  useEffect(() => {
+    if (tab !== "test") return;
+    const addEvent = (label: string, color: string) => {
+      const id = ++testKeyEventIdRef.current;
+      setTestKeyEvents((p) => [...p.slice(-11), { id, label, color }]);
+      setTimeout(() => setTestKeyEvents((p) => p.filter((e) => e.id !== id)), 1400);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      const label = e.key === " " ? "SPACE" : e.key.length > 1 ? e.key.replace("Arrow", "").replace("Key", "") : e.key.toUpperCase();
+      addEvent(label, "#a78bfa");
+    };
+    const onMouse = (e: MouseEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "BUTTON") return;
+      addEvent(e.button === 2 ? "Right Click" : "Left Click", "#60a5fa");
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("mousedown", onMouse);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("mousedown", onMouse);
+    };
+  }, [tab]);
+
   useEffect(() => { fetchPorts(); }, []);
   useEffect(() => { loadDbTemplates().then(setDbTemplates); }, []);
   useEffect(() => {
@@ -3582,6 +3611,26 @@ export default function Home() {
                     />
                   </div>
                 </div>
+                {(leds.enabled || buttons.some(b => (b.ledPin ?? -1) >= 0) || portInputs.some(p => (p.ledPin ?? -1) >= 0) || irSensors.some(s => (s.ledPin ?? -1) >= 0) || sipPuffs.some(s => (s.ledPin ?? -1) >= 0) || joysticks.some(j => (j.ledPin ?? -1) >= 0)) && (
+                  <div className="mt-3 flex items-center gap-2.5 px-3 py-2.5 rounded-xl bg-yellow-500/10 border border-yellow-500/20">
+                    <svg viewBox="0 0 24 30" width="20" height="25" style={{ flexShrink: 0 }}>
+                      {/* Resistor body */}
+                      <rect x="4" y="8" width="16" height="10" rx="2.5" fill="#d4b896" stroke="#a07850" strokeWidth="1"/>
+                      {/* Color bands: Red Red Brown Gold */}
+                      <rect x="6" y="8" width="3" height="10" fill="#cc2200" opacity="0.9"/>
+                      <rect x="10" y="8" width="3" height="10" fill="#cc2200" opacity="0.9"/>
+                      <rect x="14" y="8" width="3" height="10" fill="#5c2d00" opacity="0.9"/>
+                      <rect x="17.5" y="8" width="2" height="10" fill="#ffd700" opacity="0.8"/>
+                      {/* Leads */}
+                      <line x1="12" y1="1" x2="12" y2="8" stroke="#a07850" strokeWidth="1.5" strokeLinecap="round"/>
+                      <line x1="12" y1="18" x2="12" y2="25" stroke="#a07850" strokeWidth="1.5" strokeLinecap="round"/>
+                    </svg>
+                    <div>
+                      <p className="text-[11px] text-yellow-400 font-semibold">220Ω Resistor required for each LED</p>
+                      <p className="text-[10px] text-yellow-600 mt-0.5">Wire in series between the Arduino pin and the LED anode (+). Any value 150Ω–1kΩ works.</p>
+                    </div>
+                  </div>
+                )}
               </section>
 
               <section className="bg-gray-800/80 border border-gray-700/70 rounded-3xl p-5">
@@ -4094,62 +4143,57 @@ export default function Home() {
 
       {/* ══ TEST TAB ═══════════════════════════════════════════════════════ */}
       {tab === "test" && (
-        <div className="flex-1 overflow-hidden flex gap-0">
+        <div className="flex-1 overflow-hidden flex gap-0 relative">
 
           {/* ── Main content ── */}
           <div className="flex-1 overflow-y-auto min-w-0">
             <div className="max-w-4xl mx-auto px-4 sm:px-6 py-5 flex flex-col gap-5">
 
               {(adminSettings.show_games ?? true) && (
-                <div className="flex flex-col gap-4">
-                  <div className="grid lg:grid-cols-[1.45fr_0.75fr] gap-4 items-start">
-                    <div className="bg-gray-800/80 border border-gray-700/70 rounded-2xl p-3 flex flex-col gap-2">
-                      <div className="flex items-center gap-2 px-1">
+                <div className="flex flex-col gap-3">
+                  {/* Top row: Game (left) + Leaderboard (right) */}
+                  <div className="flex gap-4 items-start min-w-0">
+                    {/* Game panel */}
+                    <div className="flex-1 bg-gray-800/80 border border-gray-700/70 rounded-2xl overflow-hidden min-w-0">
+                      <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-800">
                         <Gamepad2 size={14} className="text-purple-400" />
-                        <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">Games</p>
+                        <h2 className="text-sm font-semibold text-gray-200">
+                          {selectedGame === "dino" && "Dino Game"}
+                          {selectedGame === "snake" && "Snake"}
+                          {selectedGame === "pong" && "Pong"}
+                          {selectedGame === "geometry" && "Geometry Dash"}
+                        </h2>
+                        <span className="text-xs text-gray-600 ml-1">
+                          {selectedGame === "dino" && "↑ jump · ↓ duck"}
+                          {selectedGame === "snake" && "↑↓←→ · WASD · joystick"}
+                          {selectedGame === "pong" && "W/S or ↑/↓ to move"}
+                          {selectedGame === "geometry" && "Jump to clear the spikes"}
+                        </span>
                       </div>
-                      <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-2">
-                        {([
-                          { id: "dino", label: "Dino", emoji: "🦕", hint: "↑ jump ↓ duck" },
-                          { id: "snake", label: "Snake", emoji: "🐍", hint: "Arrows / WASD" },
-                          { id: "pong", label: "Pong", emoji: "🏓", hint: "W/S or ↑/↓" },
-                          { id: "geometry", label: "Geometry Dash", emoji: "🔷", hint: "Jump over spikes" },
-                        ] as const).map((g) => (
-                          <button
-                            key={g.id}
-                            onClick={() => setSelectedGame(g.id)}
-                            className={[
-                              "w-full text-left px-3 py-2.5 rounded-xl transition-all border",
-                              selectedGame === g.id
-                                ? "bg-purple-600/20 border-purple-600/40 text-purple-300"
-                                : "bg-gray-900/20 border-gray-700/40 hover:bg-gray-800 text-gray-400 hover:text-gray-200",
-                            ].join(" ")}
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm leading-none">{g.emoji}</span>
-                              <span className="text-xs font-medium">{g.label}</span>
-                            </div>
-                            <p className="text-[10px] text-gray-600 mt-1 pl-6">{g.hint}</p>
-                          </button>
-                        ))}
+                      <div className="p-4">
+                        <div className="w-full mx-auto">
+                          {selectedGame === "dino" && <DinoGame jumpKeys={jumpKeys} onGameOver={handleDinoGameOver} />}
+                          {selectedGame === "snake" && <SnakeGame joystickMaps={joystickMaps} onGameOver={handleSnakeGameOver} />}
+                          {selectedGame === "pong" && <PongGame onGameOver={handlePongGameOver} joystickMaps={joystickMaps[0] ? { up: [joystickMaps[0].up], down: [joystickMaps[0].down] } : undefined} />}
+                          {selectedGame === "geometry" && <GeometryDashGame jumpKeys={jumpKeys} onGameOver={handleGeometryGameOver} />}
+                        </div>
                       </div>
                     </div>
 
-                    <div className="bg-gray-800/80 border border-gray-700/70 rounded-2xl p-4">
-                      <div className="flex items-center justify-between gap-3 mb-3">
-                        <div>
-                          <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">Leaderboard</p>
-                          <h3 className="text-sm font-semibold text-gray-200 mt-1">
-                            {selectedGame === "dino" && "Dino"}
-                            {selectedGame === "snake" && "Snake"}
-                            {selectedGame === "pong" && "Pong"}
-                            {selectedGame === "geometry" && "Geometry Dash"}
-                          </h3>
-                        </div>
+                    {/* Leaderboard (right side) */}
+                    <div className="w-52 flex-shrink-0 bg-gray-800/80 border border-gray-700/70 rounded-2xl p-4">
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">Leaderboard</p>
                         <span className="text-[10px] text-gray-600">top 5</span>
                       </div>
+                      <p className="text-xs font-semibold text-gray-300 mb-3">
+                        {selectedGame === "dino" && "Dino"}
+                        {selectedGame === "snake" && "Snake"}
+                        {selectedGame === "pong" && "Pong"}
+                        {selectedGame === "geometry" && "Geometry Dash"}
+                      </p>
                       {(gameLeaderboards[selectedGame] ?? []).length === 0 ? (
-                        <p className="text-[11px] text-gray-600">No scores yet for this game.</p>
+                        <p className="text-[11px] text-gray-600">No scores yet.</p>
                       ) : (
                         <ol className="flex flex-col gap-2">
                           {(gameLeaderboards[selectedGame] ?? []).map((entry, i) => (
@@ -4164,29 +4208,30 @@ export default function Home() {
                     </div>
                   </div>
 
-                  <div className="bg-gray-800/80 border border-gray-700/70 rounded-2xl overflow-hidden min-w-0">
-                    <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-800">
-                      <Gamepad2 size={14} className="text-purple-400" />
-                      <h2 className="text-sm font-semibold text-gray-200">
-                        {selectedGame === "dino" && "Dino Game"}
-                        {selectedGame === "snake" && "Snake"}
-                        {selectedGame === "pong" && "Pong"}
-                        {selectedGame === "geometry" && "Geometry Dash"}
-                      </h2>
-                      <span className="text-xs text-gray-600 ml-1">
-                        {selectedGame === "dino" && "↑ jump · ↓ duck"}
-                        {selectedGame === "snake" && "↑↓←→ · WASD · joystick"}
-                        {selectedGame === "pong" && "W/S or ↑/↓ to move"}
-                        {selectedGame === "geometry" && "Jump to clear the spikes"}
-                      </span>
-                    </div>
-                    <div className="p-4">
-                      <div className="w-full max-w-4xl mx-auto">
-                        {selectedGame === "dino" && <DinoGame jumpKeys={jumpKeys} onGameOver={handleDinoGameOver} />}
-                        {selectedGame === "snake" && <SnakeGame joystickMaps={joystickMaps} onGameOver={handleSnakeGameOver} />}
-                        {selectedGame === "pong" && <PongGame onGameOver={handlePongGameOver} joystickMaps={joystickMaps[0] ? { up: [joystickMaps[0].up], down: [joystickMaps[0].down] } : undefined} />}
-                        {selectedGame === "geometry" && <GeometryDashGame jumpKeys={jumpKeys} onGameOver={handleGeometryGameOver} />}
-                      </div>
+                  {/* Compact game selector below */}
+                  <div className="bg-gray-800/80 border border-gray-700/70 rounded-xl px-3 py-2 flex items-center gap-2">
+                    <Gamepad2 size={12} className="text-purple-400 flex-shrink-0" />
+                    <div className="flex gap-1.5 flex-1 flex-wrap">
+                      {([
+                        { id: "dino", label: "Dino", emoji: "🦕" },
+                        { id: "snake", label: "Snake", emoji: "🐍" },
+                        { id: "pong", label: "Pong", emoji: "🏓" },
+                        { id: "geometry", label: "Geometry Dash", emoji: "🔷" },
+                      ] as const).map((g) => (
+                        <button
+                          key={g.id}
+                          onClick={() => setSelectedGame(g.id)}
+                          className={[
+                            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border",
+                            selectedGame === g.id
+                              ? "bg-purple-600/20 border-purple-600/40 text-purple-300"
+                              : "bg-gray-900/30 border-gray-700/40 hover:bg-gray-800 text-gray-400 hover:text-gray-200",
+                          ].join(" ")}
+                        >
+                          <span>{g.emoji}</span>
+                          <span>{g.label}</span>
+                        </button>
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -4299,6 +4344,21 @@ export default function Home() {
                   ))
                 )}
               </div>
+            </div>
+          )}
+
+          {/* ── Keystroke / click fade display ── */}
+          {testKeyEvents.length > 0 && (
+            <div className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 flex items-end gap-2 z-40">
+              {testKeyEvents.map((ev) => (
+                <div
+                  key={ev.id}
+                  className="animate-key-fade px-3 py-1.5 rounded-xl border font-mono text-sm font-semibold shadow-lg whitespace-nowrap"
+                  style={{ color: ev.color, borderColor: ev.color + "60", background: ev.color + "18", boxShadow: `0 0 14px ${ev.color}30` }}
+                >
+                  {ev.label}
+                </div>
+              ))}
             </div>
           )}
 

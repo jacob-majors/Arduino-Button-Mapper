@@ -16,6 +16,16 @@
     animation: pulse-border 1.5s ease-in-out infinite;
   }
 
+  .animate-key-fade {
+    animation: key-fade 1.4s ease-out forwards;
+  }
+
+  @keyframes key-fade {
+    0%   { opacity: 1; transform: translateY(0) scale(1); }
+    60%  { opacity: 0.9; transform: translateY(-8px) scale(1.05); }
+    100% { opacity: 0; transform: translateY(-18px) scale(0.92); }
+  }
+
   @keyframes pulse-border {
     0%, 100% {
       border-color: rgb(59 130 246);
