@@ -235,8 +235,10 @@ export default function DinoGame({ jumpKeys, onGameOver }: { jumpKeys: string[];
           speedDropRef.current = true;
           stateRef.current.dinoVY = Math.abs(stateRef.current.dinoVY);
         }
+        return;
       }
-      if (e.key === " " || e.key === "ArrowUp" || jumpKeys.includes(e.key)) doJump();
+      // Any key (except ArrowDown) triggers jump — works with any mapped button
+      doJump();
     };
     const up = (e: KeyboardEvent) => {
       if (e.key === "ArrowDown") {
@@ -246,7 +248,7 @@ export default function DinoGame({ jumpKeys, onGameOver }: { jumpKeys: string[];
     window.addEventListener("keydown", dn);
     window.addEventListener("keyup", up);
     return () => { window.removeEventListener("keydown", dn); window.removeEventListener("keyup", up); };
-  }, [doJump, jumpKeys]);
+  }, [doJump]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -346,7 +348,7 @@ export default function DinoGame({ jumpKeys, onGameOver }: { jumpKeys: string[];
 
       if (!s.running && !s.crashed) {
         ctx.fillStyle = "#888"; ctx.font = "13px monospace"; ctx.textAlign = "center";
-        ctx.fillText("Press Space / ↑ to start  ·  ↓ to duck", W / 2, GAME_H / 2 + 4);
+        ctx.fillText("Press any key or tap to start  ·  ↓ to duck", W / 2, GAME_H / 2 + 4);
       }
       if (s.crashed) drawGameOver(ctx, W);
 

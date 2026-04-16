@@ -3297,7 +3297,7 @@ export default function Home() {
 
                     {/* Latest log line */}
                     {wsLog.length > 0 && (
-                      <p className={`text-[11px] font-mono truncate ${
+                      <p className={`text-[11px] font-mono ${failed ? "whitespace-pre-line break-words" : "truncate"} ${
                         failed ? "text-red-400" : flashOk ? "text-green-400" : "text-gray-500"
                       }`}>{wsLog[wsLog.length - 1]}</p>
                     )}
