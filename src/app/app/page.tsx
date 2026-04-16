@@ -4023,7 +4023,7 @@ export default function Home() {
               </div>
 
               {/* Add input — centered icon pill buttons */}
-              <div className="mt-3 pt-3 border-t border-gray-800/70 flex-shrink-0 bg-gray-900/18 backdrop-blur-sm rounded-xl px-2 py-3" data-tutorial="add-input">
+              <div className="mt-3 pt-3 border-t border-gray-800/70 flex-shrink-0 bg-gray-900/12 backdrop-blur-sm rounded-xl px-2 py-3" data-tutorial="add-input">
                 <p className="text-[10px] text-gray-600 uppercase tracking-wider font-semibold text-center mb-2">Add Input</p>
                 <div className="flex justify-center">
                 <div className="inline-flex flex-wrap justify-center gap-2">
