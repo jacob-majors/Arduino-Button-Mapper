@@ -478,11 +478,6 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose, initialShow
   const [apiHistory, setApiHistory] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [userInput, setUserInput] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
-  const [apiKey, setApiKey] = useState(() => {
-    if (typeof window !== "undefined") return localStorage.getItem("gemini_api_key") ?? "";
-    return "";
-  });
-  const [showApiKeyInput, setShowApiKeyInput] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showDiff, setShowDiff] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -503,15 +498,6 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose, initialShow
   useEffect(() => {
     if (showAIChat) setTimeout(() => inputRef.current?.focus(), 50);
   }, [showAIChat]);
-
-  const isClaudeKey = apiKey.startsWith("sk-ant-");
-  const provider = isClaudeKey ? "Claude" : apiKey.startsWith("AIza") ? "Gemini" : apiKey ? "Gemini" : null;
-
-  const saveApiKey = (key: string) => {
-    const trimmed = key.trim();
-    localStorage.setItem("gemini_api_key", trimmed);
-    setApiKey(trimmed);
-  };
 
   const copy = () => {
     navigator.clipboard.writeText(editedCode).then(() => {
@@ -542,7 +528,6 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose, initialShow
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          apiKey: apiKey || undefined,
           systemPrompt,
           prompt,
           history: apiHistory,
@@ -555,12 +540,9 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose, initialShow
         (data as { isQuota?: boolean }).isQuota === true ||
         /quota|rate.?limit|resource.?exhausted|limit.*exceeded/i.test(data.error ?? "");
       if (isQuotaError) {
-        setShowApiKeyInput(true);
         setMessages(prev => [...prev, {
           role: "assistant" as const,
-          content: apiKey
-            ? "Your API key has hit its quota. Try a different key, or wait and retry."
-            : "The free AI quota has been reached. Paste your own Claude (sk-ant-…) or Gemini (AIza…) key above — both have free tiers.",
+          content: "The built-in Cloudflare AI quota has been reached right now. Try again a little later.",
         }]);
         setAiLoading(false);
         return;
@@ -653,9 +635,9 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose, initialShow
             )}
             <button
               onClick={() => setShowAIChat(v => !v)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${showAIChat ? "bg-violet-700/40 text-violet-200 border-violet-600/50" : "bg-violet-600/20 text-violet-300 border-violet-600/30 hover:bg-violet-600/30"}`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${showAIChat ? "bg-cyan-700/35 text-cyan-100 border-cyan-500/40" : "bg-cyan-600/15 text-cyan-300 border-cyan-500/30 hover:bg-cyan-600/25"}`}
             >
-              <span>✦</span> Edit with AI
+              <span>AI</span> Cloudflare Assist
             </button>
             <button
               onClick={copy}
@@ -705,55 +687,17 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose, initialShow
           {showAIChat && (
             <div className="w-96 flex flex-col min-h-0 bg-gray-800/40 flex-shrink-0">
 
-              {/* API key row */}
+              {/* AI intro */}
               <div className="px-3 py-2.5 border-b border-gray-800 flex-shrink-0">
-                {showApiKeyInput || !apiKey ? (
-                  <div className="flex flex-col gap-2">
-                    <p className="text-xs text-gray-400 font-medium">
-                      Your API key{" "}
-                      <span className="text-gray-600 font-normal">(optional — stored locally)</span>
-                      {provider && (
-                        <span className={`ml-2 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${isClaudeKey ? "bg-orange-900/40 text-orange-300" : "bg-blue-900/40 text-blue-300"}`}>
-                          {provider} detected
-                        </span>
-                      )}
-                    </p>
-                    <input
-                      type="text"
-                      placeholder="sk-ant-… (Claude) or AIza… (Gemini)"
-                      value={apiKey}
-                      onChange={e => saveApiKey(e.target.value)}
-                      onPaste={e => { e.preventDefault(); saveApiKey(e.clipboardData.getData("text")); }}
-                      className="w-full bg-gray-800 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:border-violet-500 font-mono"
-                    />
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <a href="https://console.anthropic.com/account/keys" target="_blank" rel="noopener noreferrer"
-                          className="text-xs text-orange-500 hover:text-orange-400 flex items-center gap-0.5"
-                        ><ExternalLink size={10} /> Claude</a>
-                        <span className="text-gray-700">·</span>
-                        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer"
-                          className="text-xs text-blue-500 hover:text-blue-400 flex items-center gap-0.5"
-                        ><ExternalLink size={10} /> Gemini</a>
-                      </div>
-                      {apiKey && (
-                        <button onClick={() => setShowApiKeyInput(false)} className="text-xs text-violet-400 hover:text-violet-300 font-medium">
-                          Done
-                        </button>
-                      )}
-                    </div>
+                <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-cyan-400 flex-shrink-0" />
+                    <p className="text-xs font-semibold text-cyan-200">Built-in AI assistant</p>
                   </div>
-                ) : (
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
-                      <span className="text-xs text-gray-400 font-medium">{provider ?? "API"} key set</span>
-                    </div>
-                    <button onClick={() => setShowApiKeyInput(true)} className="text-xs text-gray-500 hover:text-gray-300">
-                      Change
-                    </button>
-                  </div>
-                )}
+                  <p className="mt-1 text-[11px] leading-relaxed text-cyan-100/75">
+                    Powered by Cloudflare Workers AI. Ask for sketch edits, cleanup, or Arduino-specific behavior changes.
+                  </p>
+                </div>
               </div>
 
               {/* Messages */}
@@ -764,7 +708,7 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose, initialShow
                     {SUGGESTIONS.map(s => (
                       <button key={s}
                         onClick={() => { setUserInput(s); setTimeout(() => inputRef.current?.focus(), 10); }}
-                        className="text-left px-3 py-2.5 rounded-xl border border-gray-700/60 bg-gray-800/40 text-xs text-gray-400 hover:text-violet-200 hover:border-violet-600/60 hover:bg-violet-900/20 transition-all"
+                        className="text-left px-3 py-2.5 rounded-xl border border-gray-700/60 bg-gray-800/40 text-xs text-gray-400 hover:text-cyan-100 hover:border-cyan-500/40 hover:bg-cyan-900/20 transition-all"
                       >
                         {s}
                       </button>
@@ -775,7 +719,7 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose, initialShow
                   <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                     <div className={`max-w-[92%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap ${
                       m.role === "user"
-                        ? "bg-violet-700/40 text-violet-100 border border-violet-600/30"
+                        ? "bg-cyan-700/35 text-cyan-50 border border-cyan-500/30"
                         : "bg-gray-800/80 text-gray-200 border border-gray-700/60"
                     }`}>
                       {m.content}
@@ -785,7 +729,7 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose, initialShow
                 {aiLoading && (
                   <div className="flex justify-start">
                     <div className="bg-gray-800/80 border border-gray-700/60 rounded-2xl px-3.5 py-2.5 flex items-center gap-2">
-                      <Loader2 size={12} className="animate-spin text-violet-400" />
+                      <Loader2 size={12} className="animate-spin text-cyan-400" />
                       <span className="text-sm text-gray-400">Updating sketch…</span>
                     </div>
                   </div>
@@ -804,12 +748,12 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose, initialShow
                     onChange={e => setUserInput(e.target.value)}
                     onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendToAI(); } }}
                     disabled={aiLoading}
-                    className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-violet-500 disabled:opacity-50"
+                    className="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:outline-none focus:border-cyan-500 disabled:opacity-50"
                   />
                   <button
                     onClick={sendToAI}
                     disabled={aiLoading || !userInput.trim()}
-                    className="px-3 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white font-semibold transition-colors flex-shrink-0"
+                    className="px-3 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-40 text-slate-950 font-semibold transition-colors flex-shrink-0"
                   >
                     {aiLoading ? <Loader2 size={14} className="animate-spin" /> : <span className="text-base leading-none">↑</span>}
                   </button>
@@ -824,7 +768,7 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose, initialShow
           <p className="text-[11px] text-gray-600">
             {isModified
               ? "Modified code will be used on next upload."
-              : "Edit directly or use AI. Upload flashes from Chrome/Edge."}
+              : "Edit directly or use Cloudflare AI. Upload flashes from Chrome/Edge."}
           </p>
           <button
             onClick={copy}
@@ -3802,10 +3746,10 @@ export default function Home() {
                 >
                   <Code size={12} /> Sketch
                 </button>
-                <button onClick={() => openSketch(true)} title="Edit sketch with AI"
-                  className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-violet-700/50 bg-violet-900/20 hover:bg-violet-900/40 text-violet-400 hover:text-violet-200 text-xs font-medium transition-all"
+                <button onClick={() => openSketch(true)} title="Edit sketch with Cloudflare Workers AI"
+                  className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-cyan-700/40 bg-cyan-900/20 hover:bg-cyan-900/35 text-cyan-300 hover:text-white text-xs font-medium transition-all"
                 >
-                  ✦ AI
+                  <MessageSquare size={12} /> Cloudflare AI
                 </button>
                 <Link
                   href="/remap"
