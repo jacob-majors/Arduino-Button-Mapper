@@ -1,114 +1,20 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
+import Link from "next/link";
 import {
-  X, Plug, RefreshCw, Upload, ChevronRight, Keyboard,
+  X, Plug, RefreshCw, Upload, ChevronRight, Keyboard, ArrowLeft,
   CheckCircle2, AlertCircle, Loader2, Radio, Joystick, Wind, Save,
 } from "lucide-react";
-import { resolveKey, arduinoToBrowserKey } from "@/lib/keymap";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-export interface RemapEntry {
-  id: string;
-  name: string;
-  type: "button" | "port" | "ir" | "sipPuff" | "joystick-up" | "joystick-down" | "joystick-left" | "joystick-right" | "joystick-btn";
-  pin: string;        // "D2" or "A0"
-  arduinoKey: string; // current key in sketch
-  newKey: string;     // edited key (same as arduinoKey until changed)
-  newDisplay: string;
-}
-
-interface RemapConfig {
-  v: number;
-  id?: string;
-  b: { p: number; k: string; kd?: string; n: string; m: number }[];
-  ir: { p: number; k: string; kd?: string; n: string }[];
-  sp: { p: number; k: string; kd?: string; n: string }[];
-  j: { x: number; y: number; bp: number; u: string; ud?: string; d: string; dd?: string; l: string; ld?: string; r: string; rd?: string; bk: string; bkd?: string; n: string }[];
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function arduinoKeyDisplay(k: string): string {
-  if (!k || k === "0") return "—";
-  if (k.startsWith("KEY_")) {
-    const map: Record<string, string> = {
-      KEY_UP_ARROW: "↑", KEY_DOWN_ARROW: "↓", KEY_LEFT_ARROW: "←", KEY_RIGHT_ARROW: "→",
-      KEY_RETURN: "Enter", KEY_BACKSPACE: "Backspace", KEY_TAB: "Tab", KEY_ESC: "Escape",
-      KEY_DELETE: "Delete", KEY_INSERT: "Insert", KEY_HOME: "Home", KEY_END: "End",
-      KEY_PAGE_UP: "PgUp", KEY_PAGE_DOWN: "PgDn", KEY_CAPS_LOCK: "Caps",
-      KEY_F1:"F1",KEY_F2:"F2",KEY_F3:"F3",KEY_F4:"F4",KEY_F5:"F5",KEY_F6:"F6",
-      KEY_F7:"F7",KEY_F8:"F8",KEY_F9:"F9",KEY_F10:"F10",KEY_F11:"F11",KEY_F12:"F12",
-    };
-    return map[k] ?? k;
-  }
-  return k === " " ? "Space" : k.toUpperCase();
-}
-
-function parseRemapConfig(json: string): RemapEntry[] {
-  const cfg: RemapConfig = JSON.parse(json);
-  const entries: RemapEntry[] = [];
-
-  cfg.b?.forEach((b, i) => {
-    entries.push({
-      id: `b-${i}`,
-      name: b.n || `Button D${b.p}`,
-      type: b.m === 2 ? "port" : "button",
-      pin: `D${b.p}`,
-      arduinoKey: b.k,
-      newKey: b.k,
-      newDisplay: b.kd || arduinoKeyDisplay(b.k),
-    });
-  });
-
-  cfg.ir?.forEach((ir, i) => {
-    entries.push({
-      id: `ir-${i}`,
-      name: ir.n || `IR Sensor D${ir.p}`,
-      type: "ir",
-      pin: `D${ir.p}`,
-      arduinoKey: ir.k,
-      newKey: ir.k,
-      newDisplay: ir.kd || arduinoKeyDisplay(ir.k),
-    });
-  });
-
-  cfg.sp?.forEach((sp, i) => {
-    entries.push({
-      id: `sp-${i}`,
-      name: sp.n || `Sip & Puff D${sp.p}`,
-      type: "sipPuff",
-      pin: `D${sp.p}`,
-      arduinoKey: sp.k,
-      newKey: sp.k,
-      newDisplay: sp.kd || arduinoKeyDisplay(sp.k),
-    });
-  });
-
-  cfg.j?.forEach((j, i) => {
-    const dirs: { type: RemapEntry["type"]; label: string; key: string; kd?: string }[] = [
-      { type: "joystick-up",    label: "↑ Up",    key: j.u, kd: j.ud },
-      { type: "joystick-down",  label: "↓ Down",  key: j.d, kd: j.dd },
-      { type: "joystick-left",  label: "← Left",  key: j.l, kd: j.ld },
-      { type: "joystick-right", label: "→ Right", key: j.r, kd: j.rd },
-    ];
-    if (j.bp >= 0 && j.bk) dirs.push({ type: "joystick-btn", label: "⏺ Click", key: j.bk, kd: j.bkd });
-    dirs.forEach((d, di) => {
-      entries.push({
-        id: `j-${i}-${di}`,
-        name: `${j.n || "Joystick"} ${d.label}`,
-        type: d.type,
-        pin: `A${j.x}`,
-        arduinoKey: d.key,
-        newKey: d.key,
-        newDisplay: d.kd || arduinoKeyDisplay(d.key),
-      });
-    });
-  });
-
-  return entries;
-}
+import { resolveKey } from "@/lib/keymap";
+import { compileAndUpload } from "@/lib/avr-upload";
+import {
+  arduinoKeyDisplay,
+  buildRemappedSketch,
+  parseRemapPayload,
+  type RemapEntry,
+  type StandaloneDeviceConfig,
+} from "@/lib/remap";
 
 // ─── Key Capture Cell ─────────────────────────────────────────────────────────
 
@@ -201,23 +107,27 @@ const STEPS = [
 
 export default function RemapModal({
   backendUrl,
-  selectedPort,
   onClose,
   onUploadSketch,
   onSave,
   inline = false,
+  pageMode = false,
 }: {
   backendUrl: string;
-  selectedPort: string;
   onClose: () => void;
-  onUploadSketch: (entries: RemapEntry[]) => void;
+  onUploadSketch?: (entries: RemapEntry[]) => void;
   onSave?: (entries: RemapEntry[]) => void;
   inline?: boolean;
+  pageMode?: boolean;
 }) {
   const [phase, setPhase] = useState<"idle" | "connecting" | "reading" | "ready" | "error">("idle");
   const [error, setError] = useState("");
   const [entries, setEntries] = useState<RemapEntry[]>([]);
+  const [deviceConfig, setDeviceConfig] = useState<StandaloneDeviceConfig | null>(null);
   const [savedConfirm, setSavedConfirm] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const [uploadSuccess, setUploadSuccess] = useState("");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const portRef = useRef<any>(null);
 
@@ -231,6 +141,8 @@ export default function RemapModal({
   async function connectAndRead() {
     setPhase("connecting");
     setError("");
+    setUploadError("");
+    setUploadSuccess("");
     try {
       // Request serial port from browser
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -278,9 +190,10 @@ export default function RemapModal({
         throw new Error("No config data received. Make sure the device was uploaded using this app.");
       }
       const jsonLine = raw.slice(start + "CONFIG_START".length, end).trim();
-      const parsed = parseRemapConfig(jsonLine);
-      if (parsed.length === 0) throw new Error("Device has no mapped inputs.");
-      setEntries(parsed);
+      const parsed = parseRemapPayload(jsonLine);
+      if (parsed.entries.length === 0) throw new Error("Device has no mapped inputs.");
+      setEntries(parsed.entries);
+      setDeviceConfig(parsed.deviceConfig);
       setPhase("ready");
     } catch (e: unknown) {
       await portRef.current?.close().catch(() => {});
@@ -300,25 +213,58 @@ export default function RemapModal({
     );
   }
 
+  async function handleStandaloneUpload() {
+    if (!deviceConfig || !hasChanges || uploading) return;
+    setUploading(true);
+    setUploadError("");
+    setUploadSuccess("");
+    try {
+      const sketch = buildRemappedSketch(deviceConfig, entries);
+      await compileAndUpload(backendUrl, sketch, () => undefined, false);
+      setUploadSuccess("Uploaded successfully. Your Arduino now uses the new key outputs.");
+    } catch (e: unknown) {
+      setUploadError(e instanceof Error ? e.message : "Upload failed.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
   const hasChanges = entries.some((e) => e.newKey !== e.arduinoKey);
   const supportsWebSerial = typeof navigator !== "undefined" && "serial" in navigator;
+  const canUploadStandalone = !!deviceConfig;
+  const uploadDisabled = !hasChanges || uploading || (!onUploadSketch && !canUploadStandalone);
 
   // ── Shared inner content ──────────────────────────────────────────────────
   const innerContent = (
     <>
-      {/* ── Tutorial ── */}
-      <div className="px-5 pt-5 pb-3">
-        <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-3">How it works</p>
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-          {STEPS.map((s) => (
-            <div key={s.n} className="bg-gray-800/60 border border-gray-700/60 rounded-xl p-3 flex flex-col gap-1.5">
-              <span className="text-lg">{s.icon}</span>
-              <p className="text-xs font-semibold text-gray-200 leading-snug">{s.title}</p>
-              <p className="text-[11px] text-gray-500 leading-relaxed">{s.body}</p>
+      {pageMode ? (
+        <div className="px-5 pt-5 pb-2">
+          <div className="rounded-[1.75rem] border border-gray-800/80 bg-white/[0.03] px-4 py-4">
+            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-[0.24em] mb-2">Quick Remap</p>
+            <p className="text-sm text-gray-200 leading-relaxed max-w-2xl">
+              Read a connected Arduino, scan every mapped input, click any output, and upload a fresh sketch with the new keys.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-gray-500">
+              <span className="rounded-full border border-gray-800 bg-gray-900/60 px-3 py-1">1. Connect & read</span>
+              <span className="rounded-full border border-gray-800 bg-gray-900/60 px-3 py-1">2. Change only the outputs</span>
+              <span className="rounded-full border border-gray-800 bg-gray-900/60 px-3 py-1">3. Upload back to the device</span>
             </div>
-          ))}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="px-5 pt-5 pb-3">
+          <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-3">How it works</p>
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+            {STEPS.map((s) => (
+              <div key={s.n} className="bg-gray-800/60 border border-gray-700/60 rounded-xl p-3 flex flex-col gap-1.5">
+                <span className="text-lg">{s.icon}</span>
+                <p className="text-xs font-semibold text-gray-200 leading-snug">{s.title}</p>
+                <p className="text-[11px] text-gray-500 leading-relaxed">{s.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Browser compat warning ── */}
       {!supportsWebSerial && (
@@ -380,51 +326,94 @@ export default function RemapModal({
       {phase === "ready" && entries.length > 0 && (
         <div className="px-5 pb-5">
           <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider mb-2">
-            Current Mapping — click any key to reassign
+            {pageMode ? "Current Outputs" : "Current Mapping — click any key to reassign"}
           </p>
-          <div className="rounded-xl border border-gray-700/60 overflow-hidden">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="bg-gray-800/80 border-b border-gray-700/60">
-                  <th className="px-3 py-2 text-left text-[10px] text-gray-500 font-semibold uppercase tracking-wider w-1/3">Input</th>
-                  <th className="px-3 py-2 text-left text-[10px] text-gray-500 font-semibold uppercase tracking-wider w-16">Pin</th>
-                  <th className="px-3 py-2 text-left text-[10px] text-gray-500 font-semibold uppercase tracking-wider w-20">Type</th>
-                  <th className="px-3 py-2 text-left text-[10px] text-gray-500 font-semibold uppercase tracking-wider">Key</th>
-                  <th className="px-3 py-2 text-center text-[10px] text-gray-500 font-semibold uppercase tracking-wider w-16">Changed</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-800/60">
+          {pageMode ? (
+            <div className="rounded-[1.75rem] border border-gray-800/70 bg-gray-900/70 overflow-hidden">
+              <div className="divide-y divide-gray-800/70">
                 {entries.map((e) => (
-                  <tr key={e.id} className={e.newKey !== e.arduinoKey ? "bg-violet-950/20" : "hover:bg-gray-800/30 transition-colors"}>
-                    <td className="px-3 py-2 text-gray-300 font-medium truncate max-w-0 w-1/3">
-                      <span className="truncate block">{e.name}</span>
-                    </td>
-                    <td className="px-3 py-2 font-mono text-gray-500">{e.pin}</td>
-                    <td className="px-3 py-2"><TypeBadge type={e.type} /></td>
-                    <td className="px-3 py-2">
+                  <div key={e.id} className={["px-4 py-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3", e.newKey !== e.arduinoKey ? "bg-violet-950/20" : ""].join(" ")}>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-gray-200 truncate">{e.name}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-gray-500">
+                        <span className="font-mono">{e.pin}</span>
+                        <TypeBadge type={e.type} />
+                        {e.newKey !== e.arduinoKey && (
+                          <span className="text-violet-400 font-semibold">{arduinoKeyDisplay(e.arduinoKey)} {"->"} {e.newDisplay}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="sm:flex-shrink-0">
                       <KeyCell
                         entry={e}
                         onChange={(k, d) => updateEntry(e.id, k, d)}
                       />
-                    </td>
-                    <td className="px-3 py-2 text-center">
-                      {e.newKey !== e.arduinoKey ? (
-                        <span className="text-[10px] text-violet-400 font-semibold">
-                          {arduinoKeyDisplay(e.arduinoKey)} → {e.newDisplay}
-                        </span>
-                      ) : (
-                        <span className="text-gray-700">—</span>
-                      )}
-                    </td>
-                  </tr>
+                    </div>
+                  </div>
                 ))}
-              </tbody>
-            </table>
-          </div>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-gray-700/60 overflow-hidden">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-gray-800/80 border-b border-gray-700/60">
+                    <th className="px-3 py-2 text-left text-[10px] text-gray-500 font-semibold uppercase tracking-wider w-1/3">Input</th>
+                    <th className="px-3 py-2 text-left text-[10px] text-gray-500 font-semibold uppercase tracking-wider w-16">Pin</th>
+                    <th className="px-3 py-2 text-left text-[10px] text-gray-500 font-semibold uppercase tracking-wider w-20">Type</th>
+                    <th className="px-3 py-2 text-left text-[10px] text-gray-500 font-semibold uppercase tracking-wider">Key</th>
+                    <th className="px-3 py-2 text-center text-[10px] text-gray-500 font-semibold uppercase tracking-wider w-16">Changed</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800/60">
+                  {entries.map((e) => (
+                    <tr key={e.id} className={e.newKey !== e.arduinoKey ? "bg-violet-950/20" : "hover:bg-gray-800/30 transition-colors"}>
+                      <td className="px-3 py-2 text-gray-300 font-medium truncate max-w-0 w-1/3">
+                        <span className="truncate block">{e.name}</span>
+                      </td>
+                      <td className="px-3 py-2 font-mono text-gray-500">{e.pin}</td>
+                      <td className="px-3 py-2"><TypeBadge type={e.type} /></td>
+                      <td className="px-3 py-2">
+                        <KeyCell
+                          entry={e}
+                          onChange={(k, d) => updateEntry(e.id, k, d)}
+                        />
+                      </td>
+                      <td className="px-3 py-2 text-center">
+                        {e.newKey !== e.arduinoKey ? (
+                          <span className="text-[10px] text-violet-400 font-semibold">
+                            {arduinoKeyDisplay(e.arduinoKey)} → {e.newDisplay}
+                          </span>
+                        ) : (
+                          <span className="text-gray-700">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {pageMode && !canUploadStandalone && (
+            <div className="mt-3 flex items-start gap-2 rounded-2xl border border-amber-700/40 bg-amber-950/30 px-4 py-3">
+              <AlertCircle size={14} className="text-amber-400 mt-0.5 flex-shrink-0" />
+              <p className="text-xs leading-relaxed text-amber-200">
+                This device was uploaded with an older remap format. You can still scan its mappings here, but to upload directly from `/remap`
+                you’ll need to re-upload it once from the main builder using the latest version of this site.
+              </p>
+            </div>
+          )}
+
+          {(uploadError || uploadSuccess) && (
+            <div className={["mt-3 rounded-2xl px-4 py-3 text-xs", uploadError ? "border border-red-700/40 bg-red-950/30 text-red-200" : "border border-emerald-700/40 bg-emerald-950/30 text-emerald-200"].join(" ")}>
+              {uploadError || uploadSuccess}
+            </div>
+          )}
 
           {/* Re-read button */}
           <button
-            onClick={() => { setPhase("idle"); setEntries([]); }}
+            onClick={() => { setPhase("idle"); setEntries([]); setDeviceConfig(null); setUploadError(""); setUploadSuccess(""); }}
             className="mt-2 text-[11px] text-gray-600 hover:text-gray-400 transition-colors flex items-center gap-1"
           >
             <RefreshCw size={9} /> Read device again
@@ -463,7 +452,7 @@ export default function RemapModal({
                   </button>
                 ) : <span />}
                 <button
-                  onClick={() => onUploadSketch(entries)}
+                  onClick={() => onUploadSketch?.(entries)}
                   disabled={!hasChanges}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold bg-violet-600 hover:bg-violet-500 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
@@ -478,6 +467,69 @@ export default function RemapModal({
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (pageMode) {
+    return (
+      <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.12),_transparent_30%),linear-gradient(180deg,_rgba(15,23,42,0.96)_0%,_rgba(15,23,42,1)_24%,_rgba(2,6,23,1)_100%)] text-gray-100">
+        <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col px-4 py-5 sm:px-6 lg:px-8">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <Link href="/app" className="inline-flex items-center gap-2 rounded-full border border-gray-800 bg-gray-900/70 px-4 py-2 text-xs font-medium text-gray-300 transition-colors hover:border-gray-700 hover:text-white">
+              <ArrowLeft size={13} />
+              Back to Builder
+            </Link>
+            <Link href="/landing" className="text-[11px] text-gray-500 transition-colors hover:text-gray-300">
+              View website
+            </Link>
+          </div>
+
+          <div className="mb-5 max-w-2xl">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-gray-500">arduino.jacobmajors.com/remap</p>
+            <h1 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">Quick Remap</h1>
+            <p className="mt-3 text-sm leading-relaxed text-gray-400">
+              A simpler view for changing key outputs fast. Read the device, click a mapping, press a new key, then upload it back to the Arduino.
+            </p>
+          </div>
+
+          <div className="flex-1 rounded-[2rem] border border-gray-800/80 bg-gray-950/70 shadow-[0_18px_45px_rgba(15,23,42,0.12)] backdrop-blur-xl overflow-hidden">
+            <div className="border-b border-gray-800/80 px-5 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-violet-500/30 bg-violet-600/15">
+                  <RefreshCw size={17} className="text-violet-300" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-semibold text-white">Device Output Remap</h2>
+                  <p className="text-[11px] text-gray-500">Simple remapping for finished prototypes and quick iteration.</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="max-h-[calc(100vh-18rem)] overflow-y-auto">
+              {innerContent}
+            </div>
+
+            <div className="flex items-center justify-between gap-3 border-t border-gray-800/80 px-5 py-4">
+              <button onClick={onClose} className="text-xs text-gray-500 transition-colors hover:text-gray-300">
+                Leave remap view
+              </button>
+              <button
+                onClick={() => onUploadSketch ? onUploadSketch(entries) : handleStandaloneUpload()}
+                disabled={uploadDisabled}
+                className="inline-flex items-center gap-2 rounded-2xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                {uploading ? "Uploading..." : "Upload Remap"}
+                {hasChanges && (
+                  <span className="rounded-full bg-white/15 px-1.5 py-0.5 text-[10px]">
+                    {entries.filter((e) => e.newKey !== e.arduinoKey).length} changed
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -517,7 +569,7 @@ export default function RemapModal({
           </button>
           {phase === "ready" && (
             <button
-              onClick={() => onUploadSketch(entries)}
+              onClick={() => onUploadSketch?.(entries)}
               disabled={!hasChanges}
               className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold bg-violet-600 hover:bg-violet-500 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >

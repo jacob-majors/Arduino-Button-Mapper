@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import Link from "next/link";
 import {
   Zap, RefreshCw, Plus, Trash2, X, Upload, ChevronDown,
   Loader2, CheckCircle2, XCircle, Terminal, Usb, Keyboard,
@@ -20,9 +21,10 @@ import PongGame from "@/components/PongGame";
 import GeometryDashGame from "@/components/GeometryDashGame";
 import DeviceMockup from "@/components/DeviceMockup";
 import ControllerMockup from "@/components/ControllerMockup";
-import RemapModal, { type RemapEntry } from "@/components/RemapModal";
+import RemapModal from "@/components/RemapModal";
 import TutorialOverlay, { TUTORIAL_STEPS } from "@/components/TutorialOverlay";
 import { arduinoToBrowserKey } from "@/lib/keymap";
+import type { RemapEntry } from "@/lib/remap";
 import {
   supabase,
   loginOrCreate,
@@ -3805,13 +3807,20 @@ export default function Home() {
                 >
                   ✦ AI
                 </button>
+                <Link
+                  href="/remap"
+                  title="Open the simple standalone remap page"
+                  className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-violet-700/40 bg-violet-900/20 hover:bg-violet-900/35 text-violet-300 hover:text-white text-xs transition-all"
+                >
+                  <Keyboard size={12} /> Quick Remap
+                </Link>
                 <button
                   onClick={() => setShowRemap(true)}
-                  title="Read and remap a connected device"
+                  title="Use the builder-style remap and read flow while prototyping"
                   data-tutorial="remap-btn"
                   className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-gray-700 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 text-xs transition-all"
                 >
-                  <RefreshCw size={12} /> Remap
+                  <RefreshCw size={12} /> Prototype Remap
                 </button>
                 <span className="text-[10px] text-gray-600 ml-auto hidden sm:block">Chrome / Edge only</span>
               </div>
@@ -4102,7 +4111,6 @@ export default function Home() {
       {showRemap && (
         <RemapModal
           backendUrl={BACKEND_URL}
-          selectedPort={selectedPort}
           onClose={() => setShowRemap(false)}
           onSave={(remapEntries: RemapEntry[]) => {
             const applyRemap = (entries: RemapEntry[]) => {
