@@ -29,6 +29,41 @@ function pageAlign(data: Uint8Array): number {
 
 type Progress = (msg: string) => void;
 
+const ARDUINO_VENDOR_IDS = new Set([0x2341, 0x1B4F, 0x239A]);
+const ARDUINO_SERIAL_FILTERS = [
+  { usbVendorId: 0x2341 }, // Arduino
+  { usbVendorId: 0x1B4F }, // SparkFun Pro Micro / Qwiic-class boards
+  { usbVendorId: 0x239A }, // Adafruit 32U4-class boards
+];
+
+function isArduinoPort(port: { getInfo?: () => { usbVendorId?: number } } | null | undefined): boolean {
+  const info = port?.getInfo?.() ?? {};
+  return info.usbVendorId !== undefined && ARDUINO_VENDOR_IDS.has(info.usbVendorId);
+}
+
+async function getGrantedArduinoPorts(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  serial: any
+): Promise<any[]> {
+  const ports = await serial.getPorts().catch(() => []);
+  const arduinoPorts = ports.filter((port: { getInfo?: () => { usbVendorId?: number } }) => isArduinoPort(port));
+  return arduinoPorts.length > 0 ? arduinoPorts : ports;
+}
+
+export async function requestArduinoPortAccess(): Promise<boolean> {
+  if (!("serial" in navigator)) return false;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const serial = (navigator as any).serial;
+  const granted = await getGrantedArduinoPorts(serial);
+  if (granted.length > 0) return true;
+  try {
+    await serial.requestPort({ filters: ARDUINO_SERIAL_FILTERS });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Open a serial port with a hard timeout so a dead port handle never hangs forever */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function openPort(port: any, options: Record<string, unknown>, timeoutMs = 4000): Promise<boolean> {
@@ -145,26 +180,21 @@ export async function compileAndUpload(
   if (!forceNewPort) {
     // Try to reuse a previously-granted port (no dialog shown)
     try {
-      const grantedPorts = await serial.getPorts();
+      const grantedPorts = await getGrantedArduinoPorts(serial);
       if (grantedPorts.length === 1) {
         port = grantedPorts[0];
-        onProgress("Using previously selected Arduino port…");
+        onProgress("Using your saved Arduino port…");
       } else if (grantedPorts.length > 1) {
-        // Prefer any port whose info looks like an Arduino
-        const arduinoPorts = grantedPorts.filter((p: { getInfo: () => { usbVendorId?: number } }) => {
-          const info = p.getInfo?.() ?? {};
-          return info.usbVendorId === 0x2341 || info.usbVendorId === 0x1B4F || info.usbVendorId === 0x239A;
-        });
-        port = arduinoPorts[0] ?? grantedPorts[0];
-        onProgress("Using previously selected Arduino port…");
+        port = grantedPorts[0];
+        onProgress("Using the first saved Arduino-compatible port…");
       }
     } catch { /* getPorts not available — fall through to requestPort */ }
   }
 
   if (!port) {
-    onProgress("Select your Arduino port in the browser dialog…");
+    onProgress("Choose your Arduino once in the browser dialog…");
     try {
-      port = await serial.requestPort({ filters: [] });
+      port = await serial.requestPort({ filters: ARDUINO_SERIAL_FILTERS });
     } catch (e: unknown) {
       const err = e as Error;
       if (err?.name === "NotAllowedError" || err?.message?.includes("No port selected")) {
@@ -218,10 +248,10 @@ export async function compileAndUpload(
   // Try 4: ask the user — browser dialog shows the bootloader device by name.
   // We get here quickly (< 4s) so the 8-second bootloader window is still open.
   if (!bp) {
-    onProgress("Select the 'Arduino Leonardo bootloader' port in the dialog…");
+    onProgress("Trying the bootloader port automatically…");
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const chosen: any = await serial.requestPort({ filters: [] });
+      const chosen: any = await serial.requestPort({ filters: ARDUINO_SERIAL_FILTERS });
       if (await openPort(chosen, flashOpts, 3000)) bp = chosen;
     } catch { /* user cancelled or failed */ }
   }

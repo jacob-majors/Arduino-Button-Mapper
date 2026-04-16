@@ -13,7 +13,7 @@ import {
   IRSensorConfig, SipPuffConfig, JoystickConfig,
   resolveKey, generateSketch,
 } from "@/lib/keymap";
-import { compileAndUpload } from "@/lib/avr-upload";
+import { compileAndUpload, requestArduinoPortAccess } from "@/lib/avr-upload";
 import DinoGame from "@/components/DinoGame";
 import SnakeGame from "@/components/SnakeGame";
 import PongGame from "@/components/PongGame";
@@ -2370,8 +2370,6 @@ export default function Home() {
   const [wsLog, setWsLog] = useState<string[]>([]);
   const [wsUploading, setWsUploading] = useState(false);
   const [showPortMenu, setShowPortMenu] = useState(false);
-  const [showPortModal, setShowPortModal] = useState(false);
-  const [grantedPorts, setGrantedPorts] = useState<{ label: string; index: number }[]>([]);
   const portMenuRef = useRef<HTMLDivElement>(null);
   const [serialLog, setSerialLog] = useState<{ key: string; time: string }[]>([]);
   const serialLogRef = useRef<HTMLDivElement>(null);
@@ -2442,13 +2440,6 @@ export default function Home() {
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, [showPortMenu]);
-
-  useEffect(() => {
-    if (!showPortModal) return;
-    const h = (e: KeyboardEvent) => { if (e.key === "Escape") setShowPortModal(false); };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [showPortModal]);
 
   useEffect(() => {
     if (!showAuthModal) return;
@@ -3036,22 +3027,13 @@ export default function Home() {
   }, []);
 
   const openPortMenu = async () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const serial = (navigator as any).serial;
-    if (!serial) { setShowPortModal(true); setGrantedPorts([]); return; }
-    try {
-      const ports = await serial.getPorts();
-      const labels = ports.map((p: { getInfo?: () => { usbVendorId?: number; usbProductId?: number } }, i: number) => {
-        const info = p.getInfo?.() ?? {};
-        const vid = info.usbVendorId;
-        const isArduino = vid === 0x2341 || vid === 0x1B4F || vid === 0x239A;
-        return { label: isArduino ? `Arduino (port ${i + 1})` : `USB device (port ${i + 1})`, index: i };
-      });
-      setGrantedPorts(labels);
-    } catch {
-      setGrantedPorts([]);
-    }
-    setShowPortModal(true);
+    const granted = await requestArduinoPortAccess();
+    setWsLog((prev) => [
+      ...prev,
+      granted
+        ? "✓ Arduino access ready — future uploads will auto-use the saved board when possible."
+        : "✗ No Arduino board was selected.",
+    ]);
   };
 
   const jumpKeys = useMemo(
@@ -4823,63 +4805,6 @@ export default function Home() {
 
       {/* LED info modal */}
       {showLedInfo && <LedInfoModal onClose={() => setShowLedInfo(false)} />}
-
-      {/* Port selection modal */}
-      {showPortModal && (
-        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowPortModal(false)} />
-          <div className="relative w-full max-w-sm bg-gray-800 border border-gray-600 rounded-2xl shadow-2xl overflow-hidden">
-            {/* Header */}
-            <div className="flex items-center gap-2.5 px-5 py-4 border-b border-gray-800">
-              <Usb size={15} className="text-blue-400" />
-              <h2 className="text-sm font-bold text-gray-100">Select Board</h2>
-              <button onClick={() => setShowPortModal(false)} className="ml-auto text-gray-600 hover:text-gray-300 transition-colors">
-                <X size={15} />
-              </button>
-            </div>
-
-            {/* Port list */}
-            <div className="max-h-64 overflow-y-auto">
-              {grantedPorts.length === 0 ? (
-                <div className="flex flex-col items-center gap-2 py-8 px-5 text-center">
-                  <Usb size={24} className="text-gray-700" />
-                  <p className="text-xs text-gray-500">No boards previously connected.</p>
-                  <p className="text-[11px] text-gray-600">Click below to grant access to a port.</p>
-                </div>
-              ) : (
-                <div className="py-1.5">
-                  {grantedPorts.map((p) => (
-                    <button
-                      key={p.index}
-                      onClick={() => { setShowPortModal(false); handleWebSerialUpload(false); }}
-                      className="w-full flex items-center gap-3 px-5 py-3 text-sm text-gray-200 hover:bg-gray-800 transition-colors text-left"
-                    >
-                      <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0 shadow-[0_0_6px_rgba(74,222,128,0.7)]" />
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="px-5 py-4 border-t border-gray-800 flex items-center gap-3">
-              <button
-                onClick={() => { setShowPortModal(false); handleWebSerialUpload(true); }}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors"
-              >
-                <Plus size={14} /> Connect new board…
-              </button>
-              <button
-                onClick={() => setShowPortModal(false)}
-                className="px-4 py-2.5 rounded-xl border border-gray-700 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 text-sm transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Auth modal */}
       {showAuthModal && (
