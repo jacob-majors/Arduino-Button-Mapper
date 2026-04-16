@@ -3440,11 +3440,43 @@ export default function Home() {
               </div>
             </section>
 
-            <div className="grid lg:grid-cols-[1.6fr_0.9fr] gap-5">
+            <section className="bg-gray-800/80 border border-gray-700/70 rounded-3xl p-5">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-200">Current Setup</h2>
+                  <p className="text-[11px] text-gray-500 mt-1">A quick count of everything in this controller build.</p>
+                </div>
+                <span className="text-[10px] text-gray-600">{wiringSetupCards.length} components</span>
+              </div>
+              <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+                {[
+                  { label: "Buttons", value: buttons.length + portInputs.length, tone: "text-blue-400" },
+                  { label: "Sensors", value: irSensors.length + sipPuffs.length, tone: "text-emerald-400" },
+                  { label: "Joysticks", value: joysticks.length, tone: "text-violet-400" },
+                  { label: "LEDs", value: buttons.filter((b) => b.ledPin >= 0).length + portInputs.filter((p) => p.ledPin >= 0).length + irSensors.filter((s) => s.ledPin >= 0).length + sipPuffs.filter((s) => s.ledPin >= 0).length + joysticks.filter((j) => j.ledPin >= 0).length + (leds.enabled ? 2 : 0), tone: "text-yellow-400" },
+                  { label: "Views", value: wiringSetupCards.length + 1, tone: "text-sky-400" },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-2xl border border-gray-700/60 bg-gray-900/40 px-4 py-3">
+                    <p className="text-[11px] uppercase tracking-wider text-gray-600">{item.label}</p>
+                    <p className={`text-2xl font-semibold mt-1 ${item.tone}`}>{item.value}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <div className="grid xl:grid-cols-2 gap-5">
               <section className="bg-gray-800/80 border border-gray-700/70 rounded-3xl p-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <Zap size={14} className="text-yellow-400" />
-                  <h2 className="text-sm font-semibold text-gray-200">Live Board Layout</h2>
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <div className="flex items-center gap-2">
+                    <Zap size={14} className="text-yellow-400" />
+                    <h2 className="text-sm font-semibold text-gray-200">Live Arduino Layout</h2>
+                  </div>
+                  <button
+                    onClick={() => setWiringPreview({ kind: "board", title: "Arduino Wiring", subtitle: "Board-level wiring for your full controller setup." })}
+                    className="inline-flex items-center gap-1 rounded-full border border-gray-700 bg-gray-800 px-2.5 py-1 text-[10px] text-gray-300 hover:text-white hover:border-gray-600 transition-colors"
+                  >
+                    <Maximize2 size={10} /> Full screen
+                  </button>
                 </div>
                 <div className="rounded-2xl border border-gray-700/60 bg-gray-900/40 p-3">
                   <LiveWiringDiagram
@@ -3458,73 +3490,66 @@ export default function Home() {
                 </div>
               </section>
 
-              <div className="flex flex-col gap-5">
-                <section className="bg-gray-800/80 border border-gray-700/70 rounded-3xl p-5">
-                  <h2 className="text-sm font-semibold text-gray-200 mb-4">Current Setup</h2>
-                  <div className="grid grid-cols-2 gap-3">
-                    {[
-                      { label: "Buttons", value: buttons.length + portInputs.length, tone: "text-blue-400" },
-                      { label: "Sensors", value: irSensors.length + sipPuffs.length, tone: "text-emerald-400" },
-                      { label: "Joysticks", value: joysticks.length, tone: "text-violet-400" },
-                      { label: "LEDs", value: buttons.filter((b) => b.ledPin >= 0).length + portInputs.filter((p) => p.ledPin >= 0).length + irSensors.filter((s) => s.ledPin >= 0).length + sipPuffs.filter((s) => s.ledPin >= 0).length + joysticks.filter((j) => j.ledPin >= 0).length + (leds.enabled ? 2 : 0), tone: "text-yellow-400" },
-                    ].map((item) => (
-                      <div key={item.label} className="rounded-2xl border border-gray-700/60 bg-gray-900/40 px-4 py-3">
-                        <p className="text-[11px] uppercase tracking-wider text-gray-600">{item.label}</p>
-                        <p className={`text-2xl font-semibold mt-1 ${item.tone}`}>{item.value}</p>
-                      </div>
+              <section className="bg-gray-800/80 border border-gray-700/70 rounded-3xl p-5">
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <div>
+                    <h2 className="text-sm font-semibold text-gray-200">Component Layout</h2>
+                    <p className="text-[11px] text-gray-500 mt-1">A live index of each component wiring block in this setup.</p>
+                  </div>
+                  <span className="text-[10px] text-gray-600">{wiringSetupCards.length} cards</span>
+                </div>
+
+                {wiringSetupCards.length > 0 ? (
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {wiringSetupCards.map((card) => (
+                      <WiringPreviewCard
+                        key={card.id}
+                        title={card.title}
+                        subtitle={card.subtitle}
+                        accentClass={card.accentClass}
+                        onOpen={() => setWiringPreview({ kind: "component", card })}
+                      >
+                        <WiringTable wires={card.wires} docsUrl={card.docsUrl} docsLabel={card.docsLabel} compact />
+                      </WiringPreviewCard>
                     ))}
                   </div>
-                </section>
-
-                <section className="bg-gray-800/80 border border-gray-700/70 rounded-3xl p-5">
-                  <div className="flex items-center justify-between gap-3 mb-4">
-                    <div>
-                      <h2 className="text-sm font-semibold text-gray-200">Full Setup</h2>
-                      <p className="text-[11px] text-gray-500 mt-1">Open any wiring card full screen for a clearer build view.</p>
-                    </div>
-                    <span className="text-[10px] text-gray-600">{wiringSetupCards.length + 1} views</span>
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-gray-700/70 bg-gray-900/20 px-4 py-10 text-center">
+                    <p className="text-sm text-gray-300">Add an input in Configure to generate the component layout.</p>
                   </div>
-
-                  <div className="flex flex-col gap-3">
-                    <WiringPreviewCard
-                      title="Arduino Wiring"
-                      subtitle="Board-level view of every pin used in this setup"
-                      accentClass="text-sky-400"
-                      onOpen={() => setWiringPreview({ kind: "board", title: "Arduino Wiring", subtitle: "Board-level wiring for your full controller setup." })}
-                    >
-                      <div className="rounded-2xl border border-gray-700/60 bg-gray-900/40 p-2">
-                        <LiveWiringDiagram
-                          buttons={buttons}
-                          portInputs={portInputs}
-                          leds={leds}
-                          irSensors={irSensors}
-                          sipPuffs={sipPuffs}
-                          joysticks={joysticks}
-                        />
-                      </div>
-                    </WiringPreviewCard>
-
-                    {wiringSetupCards.length > 0 ? (
-                      wiringSetupCards.map((card) => (
-                        <WiringPreviewCard
-                          key={card.id}
-                          title={card.title}
-                          subtitle={card.subtitle}
-                          accentClass={card.accentClass}
-                          onOpen={() => setWiringPreview({ kind: "component", card })}
-                        >
-                          <WiringTable wires={card.wires} docsUrl={card.docsUrl} docsLabel={card.docsLabel} compact />
-                        </WiringPreviewCard>
-                      ))
-                    ) : (
-                      <div className="rounded-2xl border border-dashed border-gray-700/70 bg-gray-900/20 px-4 py-6 text-center">
-                        <p className="text-sm text-gray-300">Add an input in Configure to generate individual component wiring cards.</p>
-                      </div>
-                    )}
-                  </div>
-                </section>
-              </div>
+                )}
+              </section>
             </div>
+
+            <section className="bg-gray-800/80 border border-gray-700/70 rounded-3xl p-5">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-200">Individual Component Wiring</h2>
+                  <p className="text-[11px] text-gray-500 mt-1">Open any component for a larger, easier-to-follow wiring view.</p>
+                </div>
+                <span className="text-[10px] text-gray-600">{wiringSetupCards.length} items</span>
+              </div>
+
+              {wiringSetupCards.length > 0 ? (
+                <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
+                  {wiringSetupCards.map((card) => (
+                    <WiringPreviewCard
+                      key={`${card.id}-grid`}
+                      title={card.title}
+                      subtitle={card.subtitle}
+                      accentClass={card.accentClass}
+                      onOpen={() => setWiringPreview({ kind: "component", card })}
+                    >
+                      <WiringTable wires={card.wires} docsUrl={card.docsUrl} docsLabel={card.docsLabel} compact />
+                    </WiringPreviewCard>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-gray-700/70 bg-gray-900/20 px-4 py-10 text-center">
+                  <p className="text-sm text-gray-300">No components yet. Add them in Configure and they will appear here automatically.</p>
+                </div>
+              )}
+            </section>
           </div>
         </div>
       )}
