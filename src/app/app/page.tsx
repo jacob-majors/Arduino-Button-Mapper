@@ -342,8 +342,20 @@ function ButtonCard({ button, index, usedPins, onUpdate, onRemove, typeLabel, is
         <button onClick={(e) => { e.stopPropagation(); onRemove(button.id); }}
           className="p-1 rounded text-gray-700 hover:text-red-400 hover:bg-red-400/10 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0"
         ><Trash2 size={12} /></button>
+        <ChevronDown size={12} className={["text-gray-600 transition-transform flex-shrink-0", isSelected ? "rotate-180" : ""].join(" ")} />
       </div>
 
+      {!isSelected && (
+        <div className="flex items-center gap-2 text-[11px] text-gray-500">
+          <span className="font-mono text-gray-300 bg-gray-900/70 border border-gray-700 rounded-md px-2 py-1">D{button.pin}</span>
+          {!isPower && <span className="truncate">{button.keyDisplay || button.arduinoKey || "No key assigned"}</span>}
+          {isPower && <span className="truncate text-amber-500/80">Controller power switch</span>}
+          {!isPower && button.mode !== "toggle" && <span className="ml-auto capitalize">{button.inputMode ?? "hold"}</span>}
+        </div>
+      )}
+
+      {isSelected && (
+      <>
       {/* Pin */}
       <div className="flex gap-2 items-center">
         <label className="text-[10px] text-gray-500 uppercase tracking-wider w-6 flex-shrink-0">Pin</label>
@@ -405,6 +417,8 @@ function ButtonCard({ button, index, usedPins, onUpdate, onRemove, typeLabel, is
           usedPins={usedPins}
           onUpdate={(pin, mode) => onUpdate(button.id, { ledPin: pin, ledMode: mode })}
         />
+      )}
+      </>
       )}
 
       {/* Right-click context menu */}
@@ -1178,8 +1192,19 @@ function IRSensorCard({ sensor, index, usedPins, onUpdate, onRemove, isSelected,
         <button onClick={() => onRemove(sensor.id)}
           className="p-1 rounded text-gray-700 hover:text-red-400 hover:bg-red-400/10 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0"
         ><Trash2 size={12} /></button>
+        <ChevronDown size={12} className={["text-gray-600 transition-transform flex-shrink-0", isSelected ? "rotate-180" : ""].join(" ")} />
       </div>
 
+      {!isSelected && (
+        <div className="flex items-center gap-2 text-[11px] text-gray-500">
+          <span className="font-mono text-emerald-300 bg-gray-900/70 border border-gray-700 rounded-md px-2 py-1">D{sensor.pin}</span>
+          <span className="truncate flex-1">{sensor.keyDisplay || sensor.arduinoKey || "No key assigned"}</span>
+          <span>{sensor.activeHigh ? "HIGH" : "LOW"}</span>
+        </div>
+      )}
+
+      {isSelected && (
+      <>
       {/* Row 1: PIN + polarity */}
       <div className="flex gap-2 items-center">
         <label className="text-xs text-gray-500 uppercase tracking-wider w-12 flex-shrink-0">Pin</label>
@@ -1254,6 +1279,8 @@ function IRSensorCard({ sensor, index, usedPins, onUpdate, onRemove, isSelected,
           onUpdate={(pin, mode) => onUpdate(sensor.id, { ledPin: pin, ledMode: mode })}
         />
       )}
+      </>
+      )}
     </div>
   );
 }
@@ -1292,8 +1319,19 @@ function SipPuffCard({ sensor, index, usedPins, onUpdate, onRemove, isSelected, 
         <button onClick={() => onRemove(sensor.id)}
           className="p-1 rounded text-gray-700 hover:text-red-400 hover:bg-red-400/10 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0"
         ><Trash2 size={12} /></button>
+        <ChevronDown size={12} className={["text-gray-600 transition-transform flex-shrink-0", isSelected ? "rotate-180" : ""].join(" ")} />
       </div>
 
+      {!isSelected && (
+        <div className="flex items-center gap-2 text-[11px] text-gray-500">
+          <span className="font-mono text-cyan-300 bg-gray-900/70 border border-gray-700 rounded-md px-2 py-1">D{sensor.pin}</span>
+          <span className="truncate flex-1">{sensor.keyDisplay || sensor.key || "No key assigned"}</span>
+          <span className="capitalize">{sensor.inputMode ?? "hold"}</span>
+        </div>
+      )}
+
+      {isSelected && (
+      <>
       <div className="flex gap-2 items-center">
         <label className="text-[10px] text-gray-500 uppercase tracking-wider w-6 flex-shrink-0">Pin</label>
         <div className="relative" style={{ width: 68 }}>
@@ -1344,6 +1382,8 @@ function SipPuffCard({ sensor, index, usedPins, onUpdate, onRemove, isSelected, 
           onUpdate={(pin, mode) => onUpdate(sensor.id, { ledPin: pin, ledMode: mode })}
         />
       )}
+      </>
+      )}
     </div>
   );
 }
@@ -1389,8 +1429,19 @@ function JoystickCard({ joy, index, usedPins, usedAnalogPins, onUpdate, onRemove
         <button onClick={() => onRemove(joy.id)}
           className="p-1 rounded text-gray-700 hover:text-red-400 hover:bg-red-400/10 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0"
         ><Trash2 size={12} /></button>
+        <ChevronDown size={12} className={["text-gray-600 transition-transform flex-shrink-0", isSelected ? "rotate-180" : ""].join(" ")} />
       </div>
 
+      {!isSelected && (
+        <div className="flex items-center gap-2 text-[11px] text-gray-500">
+          <span className="font-mono text-violet-300 bg-gray-900/70 border border-gray-700 rounded-md px-2 py-1">A{joy.xPin}/A{joy.yPin}</span>
+          <span className="truncate flex-1">{joy.mouseMode ? "Mouse mode" : "Key mode"}</span>
+          {joy.buttonPin >= 0 && <span className="font-mono">D{joy.buttonPin}</span>}
+        </div>
+      )}
+
+      {isSelected && (
+      <>
       {/* Analog pins */}
       <div className="flex gap-3 flex-wrap">
         <AnalogPinSelect label="X" value={joy.xPin}
@@ -1525,6 +1576,8 @@ function JoystickCard({ joy, index, usedPins, usedAnalogPins, onUpdate, onRemove
           usedPins={usedPins}
           onUpdate={(pin, mode) => onUpdate(joy.id, { ledPin: pin, ledMode: mode })}
         />
+      )}
+      </>
       )}
     </div>
   );
@@ -3921,7 +3974,7 @@ export default function Home() {
               </div>
 
               {/* Add input — centered icon pill buttons */}
-              <div className="mt-3 pt-3 border-t border-gray-800 flex-shrink-0" data-tutorial="add-input">
+              <div className="mt-3 pt-3 border-t border-gray-800/70 flex-shrink-0 bg-gray-900/18 backdrop-blur-sm rounded-xl px-2 py-3" data-tutorial="add-input">
                 <p className="text-[10px] text-gray-600 uppercase tracking-wider font-semibold text-center mb-2">Add Input</p>
                 <div className="flex justify-center">
                 <div className="inline-flex flex-wrap justify-center gap-2">
@@ -3934,7 +3987,7 @@ export default function Home() {
                   ] as const).map(({ type, label, icon, color }) => (
                     <button key={type}
                       onClick={() => addInputByType(type)}
-                      className={["flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-700 bg-gray-800/60 text-gray-400 text-xs font-medium transition-all", color].join(" ")}
+                      className={["flex items-center gap-1.5 px-3 py-2 rounded-xl border border-gray-700/70 bg-gray-800/35 backdrop-blur-sm text-gray-300 text-xs font-medium transition-all", color].join(" ")}
                     >
                       {icon} {label}
                     </button>
