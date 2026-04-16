@@ -972,6 +972,49 @@ function LogLineView({ line }: { line: LogLine }) {
 // ─── Wiring Panel ─────────────────────────────────────────────────────────────
 
 type WireRow = { label: string; to: string; color: string };
+type WiringSetupCard = {
+  id: string;
+  title: string;
+  subtitle: string;
+  accentClass: string;
+  docsUrl: string;
+  docsLabel: string;
+  wires: WireRow[];
+};
+
+function WiringTable({ wires, docsUrl, docsLabel, compact = false }: {
+  wires: WireRow[];
+  docsUrl: string;
+  docsLabel: string;
+  compact?: boolean;
+}) {
+  return (
+    <div className={`rounded-2xl border border-gray-800 bg-gray-800/50 ${compact ? "p-3" : "p-4"} flex flex-col gap-2`}>
+      <div className="flex items-center gap-2 pb-1 border-b border-gray-800">
+        <span className="text-[10px] text-gray-600 font-semibold w-24 flex-shrink-0">Component</span>
+        <span className="text-[10px] text-gray-600 font-semibold flex-1">Arduino Leonardo</span>
+      </div>
+      {wires.map((w) => (
+        <div key={`${w.label}-${w.to}`} className="flex items-center gap-2">
+          <span className={`font-mono font-semibold flex-shrink-0 ${compact ? "text-[10px] w-24" : "text-xs w-24"}`} style={{ color: w.color }}>{w.label}</span>
+          <div className="flex-1 flex items-center gap-1.5">
+            <div className="flex-1 border-t border-dashed" style={{ borderColor: `${w.color}55` }} />
+            <span className={`${compact ? "text-[10px]" : "text-xs"} font-mono text-gray-300`}>{w.to}</span>
+          </div>
+        </div>
+      ))}
+      <a
+        href={docsUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={`flex items-center gap-1 mt-1 text-blue-500 hover:text-blue-400 transition-colors ${compact ? "text-[10px]" : "text-xs"}`}
+      >
+        <ExternalLink size={compact ? 9 : 12} />
+        {docsLabel}
+      </a>
+    </div>
+  );
+}
 
 function WiringPanel({ wires, docsUrl, docsLabel }: {
   wires: WireRow[];
@@ -989,34 +1032,71 @@ function WiringPanel({ wires, docsUrl, docsLabel }: {
         <ChevronDown size={10} className={`transition-transform ${open ? "rotate-180" : ""}`} />
         Wiring diagram
       </button>
-      {open && (
-        <div className="mt-2 rounded-lg border border-gray-800 bg-gray-800/50 p-3 flex flex-col gap-1.5">
-          {/* Wire table */}
-          <div className="flex items-center gap-2 pb-1 border-b border-gray-800">
-            <span className="text-[10px] text-gray-600 font-semibold w-16 flex-shrink-0">Sensor</span>
-            <span className="text-[10px] text-gray-600 font-semibold flex-1">Arduino Leonardo</span>
-          </div>
-          {wires.map((w) => (
-            <div key={w.label} className="flex items-center gap-2">
-              <span className="text-[10px] font-mono font-semibold w-16 flex-shrink-0" style={{ color: w.color }}>{w.label}</span>
-              <div className="flex-1 flex items-center gap-1.5">
-                <div className="flex-1 border-t border-dashed" style={{ borderColor: w.color + "55" }} />
-                <span className="text-[10px] font-mono text-gray-300">{w.to}</span>
-              </div>
-            </div>
-          ))}
-          {/* Docs link */}
-          <a
-            href={docsUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1 mt-1 text-[10px] text-blue-500 hover:text-blue-400 transition-colors"
-          >
-            <ExternalLink size={9} />
-            {docsLabel}
-          </a>
+      {open && <div className="mt-2"><WiringTable wires={wires} docsUrl={docsUrl} docsLabel={docsLabel} compact /></div>}
+    </div>
+  );
+}
+
+function WiringPreviewCard({
+  title, subtitle, accentClass, onOpen, children,
+}: {
+  title: string;
+  subtitle: string;
+  accentClass: string;
+  onOpen: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="w-full text-left rounded-2xl border border-gray-700/60 bg-gray-900/30 p-3 hover:border-gray-600 hover:bg-gray-900/50 transition-all"
+    >
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="min-w-0">
+          <p className={`text-xs font-semibold ${accentClass}`}>{title}</p>
+          <p className="text-[11px] text-gray-500 mt-1 leading-relaxed">{subtitle}</p>
         </div>
-      )}
+        <span className="inline-flex items-center gap-1 rounded-full border border-gray-700 bg-gray-800 px-2 py-1 text-[10px] text-gray-300 flex-shrink-0">
+          <Maximize2 size={10} /> Full screen
+        </span>
+      </div>
+      {children}
+    </button>
+  );
+}
+
+function WiringPreviewModal({
+  title, subtitle, onClose, children,
+}: {
+  title: string;
+  subtitle: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative z-10 w-full max-w-5xl max-h-[90vh] bg-gray-800 border border-gray-600 rounded-3xl shadow-2xl flex flex-col overflow-hidden">
+        <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-gray-700 flex-shrink-0">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-100">{title}</h2>
+            <p className="text-sm text-gray-500 mt-1">{subtitle}</p>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-xl text-gray-500 hover:text-gray-200 hover:bg-gray-700 transition-colors">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-auto p-5 bg-gray-900/30">
+          {children}
+        </div>
+      </div>
     </div>
   );
 }
@@ -2232,6 +2312,7 @@ export default function Home() {
   const [showLedInfo, setShowLedInfo] = useState(false);
   const [showWiring, setShowWiring] = useState(false);
   const [showRemap, setShowRemap] = useState(false);
+  const [wiringPreview, setWiringPreview] = useState<({ kind: "board"; title: string; subtitle: string } | { kind: "component"; card: WiringSetupCard }) | null>(null);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showSetupBanner, setShowSetupBanner] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -2716,6 +2797,110 @@ export default function Home() {
   const usedAnalogPins = [
     ...joysticks.flatMap((j) => [j.xPin, j.yPin]),
   ];
+  const wiringSetupCards = useMemo<WiringSetupCard[]>(() => {
+    const cards: WiringSetupCard[] = [];
+
+    buttons.forEach((button, index) => {
+      cards.push({
+        id: `button-${button.id}`,
+        title: button.name || `Button ${index + 1}`,
+        subtitle: button.mode === "power" ? "Power switch wiring" : "Digital input wiring",
+        accentClass: button.mode === "power" ? "text-amber-400" : "text-blue-400",
+        docsUrl: "https://www.arduino.cc/reference/en/language/functions/digital-io/digitalread/",
+        docsLabel: "Arduino digitalRead() docs",
+        wires: [
+          { label: button.mode === "power" ? "SW" : "SIG", to: `D${button.pin}`, color: button.mode === "power" ? "#f59e0b" : "#60a5fa" },
+          { label: "GND", to: "GND", color: "#9ca3af" },
+          ...((button.ledPin ?? -1) >= 0 ? [{ label: "LED", to: `D${button.ledPin}`, color: "#fbbf24" }] : []),
+        ],
+      });
+    });
+
+    portInputs.forEach((port, index) => {
+      cards.push({
+        id: `port-${port.id}`,
+        title: port.name || `Port ${index + 1}`,
+        subtitle: "Port input wiring",
+        accentClass: "text-sky-400",
+        docsUrl: "https://www.arduino.cc/reference/en/language/functions/digital-io/digitalread/",
+        docsLabel: "Arduino digitalRead() docs",
+        wires: [
+          { label: "SIG", to: `D${port.pin}`, color: "#38bdf8" },
+          { label: "GND", to: "GND", color: "#9ca3af" },
+          ...((port.ledPin ?? -1) >= 0 ? [{ label: "LED", to: `D${port.ledPin}`, color: "#fbbf24" }] : []),
+        ],
+      });
+    });
+
+    irSensors.forEach((sensor, index) => {
+      cards.push({
+        id: `ir-${sensor.id}`,
+        title: sensor.name || `IR Sensor ${index + 1}`,
+        subtitle: "Powered sensor wiring",
+        accentClass: "text-emerald-400",
+        docsUrl: "https://www.arduino.cc/reference/en/language/functions/digital-io/digitalread/",
+        docsLabel: "Arduino digitalRead() docs",
+        wires: [
+          { label: "VCC", to: "5V", color: "#f87171" },
+          { label: "GND", to: "GND", color: "#9ca3af" },
+          { label: "OUT", to: `D${sensor.pin}`, color: "#34d399" },
+          ...((sensor.ledPin ?? -1) >= 0 ? [{ label: "LED", to: `D${sensor.ledPin}`, color: "#fbbf24" }] : []),
+        ],
+      });
+    });
+
+    sipPuffs.forEach((sensor, index) => {
+      cards.push({
+        id: `sip-${sensor.id}`,
+        title: sensor.name || `Sip & Puff ${index + 1}`,
+        subtitle: "Switch or sensor input wiring",
+        accentClass: "text-cyan-400",
+        docsUrl: "https://www.arduino.cc/reference/en/language/functions/digital-io/digitalread/",
+        docsLabel: "Arduino digitalRead() docs",
+        wires: [
+          { label: "SIG", to: `D${sensor.pin}`, color: "#22d3ee" },
+          { label: "GND", to: "GND", color: "#9ca3af" },
+          ...((sensor.ledPin ?? -1) >= 0 ? [{ label: "LED", to: `D${sensor.ledPin}`, color: "#fbbf24" }] : []),
+        ],
+      });
+    });
+
+    joysticks.forEach((joy, index) => {
+      cards.push({
+        id: `joy-${joy.id}`,
+        title: joy.name || `Joystick ${index + 1}`,
+        subtitle: joy.mouseMode ? "Analog joystick in mouse mode" : "Analog joystick in key mode",
+        accentClass: "text-violet-400",
+        docsUrl: "https://www.arduino.cc/reference/en/language/functions/analog-io/analogread/",
+        docsLabel: "Arduino analogRead() docs",
+        wires: [
+          { label: "VCC", to: "5V", color: "#f87171" },
+          { label: "GND", to: "GND", color: "#9ca3af" },
+          { label: "VRx", to: `A${joy.xPin}`, color: "#a78bfa" },
+          { label: "VRy", to: `A${joy.yPin}`, color: "#c4b5fd" },
+          ...(joy.buttonPin >= 0 ? [{ label: "SW", to: `D${joy.buttonPin}`, color: "#818cf8" }] : []),
+          ...((joy.ledPin ?? -1) >= 0 ? [{ label: "LED", to: `D${joy.ledPin}`, color: "#fbbf24" }] : []),
+        ],
+      });
+    });
+
+    if (leds.enabled) {
+      cards.push({
+        id: "status-leds",
+        title: "Status LEDs",
+        subtitle: "System active and inactive indicator LEDs",
+        accentClass: "text-yellow-400",
+        docsUrl: "https://www.arduino.cc/reference/en/language/functions/digital-io/digitalwrite/",
+        docsLabel: "Arduino digitalWrite() docs",
+        wires: [
+          { label: "Active", to: `D${leds.onPin}`, color: "#fbbf24" },
+          { label: "Idle", to: `D${leds.offPin}`, color: "#a3a3a3" },
+        ],
+      });
+    }
+
+    return cards;
+  }, [buttons, portInputs, irSensors, sipPuffs, joysticks, leds]);
 
   const addButton = (subtype: "switch" | "button" = "switch") => {
     if (buttons.length >= 12) return;
@@ -3292,12 +3477,50 @@ export default function Home() {
                 </section>
 
                 <section className="bg-gray-800/80 border border-gray-700/70 rounded-3xl p-5">
-                  <h2 className="text-sm font-semibold text-gray-200 mb-3">Quick Rules</h2>
-                  <div className="space-y-3 text-xs text-gray-500 leading-relaxed">
-                    <p>Each input or LED gets its own pin. The mapper now blocks pin reuse so your wiring stays valid.</p>
-                    <p>Buttons, ports, IR sensors, and sip & puff inputs wire from the assigned digital pin to GND unless the component needs power.</p>
-                    <p>Joysticks use two analog pins for X/Y and an optional digital pin for click.</p>
-                    <p>Open the detailed diagram for a component-by-component view with resistor notes and module wiring.</p>
+                  <div className="flex items-center justify-between gap-3 mb-4">
+                    <div>
+                      <h2 className="text-sm font-semibold text-gray-200">Full Setup</h2>
+                      <p className="text-[11px] text-gray-500 mt-1">Open any wiring card full screen for a clearer build view.</p>
+                    </div>
+                    <span className="text-[10px] text-gray-600">{wiringSetupCards.length + 1} views</span>
+                  </div>
+
+                  <div className="flex flex-col gap-3">
+                    <WiringPreviewCard
+                      title="Arduino Wiring"
+                      subtitle="Board-level view of every pin used in this setup"
+                      accentClass="text-sky-400"
+                      onOpen={() => setWiringPreview({ kind: "board", title: "Arduino Wiring", subtitle: "Board-level wiring for your full controller setup." })}
+                    >
+                      <div className="rounded-2xl border border-gray-700/60 bg-gray-900/40 p-2">
+                        <LiveWiringDiagram
+                          buttons={buttons}
+                          portInputs={portInputs}
+                          leds={leds}
+                          irSensors={irSensors}
+                          sipPuffs={sipPuffs}
+                          joysticks={joysticks}
+                        />
+                      </div>
+                    </WiringPreviewCard>
+
+                    {wiringSetupCards.length > 0 ? (
+                      wiringSetupCards.map((card) => (
+                        <WiringPreviewCard
+                          key={card.id}
+                          title={card.title}
+                          subtitle={card.subtitle}
+                          accentClass={card.accentClass}
+                          onOpen={() => setWiringPreview({ kind: "component", card })}
+                        >
+                          <WiringTable wires={card.wires} docsUrl={card.docsUrl} docsLabel={card.docsLabel} compact />
+                        </WiringPreviewCard>
+                      ))
+                    ) : (
+                      <div className="rounded-2xl border border-dashed border-gray-700/70 bg-gray-900/20 px-4 py-6 text-center">
+                        <p className="text-sm text-gray-300">Add an input in Configure to generate individual component wiring cards.</p>
+                      </div>
+                    )}
                   </div>
                 </section>
               </div>
@@ -4715,6 +4938,33 @@ export default function Home() {
           irSensors={irSensors} sipPuffs={sipPuffs} joysticks={joysticks}
           onClose={() => setShowWiring(false)}
         />
+      )}
+
+      {wiringPreview && (
+        <WiringPreviewModal
+          title={wiringPreview.kind === "board" ? wiringPreview.title : wiringPreview.card.title}
+          subtitle={wiringPreview.kind === "board" ? wiringPreview.subtitle : wiringPreview.card.subtitle}
+          onClose={() => setWiringPreview(null)}
+        >
+          {wiringPreview.kind === "board" ? (
+            <div className="rounded-3xl border border-gray-700/60 bg-gray-900/50 p-4">
+              <LiveWiringDiagram
+                buttons={buttons}
+                portInputs={portInputs}
+                leds={leds}
+                irSensors={irSensors}
+                sipPuffs={sipPuffs}
+                joysticks={joysticks}
+              />
+            </div>
+          ) : (
+            <WiringTable
+              wires={wiringPreview.card.wires}
+              docsUrl={wiringPreview.card.docsUrl}
+              docsLabel={wiringPreview.card.docsLabel}
+            />
+          )}
+        </WiringPreviewModal>
       )}
 
       {/* ── Report Issue Modal ── */}
