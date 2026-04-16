@@ -293,13 +293,37 @@ const int irLedModes[${m}] = {${irLedModesArr}}; // 0=active 1=always` : ""}
       .map((j, i) => `// Joystick ${i + 1}${j.name ? `: ${j.name}` : ""} — X=A${j.xPin} Y=A${j.yPin}`)
       .join("\n");
 
-    joyGlobals = `\n${joyCmt}\n`;
+    joyGlobals = `\n${joyCmt}\n
+int applyJoystickDeadzone(int value, int deadzone) {
+  if (abs(value) <= deadzone) return 0;
+  return value > 0 ? value - deadzone : value + deadzone;
+}
+
+int scaleJoystickMouseDelta(int value, int deadzone, int speed) {
+  int adjusted = applyJoystickDeadzone(value, deadzone);
+  if (adjusted == 0) return 0;
+  long span = max(1, 512 - deadzone);
+  long magnitude = ((long)abs(adjusted) * speed) / span;
+  if (magnitude < 1) magnitude = 1;
+  if (magnitude > speed) magnitude = speed;
+  return adjusted > 0 ? (int)magnitude : -(int)magnitude;
+}
+
+void updateJoystickCenter(int rawValue, int &centerValue, int deadzone) {
+  int driftWindow = max(8, deadzone / 3);
+  if (abs(rawValue - centerValue) <= driftWindow) {
+    centerValue = (centerValue * 7 + rawValue) / 8;
+  }
+}
+`;
     const joyBtnSetups: string[] = [];
 
     joysticks.forEach((j, i) => {
       joyGlobals += `const int JOY${i}_X = A${j.xPin};\n`;
       joyGlobals += `const int JOY${i}_Y = A${j.yPin};\n`;
       joyGlobals += `const int JOY${i}_DZ = ${j.deadzone};\n`;
+      joyGlobals += `int joy${i}CenterX = 512;\n`;
+      joyGlobals += `int joy${i}CenterY = 512;\n`;
       joyGlobals += `const int JOY${i}_UP    = ${keyLiteral(j.upKey)};\n`;
       joyGlobals += `const int JOY${i}_DOWN  = ${keyLiteral(j.downKey)};\n`;
       joyGlobals += `const int JOY${i}_LEFT  = ${keyLiteral(j.leftKey)};\n`;
@@ -318,23 +342,36 @@ const int irLedModes[${m}] = {${irLedModesArr}}; // 0=active 1=always` : ""}
     if (joyBtnSetups.length > 0) {
       joySetup = joyBtnSetups.join("\n");
     }
+    const joyCalibrationSetup = joysticks.map((_, i) => `  { long sx = 0; long sy = 0;
+    for (int sample = 0; sample < 16; sample++) {
+      sx += analogRead(JOY${i}_X);
+      sy += analogRead(JOY${i}_Y);
+      delay(2);
+    }
+    joy${i}CenterX = sx / 16;
+    joy${i}CenterY = sy / 16;
+  }`).join("\n");
+    joySetup = (joySetup ? joySetup + "\n" : "") + joyCalibrationSetup;
     const joyLedSetup = joysticks.filter((j) => (j.ledPin ?? -1) >= 0).map((j) => `  pinMode(${j.ledPin}, OUTPUT); digitalWrite(${j.ledPin}, ${j.ledMode === "always" ? "HIGH" : "LOW"});`).join("\n");
     if (joyLedSetup) joySetup = (joySetup ? joySetup + "\n" : "") + joyLedSetup;
 
     joyLoop = `  // ── Joysticks\n  if (systemActive) {\n`;
     joysticks.forEach((j, i) => {
-      const xi = j.invertX ? `-(analogRead(JOY${i}_X) - 512)` : `analogRead(JOY${i}_X) - 512`;
-      const yi = j.invertY ? `-(analogRead(JOY${i}_Y) - 512)` : `analogRead(JOY${i}_Y) - 512`;
+      const xi = j.invertX ? `-(rawX - joy${i}CenterX)` : `rawX - joy${i}CenterX`;
+      const yi = j.invertY ? `-(rawY - joy${i}CenterY)` : `rawY - joy${i}CenterY`;
       const hasBtn = j.buttonPin >= 0 && j.buttonKey;
       const isMouse = !!j.mouseMode;
       const spd = j.mouseSpeed ?? 8;
 
       if (isMouse) {
         const mouseBtn = j.mouseClickBtn === "right" ? "MOUSE_RIGHT" : j.mouseClickBtn === "middle" ? "MOUSE_MIDDLE" : "MOUSE_LEFT";
-        // Mouse mode: proportional Mouse.move() based on stick deflection
-        joyLoop += `    { int x = ${xi}; int y = ${yi};
-      int dx = (abs(x) > JOY${i}_DZ) ? (int)((long)x * ${spd} / 512) : 0;
-      int dy = (abs(y) > JOY${i}_DZ) ? (int)((long)y * ${spd} / 512) : 0;
+        // Mouse mode: calibrate joystick center, then scale movement from the post-deadzone range.
+        joyLoop += `    { int rawX = analogRead(JOY${i}_X); int rawY = analogRead(JOY${i}_Y);
+      updateJoystickCenter(rawX, joy${i}CenterX, JOY${i}_DZ);
+      updateJoystickCenter(rawY, joy${i}CenterY, JOY${i}_DZ);
+      int x = ${xi}; int y = ${yi};
+      int dx = scaleJoystickMouseDelta(x, JOY${i}_DZ, ${spd});
+      int dy = scaleJoystickMouseDelta(y, JOY${i}_DZ, ${spd});
       if (dx != 0 || dy != 0) Mouse.move(dx, dy, 0);${(j.ledPin ?? -1) >= 0 ? `
       if (JOY${i}_LED_MODE == 1) digitalWrite(JOY${i}_LED, HIGH);
       else digitalWrite(JOY${i}_LED, (dx != 0 || dy != 0) ? HIGH : LOW);` : ""}${hasBtn ? `
@@ -348,7 +385,10 @@ const int irLedModes[${m}] = {${irLedModesArr}}; // 0=active 1=always` : ""}
     }\n`;
       } else {
         // Key mode: digital press/release per direction
-        joyLoop += `    { int x = ${xi}; int y = ${yi};
+        joyLoop += `    { int rawX = analogRead(JOY${i}_X); int rawY = analogRead(JOY${i}_Y);
+      updateJoystickCenter(rawX, joy${i}CenterX, JOY${i}_DZ);
+      updateJoystickCenter(rawY, joy${i}CenterY, JOY${i}_DZ);
+      int x = ${xi}; int y = ${yi};
       // Y axis
       if (y < -JOY${i}_DZ) {
         if (!joy${i}U && JOY${i}_UP   != 0) { Keyboard.press(JOY${i}_UP);   joy${i}U=true; }
