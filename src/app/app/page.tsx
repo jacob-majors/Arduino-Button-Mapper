@@ -3402,20 +3402,22 @@ export default function Home() {
         </div>
       )}
 
+      <div className={["flex-1 min-h-0 transition-all duration-300 ease-out", wsUploading ? "upload-picker-backdrop-active" : ""].join(" ")}>
       {/* ══ WIRING TAB ═════════════════════════════════════════════════════ */}
       {tab === "wiring" && (
         <div className="flex-1 overflow-y-auto">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 flex flex-col gap-5">
             <section className="bg-gray-800/80 border border-gray-700/70 rounded-3xl p-6">
-              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-5">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-sky-500 mb-2">Wiring</p>
                   <h1 className="text-2xl sm:text-3xl font-semibold text-gray-100 tracking-tight">A clearer wiring view for your build</h1>
                   <p className="text-sm text-gray-500 mt-2 max-w-2xl leading-relaxed">
-                    See every active pin at a glance, keep your layout simple, and open the full wiring diagram when you want component-by-component detail.
+                    See every active pin at a glance, keep your layout simple, and understand the whole controller from one top section.
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                  <span className="text-[10px] text-gray-600">{wiringSetupCards.length} components</span>
                   <button
                     onClick={() => setTab("configure")}
                     className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-colors"
@@ -3424,17 +3426,8 @@ export default function Home() {
                   </button>
                 </div>
               </div>
-            </section>
 
-            <section className="bg-gray-800/80 border border-gray-700/70 rounded-3xl p-5">
-              <div className="flex items-center justify-between gap-3 mb-4">
-                <div>
-                  <h2 className="text-sm font-semibold text-gray-200">Current Setup</h2>
-                  <p className="text-[11px] text-gray-500 mt-1">A quick count of everything in this controller build.</p>
-                </div>
-                <span className="text-[10px] text-gray-600">{wiringSetupCards.length} components</span>
-              </div>
-              <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+              <div className="mt-5 grid grid-cols-2 lg:grid-cols-5 gap-3">
                 {[
                   { label: "Buttons", value: buttons.length + portInputs.length, tone: "text-blue-400" },
                   { label: "Sensors", value: irSensors.length + sipPuffs.length, tone: "text-emerald-400" },
@@ -4790,8 +4783,8 @@ export default function Home() {
           </div>
         </div>
       )}
+      </div>
 
-      {/* ══ INFO TAB ═══════════════════════════════════════════════════════ */}
       {/* IDE modal */}
       {showSketch && sketchCode && (
         <IDEModal

@@ -16,6 +16,14 @@
     animation: pulse-border 1.5s ease-in-out infinite;
   }
 
+  .upload-picker-backdrop-active {
+    opacity: 0.52;
+    filter: blur(3px) saturate(0.88);
+    transform: scale(0.985);
+    transform-origin: center top;
+    pointer-events: none;
+  }
+
   @keyframes pulse-border {
     0%, 100% {
       border-color: rgb(59 130 246);
