@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import Link from "next/link";
 import {
   Zap, RefreshCw, Plus, Trash2, X, Upload, ChevronDown,
   Loader2, CheckCircle2, XCircle, Terminal, Usb, Keyboard,
@@ -3746,25 +3745,18 @@ export default function Home() {
                 >
                   <Code size={12} /> Sketch
                 </button>
-                <button onClick={() => openSketch(true)} title="Edit sketch with Cloudflare Workers AI"
+                <button onClick={() => openSketch(true)} title="Edit sketch with AI"
                   className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-cyan-700/40 bg-cyan-900/20 hover:bg-cyan-900/35 text-cyan-300 hover:text-white text-xs font-medium transition-all"
                 >
-                  <MessageSquare size={12} /> Cloudflare AI
+                  <MessageSquare size={12} /> AI
                 </button>
-                <Link
-                  href="/remap"
-                  title="Open the simple standalone remap page"
-                  className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-violet-700/40 bg-violet-900/20 hover:bg-violet-900/35 text-violet-300 hover:text-white text-xs transition-all"
-                >
-                  <Keyboard size={12} /> Quick Remap
-                </Link>
                 <button
                   onClick={() => setShowRemap(true)}
                   title="Use the builder-style remap and read flow while prototyping"
                   data-tutorial="remap-btn"
                   className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-gray-700 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 text-xs transition-all"
                 >
-                  <RefreshCw size={12} /> Prototype Remap
+                  <RefreshCw size={12} /> Remap
                 </button>
                 <span className="text-[10px] text-gray-600 ml-auto hidden sm:block">Chrome / Edge only</span>
               </div>
