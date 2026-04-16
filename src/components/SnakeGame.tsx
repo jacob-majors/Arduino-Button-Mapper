@@ -177,15 +177,19 @@ function drawDeadScreen(ctx: CanvasRenderingContext2D, score: number) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function SnakeGame({ joystickMaps = [] }: { joystickMaps?: DirectionMap[] }) {
+export default function SnakeGame({ joystickMaps = [], onGameOver }: { joystickMaps?: DirectionMap[]; onGameOver?: (score: number) => void }) {
   const canvasRef   = useRef<HTMLCanvasElement>(null);
   const stateRef    = useRef<GameState>(initState());
   const rafRef      = useRef<number>(0);
   const lastTickRef = useRef<number>(0);
+  const onGameOverRef = useRef(onGameOver);
 
   const [score,   setScore]   = useState(0);
   const [dead,    setDead]    = useState(false);
   const [started, setStarted] = useState(false);
+  const reportedRef = useRef(false);
+
+  useEffect(() => { onGameOverRef.current = onGameOver; }, [onGameOver]);
 
   const handleDir = useCallback((d: Dir) => {
     const s = stateRef.current;
@@ -195,6 +199,7 @@ export default function SnakeGame({ joystickMaps = [] }: { joystickMaps?: Direct
       stateRef.current.pending = d;
       stateRef.current.dir     = d;
       lastTickRef.current = 0;
+      reportedRef.current = false;
       setDead(false); setStarted(true); setScore(0);
       return;
     }
@@ -254,6 +259,10 @@ export default function SnakeGame({ joystickMaps = [] }: { joystickMaps?: Direct
       if (next.x < 0 || next.x >= COLS || next.y < 0 || next.y >= ROWS) {
         s.dead = true;
         if (s.score > s.highScore) s.highScore = s.score;
+        if (!reportedRef.current) {
+          reportedRef.current = true;
+          onGameOverRef.current?.(s.score);
+        }
         setDead(true);
         return;
       }
@@ -262,6 +271,10 @@ export default function SnakeGame({ joystickMaps = [] }: { joystickMaps?: Direct
       if (s.snake.slice(0, -1).some((p) => p.x === next.x && p.y === next.y)) {
         s.dead = true;
         if (s.score > s.highScore) s.highScore = s.score;
+        if (!reportedRef.current) {
+          reportedRef.current = true;
+          onGameOverRef.current?.(s.score);
+        }
         setDead(true);
         return;
       }

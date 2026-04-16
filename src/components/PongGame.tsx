@@ -29,14 +29,17 @@ function initState(): State {
   };
 }
 
-export default function PongGame({ joystickMaps }: { joystickMaps?: { up: string[]; down: string[] } }) {
+export default function PongGame({ joystickMaps, onGameOver }: { joystickMaps?: { up: string[]; down: string[] }; onGameOver?: (score: number) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stateRef = useRef<State>(initState());
   const keysRef = useRef<Set<string>>(new Set());
   const rafRef = useRef<number>(0);
+  const onGameOverRef = useRef(onGameOver);
   const [scores, setScores] = useState({ p: 0, c: 0 });
   const [started, setStarted] = useState(false);
   const [winner, setWinner] = useState<"you" | "cpu" | null>(null);
+
+  useEffect(() => { onGameOverRef.current = onGameOver; }, [onGameOver]);
 
   const upKeys = ["ArrowUp", "w", "W", ...(joystickMaps?.up ?? [])];
   const downKeys = ["ArrowDown", "s", "S", ...(joystickMaps?.down ?? [])];
@@ -182,7 +185,13 @@ export default function PongGame({ joystickMaps }: { joystickMaps?: { up: string
     if (s.bx > W) {
       s.ps += 1;
       setScores({ p: s.ps, c: s.cs });
-      if (s.ps >= 7) { s.running = false; setWinner("you"); draw(); return; }
+      if (s.ps >= 7) {
+        s.running = false;
+        setWinner("you");
+        onGameOverRef.current?.(s.ps);
+        draw();
+        return;
+      }
       Object.assign(s, { ...initState(), ps: s.ps, cs: s.cs });
       setTimeout(() => { stateRef.current.running = true; }, 800);
     }
@@ -220,12 +229,12 @@ export default function PongGame({ joystickMaps }: { joystickMaps?: { up: string
   };
 
   return (
-    <div className="flex flex-col items-center gap-3">
+    <div className="flex flex-col items-center gap-3 w-full">
       <canvas
         ref={canvasRef}
         width={W}
         height={H}
-        style={{ width: "100%", maxWidth: W, borderRadius: 10, display: "block" }}
+        style={{ width: "100%", maxWidth: W, height: "auto", borderRadius: 10, display: "block" }}
       />
       {!started && (
         <button

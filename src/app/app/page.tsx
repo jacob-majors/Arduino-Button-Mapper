@@ -17,6 +17,7 @@ import { compileAndUpload, requestArduinoPortAccess } from "@/lib/avr-upload";
 import DinoGame from "@/components/DinoGame";
 import SnakeGame from "@/components/SnakeGame";
 import PongGame from "@/components/PongGame";
+import GeometryDashGame from "@/components/GeometryDashGame";
 import DeviceMockup from "@/components/DeviceMockup";
 import ControllerMockup from "@/components/ControllerMockup";
 import RemapModal, { type RemapEntry } from "@/components/RemapModal";
@@ -2358,8 +2359,13 @@ export default function Home() {
   const [deleteConfirmSaveId, setDeleteConfirmSaveId] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
-  const [selectedGame, setSelectedGame] = useState<"dino" | "snake" | "pong">("dino");
-  const [dinoLeaderboard, setDinoLeaderboard] = useState<DinoScore[]>([]);
+  const [selectedGame, setSelectedGame] = useState<"dino" | "snake" | "pong" | "geometry">("dino");
+  const [gameLeaderboards, setGameLeaderboards] = useState<Record<"dino" | "snake" | "pong" | "geometry", DinoScore[]>>({
+    dino: [],
+    snake: [],
+    pong: [],
+    geometry: [],
+  });
   const [deviceView, setDeviceView] = useState<"mockup" | "inputs" | "controller">("inputs");
   const [irSensors, setIrSensors] = useState<IRSensorConfig[]>([]);
   const [sipPuffs, setSipPuffs] = useState<SipPuffConfig[]>([]);
@@ -3014,17 +3020,72 @@ export default function Home() {
     }
   };
 
-  const handleDinoGameOver = useCallback(async (score: number) => {
-    if (!appUser || score === 0) return;
-    await submitDinoScore(appUser.username, score);
-    const top = await getTopDinoScores(3);
-    setDinoLeaderboard(top);
+  const submitGameScore = useCallback(async (game: "dino" | "snake" | "pong" | "geometry", score: number) => {
+    if (!appUser || score <= 0) return;
+    const storageKey = `leaderboard_${game}`;
+    const current = (() => {
+      if (typeof window === "undefined") return [] as DinoScore[];
+      try { return JSON.parse(localStorage.getItem(storageKey) ?? "[]") as DinoScore[]; } catch { return [] as DinoScore[]; }
+    })();
+    const existing = current.find((entry) => entry.username === appUser.username);
+    const next =
+      existing
+        ? current.map((entry) => entry.username === appUser.username ? { ...entry, score: Math.max(entry.score, score) } : entry)
+        : [...current, { username: appUser.username, score }];
+    const top = next.sort((a, b) => b.score - a.score).slice(0, 5);
+    if (typeof window !== "undefined") localStorage.setItem(storageKey, JSON.stringify(top));
+    setGameLeaderboards((prev) => ({ ...prev, [game]: top }));
   }, [appUser]);
 
-  // Load leaderboard once on mount
-  useEffect(() => {
-    getTopDinoScores(3).then(setDinoLeaderboard).catch(() => {});
+  const loadGameLeaderboard = useCallback(async (game: "dino" | "snake" | "pong" | "geometry") => {
+    if (game === "dino") {
+      try {
+        const top = await getTopDinoScores(5);
+        setGameLeaderboards((prev) => ({ ...prev, dino: top }));
+        return;
+      } catch {
+        // fall through to local cache
+      }
+    }
+    if (typeof window !== "undefined") {
+      try {
+        const stored = JSON.parse(localStorage.getItem(`leaderboard_${game}`) ?? "[]") as DinoScore[];
+        setGameLeaderboards((prev) => ({ ...prev, [game]: stored }));
+      } catch {
+        setGameLeaderboards((prev) => ({ ...prev, [game]: [] }));
+      }
+    }
   }, []);
+
+  const handleDinoGameOver = useCallback(async (score: number) => {
+    if (!appUser || score === 0) return;
+    try {
+      await submitDinoScore(appUser.username, score);
+      const top = await getTopDinoScores(5);
+      setGameLeaderboards((prev) => ({ ...prev, dino: top }));
+    } catch {
+      await submitGameScore("dino", score);
+    }
+  }, [appUser, submitGameScore]);
+
+  const handleSnakeGameOver = useCallback(async (score: number) => {
+    await submitGameScore("snake", score);
+  }, [submitGameScore]);
+
+  const handlePongGameOver = useCallback(async (score: number) => {
+    await submitGameScore("pong", score);
+  }, [submitGameScore]);
+
+  const handleGeometryGameOver = useCallback(async (score: number) => {
+    await submitGameScore("geometry", score);
+  }, [submitGameScore]);
+
+  useEffect(() => {
+    loadGameLeaderboard("dino");
+    loadGameLeaderboard("snake");
+    loadGameLeaderboard("pong");
+    loadGameLeaderboard("geometry");
+  }, [loadGameLeaderboard]);
 
   const openPortMenu = async () => {
     const granted = await requestArduinoPortAccess();
@@ -3987,73 +4048,97 @@ export default function Home() {
           <div className="flex-1 overflow-y-auto min-w-0">
             <div className="max-w-4xl mx-auto px-4 sm:px-6 py-5 flex flex-col gap-5">
 
-              {/* Game area + selector */}
-              {(adminSettings.show_games ?? true) && <div className="flex gap-4 items-start">
-                {/* Game canvas */}
-                <div className="flex-1 bg-gray-800/80 border border-gray-700/70 rounded-2xl overflow-hidden min-w-0">
-                  <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-800">
-                    <Gamepad2 size={14} className="text-purple-400" />
-                    <h2 className="text-sm font-semibold text-gray-200">
-                      {selectedGame === "dino" && "Dino Game"}
-                      {selectedGame === "snake" && "Snake"}
-                      {selectedGame === "pong" && "Pong"}
-                    </h2>
-                    <span className="text-xs text-gray-600 ml-1">
-                      {selectedGame === "dino" && "↑ jump · ↓ duck"}
-                      {selectedGame === "snake" && "↑↓←→ · WASD · joystick"}
-                      {selectedGame === "pong" && "W/S or ↑/↓ to move"}
-                    </span>
-                  </div>
-                  <div className="p-4">
-                    {selectedGame === "dino" && <DinoGame jumpKeys={jumpKeys} onGameOver={handleDinoGameOver} />}
-                    {selectedGame === "snake" && <SnakeGame joystickMaps={joystickMaps} />}
-                    {selectedGame === "pong" && <PongGame joystickMaps={joystickMaps[0] ? { up: [joystickMaps[0].up], down: [joystickMaps[0].down] } : undefined} />}
-                  </div>
-                </div>
-                {/* Game selector + leaderboard */}
-                <div className="w-40 flex-shrink-0 flex flex-col gap-3">
-                  <div className="bg-gray-800/80 border border-gray-700/70 rounded-2xl p-3 flex flex-col gap-1.5">
-                    <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide px-1 mb-1">Games</p>
-                    {([
-                      { id: "dino",  label: "Dino",  emoji: "🦕", hint: "↑ jump ↓ duck" },
-                      { id: "snake", label: "Snake", emoji: "🐍", hint: "Arrows / WASD" },
-                      { id: "pong",  label: "Pong",  emoji: "🏓", hint: "W/S or ↑/↓" },
-                    ] as const).map((g) => (
-                      <button key={g.id} onClick={() => setSelectedGame(g.id)}
-                        className={["w-full text-left px-3 py-2 rounded-xl transition-all",
-                          selectedGame === g.id
-                            ? "bg-purple-600/20 border border-purple-600/40 text-purple-300"
-                            : "border border-transparent hover:bg-gray-800 text-gray-400 hover:text-gray-200",
-                        ].join(" ")}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm leading-none">{g.emoji}</span>
-                          <span className="text-xs font-medium">{g.label}</span>
+              {(adminSettings.show_games ?? true) && (
+                <div className="flex flex-col gap-4">
+                  <div className="grid lg:grid-cols-[1.45fr_0.75fr] gap-4 items-start">
+                    <div className="bg-gray-800/80 border border-gray-700/70 rounded-2xl p-3 flex flex-col gap-2">
+                      <div className="flex items-center gap-2 px-1">
+                        <Gamepad2 size={14} className="text-purple-400" />
+                        <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">Games</p>
+                      </div>
+                      <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-2">
+                        {([
+                          { id: "dino", label: "Dino", emoji: "🦕", hint: "↑ jump ↓ duck" },
+                          { id: "snake", label: "Snake", emoji: "🐍", hint: "Arrows / WASD" },
+                          { id: "pong", label: "Pong", emoji: "🏓", hint: "W/S or ↑/↓" },
+                          { id: "geometry", label: "Geometry Dash", emoji: "🔷", hint: "Jump over spikes" },
+                        ] as const).map((g) => (
+                          <button
+                            key={g.id}
+                            onClick={() => setSelectedGame(g.id)}
+                            className={[
+                              "w-full text-left px-3 py-2.5 rounded-xl transition-all border",
+                              selectedGame === g.id
+                                ? "bg-purple-600/20 border-purple-600/40 text-purple-300"
+                                : "bg-gray-900/20 border-gray-700/40 hover:bg-gray-800 text-gray-400 hover:text-gray-200",
+                            ].join(" ")}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm leading-none">{g.emoji}</span>
+                              <span className="text-xs font-medium">{g.label}</span>
+                            </div>
+                            <p className="text-[10px] text-gray-600 mt-1 pl-6">{g.hint}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-800/80 border border-gray-700/70 rounded-2xl p-4">
+                      <div className="flex items-center justify-between gap-3 mb-3">
+                        <div>
+                          <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide">Leaderboard</p>
+                          <h3 className="text-sm font-semibold text-gray-200 mt-1">
+                            {selectedGame === "dino" && "Dino"}
+                            {selectedGame === "snake" && "Snake"}
+                            {selectedGame === "pong" && "Pong"}
+                            {selectedGame === "geometry" && "Geometry Dash"}
+                          </h3>
                         </div>
-                        <p className="text-[10px] text-gray-600 mt-0.5 pl-6">{g.hint}</p>
-                      </button>
-                    ))}
-                  </div>
-                  {selectedGame === "dino" && (
-                    <div className="bg-gray-800/80 border border-gray-700/70 rounded-2xl p-3">
-                      <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wide px-1 mb-2">Top Scores</p>
-                      {dinoLeaderboard.length === 0 ? (
-                        <p className="text-[11px] text-gray-600 px-1">No scores yet</p>
+                        <span className="text-[10px] text-gray-600">top 5</span>
+                      </div>
+                      {(gameLeaderboards[selectedGame] ?? []).length === 0 ? (
+                        <p className="text-[11px] text-gray-600">No scores yet for this game.</p>
                       ) : (
-                        <ol className="flex flex-col gap-1.5">
-                          {dinoLeaderboard.map((entry, i) => (
-                            <li key={entry.username} className="flex items-center gap-1.5 px-1">
-                              <span className="text-[10px]">{i === 0 ? "🥇" : i === 1 ? "🥈" : "🥉"}</span>
-                              <span className="text-[11px] text-gray-300 truncate flex-1">{entry.username}</span>
-                              <span className="text-[11px] font-mono text-purple-300">{entry.score}</span>
+                        <ol className="flex flex-col gap-2">
+                          {(gameLeaderboards[selectedGame] ?? []).map((entry, i) => (
+                            <li key={`${selectedGame}-${entry.username}`} className="flex items-center gap-2 rounded-xl bg-gray-900/30 border border-gray-700/40 px-3 py-2">
+                              <span className="text-xs w-5 text-center">{i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`}</span>
+                              <span className="text-xs text-gray-300 truncate flex-1">{entry.username}</span>
+                              <span className="text-xs font-mono text-purple-300">{entry.score}</span>
                             </li>
                           ))}
                         </ol>
                       )}
                     </div>
-                  )}
+                  </div>
+
+                  <div className="bg-gray-800/80 border border-gray-700/70 rounded-2xl overflow-hidden min-w-0">
+                    <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-800">
+                      <Gamepad2 size={14} className="text-purple-400" />
+                      <h2 className="text-sm font-semibold text-gray-200">
+                        {selectedGame === "dino" && "Dino Game"}
+                        {selectedGame === "snake" && "Snake"}
+                        {selectedGame === "pong" && "Pong"}
+                        {selectedGame === "geometry" && "Geometry Dash"}
+                      </h2>
+                      <span className="text-xs text-gray-600 ml-1">
+                        {selectedGame === "dino" && "↑ jump · ↓ duck"}
+                        {selectedGame === "snake" && "↑↓←→ · WASD · joystick"}
+                        {selectedGame === "pong" && "W/S or ↑/↓ to move"}
+                        {selectedGame === "geometry" && "Jump to clear the spikes"}
+                      </span>
+                    </div>
+                    <div className="p-4">
+                      <div className="w-full max-w-4xl mx-auto">
+                        {selectedGame === "dino" && <DinoGame jumpKeys={jumpKeys} onGameOver={handleDinoGameOver} />}
+                        {selectedGame === "snake" && <SnakeGame joystickMaps={joystickMaps} onGameOver={handleSnakeGameOver} />}
+                        {selectedGame === "pong" && <PongGame onGameOver={handlePongGameOver} joystickMaps={joystickMaps[0] ? { up: [joystickMaps[0].up], down: [joystickMaps[0].down] } : undefined} />}
+                        {selectedGame === "geometry" && <GeometryDashGame jumpKeys={jumpKeys} onGameOver={handleGeometryGameOver} />}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              </div>}
+              )}
 
               {/* Device Tester — tabbed: Mockup / All Inputs / Controller */}
               <div className="bg-gray-800/80 border border-gray-700/70 rounded-2xl overflow-hidden">
