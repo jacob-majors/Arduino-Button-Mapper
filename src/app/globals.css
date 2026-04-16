@@ -102,9 +102,20 @@ html.light .text-gray-100 { color: #0f172a !important; }
 html.light .text-gray-200 { color: #1e293b !important; }
 html.light .text-gray-300 { color: #334155 !important; }
 html.light .text-gray-400 { color: #475569 !important; }
-html.light .text-gray-500 { color: #64748b !important; }
-html.light .text-gray-600 { color: #7c8ba1 !important; }
-html.light .text-gray-700 { color: #94a3b8 !important; }
+html.light .text-gray-500 { color: #475569 !important; }
+html.light .text-gray-600 { color: #334155 !important; }
+html.light .text-gray-700 { color: #1e293b !important; }
+
+/* Pastel "300" colors are unreadable on light backgrounds — remap to deep variants */
+html.light .text-emerald-300  { color: #065f46 !important; }
+html.light .text-cyan-300     { color: #164e63 !important; }
+html.light .text-violet-300   { color: #4c1d95 !important; }
+html.light .text-blue-300     { color: #1e3a8a !important; }
+html.light .text-amber-300    { color: #78350f !important; }
+html.light .text-teal-300     { color: #134e4a !important; }
+html.light .text-sky-300      { color: #0c4a6e !important; }
+html.light .text-orange-300   { color: #7c2d12 !important; }
+html.light .text-rose-300     { color: #881337 !important; }
 html.light .text-gray-800 { color: #334155 !important; }
 html.light .text-gray-900 { color: #0f172a !important; }
 

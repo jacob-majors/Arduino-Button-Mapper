@@ -251,7 +251,7 @@ function LedPanel({ ledPin, ledMode, usedPins, onUpdate }: {
         ><X size={10} /></button>
       </div>
       <div className="flex gap-2 items-center mb-2">
-        <label className="text-[10px] text-gray-500 uppercase tracking-wider w-6 flex-shrink-0">Pin</label>
+        <label className="text-[10px] text-gray-400 uppercase tracking-wider w-6 flex-shrink-0">Pin</label>
         <div className="relative" style={{ width: 68 }}>
           <select value={ledPin}
             onChange={(e) => onUpdate(parseInt(e.target.value), ledMode)}
@@ -346,7 +346,7 @@ function ButtonCard({ button, index, usedPins, onUpdate, onRemove, typeLabel, is
       </div>
 
       {!isSelected && (
-        <div className="flex items-center gap-2 text-[11px] text-gray-500">
+        <div className="flex items-center gap-2 text-[11px] text-gray-400">
           <span className="font-mono text-gray-300 bg-gray-900/70 border border-gray-700 rounded-md px-2 py-1">D{button.pin}</span>
           {!isPower && <span className="truncate">{button.keyDisplay || button.arduinoKey || "No key assigned"}</span>}
           {isPower && <span className="truncate text-amber-500/80">Controller power switch</span>}
@@ -358,7 +358,7 @@ function ButtonCard({ button, index, usedPins, onUpdate, onRemove, typeLabel, is
       <>
       {/* Pin */}
       <div className="flex gap-2 items-center">
-        <label className="text-[10px] text-gray-500 uppercase tracking-wider w-6 flex-shrink-0">Pin</label>
+        <label className="text-[10px] text-gray-400 uppercase tracking-wider w-6 flex-shrink-0">Pin</label>
         <div className="relative" style={{ width: 68 }}>
           <select value={button.pin}
             onChange={(e) => onUpdate(button.id, { pin: parseInt(e.target.value) })}
@@ -373,7 +373,7 @@ function ButtonCard({ button, index, usedPins, onUpdate, onRemove, typeLabel, is
       {/* Key — hidden for power switches, they don't send keys */}
       {!isPower && (
         <div className="flex gap-2 items-center">
-          <label className="text-[10px] text-gray-500 uppercase tracking-wider w-6 flex-shrink-0">Key</label>
+          <label className="text-[10px] text-gray-400 uppercase tracking-wider w-6 flex-shrink-0">Key</label>
           <div className="flex-1">
             <KeyCaptureInput
               value={button.arduinoKey} display={button.keyDisplay}
@@ -387,7 +387,7 @@ function ButtonCard({ button, index, usedPins, onUpdate, onRemove, typeLabel, is
       {/* Hold / Tap mode toggle */}
       {!isPower && button.mode !== "toggle" && (
         <div className="flex gap-2 items-center">
-          <label className="text-xs text-gray-500 uppercase tracking-wider w-12 flex-shrink-0">Mode</label>
+          <label className="text-xs text-gray-400 uppercase tracking-wider w-12 flex-shrink-0">Mode</label>
           <div className="flex items-center gap-0.5 bg-gray-900 border border-gray-700 rounded-lg p-0.5">
             {(["hold", "tap"] as const).map((m) => (
               <button key={m} onClick={(e) => { e.stopPropagation(); onUpdate(button.id, { inputMode: m }); }}
@@ -1202,7 +1202,7 @@ function AnalogPinSelect({ value, onChange, label, excludePins }: {
   const available = ANALOG_PINS.filter((p) => p === value || !excludePins.includes(p));
   return (
     <div className="flex items-center gap-2">
-      <label className="text-[10px] text-gray-500 uppercase tracking-wider w-6 flex-shrink-0">{label}</label>
+      <label className="text-[10px] text-gray-400 uppercase tracking-wider w-6 flex-shrink-0">{label}</label>
       <div className="relative" style={{ width: 68 }}>
         <select value={value} onChange={(e) => onChange(parseInt(e.target.value))}
           className="w-full appearance-none bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-blue-500 transition-colors cursor-pointer pr-5"
@@ -1253,7 +1253,7 @@ function IRSensorCard({ sensor, index, usedPins, onUpdate, onRemove, isSelected,
       </div>
 
       {!isSelected && (
-        <div className="flex items-center gap-2 text-[11px] text-gray-500">
+        <div className="flex items-center gap-2 text-[11px] text-gray-400">
           <span className="font-mono text-emerald-300 bg-gray-900/70 border border-gray-700 rounded-md px-2 py-1">D{sensor.pin}</span>
           <span className="truncate flex-1">{sensor.keyDisplay || sensor.arduinoKey || "No key assigned"}</span>
           <span>{sensor.activeHigh ? "HIGH" : "LOW"}</span>
@@ -1264,7 +1264,7 @@ function IRSensorCard({ sensor, index, usedPins, onUpdate, onRemove, isSelected,
       <>
       {/* Row 1: PIN + polarity */}
       <div className="flex gap-2 items-center">
-        <label className="text-xs text-gray-500 uppercase tracking-wider w-12 flex-shrink-0">Pin</label>
+        <label className="text-xs text-gray-400 uppercase tracking-wider w-12 flex-shrink-0">Pin</label>
         <div className="relative" style={{ width: 80 }}>
           <select value={sensor.pin} onChange={(e) => onUpdate(sensor.id, { pin: parseInt(e.target.value) })}
             className="w-full appearance-none bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs text-gray-200 focus:outline-none focus:border-blue-500 cursor-pointer pr-5"
@@ -1283,7 +1283,7 @@ function IRSensorCard({ sensor, index, usedPins, onUpdate, onRemove, isSelected,
 
       {/* Row 2: MODE — Hold | Tap | Toggle */}
       <div className="flex gap-2 items-center">
-        <label className="text-xs text-gray-500 uppercase tracking-wider w-12 flex-shrink-0">Mode</label>
+        <label className="text-xs text-gray-400 uppercase tracking-wider w-12 flex-shrink-0">Mode</label>
         <div className="flex items-center gap-0.5 bg-gray-900 border border-gray-700 rounded-lg p-0.5 flex-1">
           {([
             { value: "hold"   as const, label: "Hold"   },
@@ -1310,7 +1310,7 @@ function IRSensorCard({ sensor, index, usedPins, onUpdate, onRemove, isSelected,
       </div>
 
       <div className="flex gap-2 items-center">
-        <label className="text-[10px] text-gray-500 uppercase tracking-wider w-6 flex-shrink-0">Key</label>
+        <label className="text-[10px] text-gray-400 uppercase tracking-wider w-6 flex-shrink-0">Key</label>
         <div className="flex-1">
           <KeyCaptureInput value={sensor.arduinoKey} display={sensor.keyDisplay}
             onChange={(arduinoKey, keyDisplay) => onUpdate(sensor.id, { arduinoKey, keyDisplay })}
@@ -1380,7 +1380,7 @@ function SipPuffCard({ sensor, index, usedPins, onUpdate, onRemove, isSelected, 
       </div>
 
       {!isSelected && (
-        <div className="flex items-center gap-2 text-[11px] text-gray-500">
+        <div className="flex items-center gap-2 text-[11px] text-gray-400">
           <span className="font-mono text-cyan-300 bg-gray-900/70 border border-gray-700 rounded-md px-2 py-1">D{sensor.pin}</span>
           <span className="truncate flex-1">{sensor.keyDisplay || sensor.key || "No key assigned"}</span>
           <span className="capitalize">{sensor.inputMode ?? "hold"}</span>
@@ -1390,7 +1390,7 @@ function SipPuffCard({ sensor, index, usedPins, onUpdate, onRemove, isSelected, 
       {isSelected && (
       <>
       <div className="flex gap-2 items-center">
-        <label className="text-[10px] text-gray-500 uppercase tracking-wider w-6 flex-shrink-0">Pin</label>
+        <label className="text-[10px] text-gray-400 uppercase tracking-wider w-6 flex-shrink-0">Pin</label>
         <div className="relative" style={{ width: 68 }}>
           <select value={sensor.pin}
             onChange={(e) => onUpdate(sensor.id, { pin: parseInt(e.target.value) })}
@@ -1403,7 +1403,7 @@ function SipPuffCard({ sensor, index, usedPins, onUpdate, onRemove, isSelected, 
       </div>
 
       <div className="flex gap-2 items-center">
-        <label className="text-[10px] text-gray-500 uppercase tracking-wider w-6 flex-shrink-0">Key</label>
+        <label className="text-[10px] text-gray-400 uppercase tracking-wider w-6 flex-shrink-0">Key</label>
         <div className="flex-1">
           <KeyCaptureInput value={sensor.key} display={sensor.keyDisplay}
             onChange={(k, d) => onUpdate(sensor.id, { key: k, keyDisplay: d })}
@@ -1414,7 +1414,7 @@ function SipPuffCard({ sensor, index, usedPins, onUpdate, onRemove, isSelected, 
 
       {/* Hold vs Tap toggle */}
       <div className="flex gap-2 items-center">
-        <label className="text-xs text-gray-500 uppercase tracking-wider w-12 flex-shrink-0">Mode</label>
+        <label className="text-xs text-gray-400 uppercase tracking-wider w-12 flex-shrink-0">Mode</label>
         <div className="flex items-center gap-0.5 bg-gray-900 border border-gray-700 rounded-lg p-0.5">
           {(["hold", "tap"] as const).map((m) => (
             <button key={m} onClick={(e) => { e.stopPropagation(); onUpdate(sensor.id, { inputMode: m }); }}
@@ -1490,7 +1490,7 @@ function JoystickCard({ joy, index, usedPins, usedAnalogPins, onUpdate, onRemove
       </div>
 
       {!isSelected && (
-        <div className="flex items-center gap-2 text-[11px] text-gray-500">
+        <div className="flex items-center gap-2 text-[11px] text-gray-400">
           <span className="font-mono text-violet-300 bg-gray-900/70 border border-gray-700 rounded-md px-2 py-1">A{joy.xPin}/A{joy.yPin}</span>
           <span className="truncate flex-1">{joy.mouseMode ? "Mouse mode" : "Key mode"}</span>
           {joy.buttonPin >= 0 && <span className="font-mono">D{joy.buttonPin}</span>}
@@ -1540,7 +1540,7 @@ function JoystickCard({ joy, index, usedPins, usedAnalogPins, onUpdate, onRemove
 
       {/* Mouse mode toggle */}
       <div className="flex items-center gap-2 pl-1 pt-1 border-t border-violet-900/40">
-        <span className="text-xs text-gray-500 uppercase tracking-wider w-24 flex-shrink-0">Mode</span>
+        <span className="text-xs text-gray-400 uppercase tracking-wider w-24 flex-shrink-0">Mode</span>
         <div className="flex rounded-lg overflow-hidden border border-gray-700">
           <button
             onClick={() => onUpdate(joy.id, { mouseMode: false })}
@@ -1560,7 +1560,7 @@ function JoystickCard({ joy, index, usedPins, usedAnalogPins, onUpdate, onRemove
       {/* Mouse speed slider — only when mouse mode */}
       {joy.mouseMode && (
         <div className="flex items-center gap-2 pl-1">
-          <span className="text-xs text-gray-500 uppercase tracking-wider w-24 flex-shrink-0">Speed</span>
+          <span className="text-xs text-gray-400 uppercase tracking-wider w-24 flex-shrink-0">Speed</span>
           <input type="range" min={1} max={20} value={joy.mouseSpeed ?? 8}
             onChange={(e) => onUpdate(joy.id, { mouseSpeed: parseInt(e.target.value) })}
             className="flex-1 accent-violet-500 h-1"
@@ -1571,7 +1571,7 @@ function JoystickCard({ joy, index, usedPins, usedAnalogPins, onUpdate, onRemove
 
       {/* Sensitivity slider (higher = more sensitive = lower internal deadzone) */}
       <div className="flex items-center gap-2 pl-1">
-        <span className="text-xs text-gray-500 uppercase tracking-wider w-24 flex-shrink-0">Sensitivity</span>
+        <span className="text-xs text-gray-400 uppercase tracking-wider w-24 flex-shrink-0">Sensitivity</span>
         <input type="range" min={0} max={400} value={400 - joy.deadzone}
           onChange={(e) => onUpdate(joy.id, { deadzone: 400 - parseInt(e.target.value) })}
           className="flex-1 accent-violet-500 h-1"
@@ -1582,7 +1582,7 @@ function JoystickCard({ joy, index, usedPins, usedAnalogPins, onUpdate, onRemove
 
       {/* Click button pin */}
       <div className="flex items-center gap-2 pl-1">
-        <span className="text-xs text-gray-500 uppercase tracking-wider w-24 flex-shrink-0">Click pin</span>
+        <span className="text-xs text-gray-400 uppercase tracking-wider w-24 flex-shrink-0">Click pin</span>
         <div className="relative" style={{ width: 68 }}>
           <select value={joy.buttonPin} onChange={(e) => onUpdate(joy.id, { buttonPin: parseInt(e.target.value) })}
             className="w-full appearance-none bg-gray-900 border border-gray-700 rounded-lg px-2 py-1.5 text-xs text-gray-200 focus:outline-none cursor-pointer pr-5"
@@ -4983,7 +4983,7 @@ export default function Home() {
                         <div className="bg-gray-800/60 rounded-xl p-4 border border-gray-700/50">
                           <div className="flex items-end justify-between mb-2">
                             <div>
-                              <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-1">Estimated cost this period</p>
+                              <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Estimated cost this period</p>
                               <p className="text-2xl font-black text-yellow-300 tabular-nums">${railwayUsage.estimatedCost.toFixed(3)}</p>
                             </div>
                             <p className="text-xs text-gray-600 mb-1">of $5.00 free</p>
