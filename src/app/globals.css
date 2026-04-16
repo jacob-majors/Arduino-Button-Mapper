@@ -275,6 +275,43 @@ html.light .border-red-700\/50 { border-color: rgba(239, 68, 68, 0.56) !importan
 html.light .border-red-800\/30,
 html.light .border-red-700\/40 { border-color: rgba(239, 68, 68, 0.44) !important; }
 
+/* ── Indigo surfaces (Button badge) ─────────────────────── */
+html.light .bg-indigo-900\/60,
+html.light .bg-indigo-900\/50,
+html.light .bg-indigo-900\/40 { background-color: rgba(224, 231, 255, 0.82) !important; }
+html.light .bg-indigo-500\/20,
+html.light .bg-indigo-500\/15 { background-color: rgba(238, 242, 255, 0.72) !important; }
+html.light .border-indigo-800\/60,
+html.light .border-indigo-700\/60,
+html.light .border-indigo-600\/60,
+html.light .border-indigo-500\/40 { border-color: rgba(99, 102, 241, 0.54) !important; }
+
+/* ── Sky surfaces (Port badge) ──────────────────────────── */
+html.light .bg-sky-900\/60,
+html.light .bg-sky-900\/50,
+html.light .bg-sky-900\/40 { background-color: rgba(186, 230, 253, 0.82) !important; }
+html.light .bg-sky-500\/20,
+html.light .bg-sky-500\/15 { background-color: rgba(224, 242, 254, 0.72) !important; }
+html.light .border-sky-800\/60,
+html.light .border-sky-700\/60,
+html.light .border-sky-500\/40 { border-color: rgba(14, 165, 233, 0.54) !important; }
+
+/* ── Pastel "400" accent colors → readable on light backgrounds ── */
+html.light .text-indigo-400  { color: #3730a3 !important; }
+html.light .text-sky-400     { color: #0369a1 !important; }
+html.light .text-amber-400   { color: #92400e !important; }
+html.light .text-yellow-400  { color: #854d0e !important; }
+html.light .text-emerald-400 { color: #065f46 !important; }
+html.light .text-cyan-400    { color: #155e75 !important; }
+html.light .text-violet-400  { color: #4c1d95 !important; }
+html.light .text-blue-400    { color: #1e40af !important; }
+html.light .text-green-400   { color: #14532d !important; }
+html.light .text-teal-400    { color: #134e4a !important; }
+html.light .text-rose-400    { color: #881337 !important; }
+html.light .text-orange-400  { color: #7c2d12 !important; }
+html.light .text-red-400     { color: #991b1b !important; }
+html.light .text-pink-400    { color: #831843 !important; }
+
 /* ── Hover overrides ────────────────────────────────────── */
 html.light .hover\:bg-gray-900\/50:hover { background-color: rgba(248, 250, 252, 0.72) !important; }
 html.light .hover\:bg-gray-800:hover,
