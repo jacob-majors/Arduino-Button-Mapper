@@ -1579,7 +1579,14 @@ function LiveWiringDiagram({ buttons, portInputs, leds, irSensors, sipPuffs, joy
   const hasAny = right.length > 0 || left.length > 0 || leds.enabled;
 
   return (
-    <svg viewBox="0 0 620 372" width="100%" xmlns="http://www.w3.org/2000/svg" style={{ maxHeight: 372 }}>
+    <svg
+      viewBox="0 0 620 372"
+      width="100%"
+      height="100%"
+      preserveAspectRatio="xMidYMid meet"
+      xmlns="http://www.w3.org/2000/svg"
+      style={{ display: "block", width: "100%", height: "100%" }}
+    >
       {/* Board body */}
       <rect x={BX} y={BY} width={BW} height={BH} rx="7" fill="#0b1a10" stroke="#166534" strokeWidth="2" />
       <rect x={BX + 2} y={BY + 2} width={BW - 4} height={BH - 4} rx="6" fill="#0d2015" />
@@ -1668,7 +1675,7 @@ function LiveWiringDiagram({ buttons, portInputs, leds, irSensors, sipPuffs, joy
 
 // ─── Wiring Diagram Modal ─────────────────────────────────────────────────────
 
-function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, joysticks, onClose }: {
+function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, joysticks, onClose, embedded = false }: {
   buttons: ButtonConfig[];
   portInputs: PortConfig[];
   leds: LedConfig;
@@ -1676,12 +1683,14 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
   sipPuffs: SipPuffConfig[];
   joysticks: JoystickConfig[];
   onClose: () => void;
+  embedded?: boolean;
 }) {
   useEffect(() => {
+    if (embedded) return;
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [onClose]);
+  }, [embedded, onClose]);
 
   const [showResistorInfo, setShowResistorInfo] = useState(false);
   const [componentInfo, setComponentInfo] = useState<{ type: string; label: string } | null>(null);
@@ -1939,11 +1948,11 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      className={embedded ? "relative" : "fixed inset-0 z-50 flex items-center justify-center p-4"}
+      onClick={embedded ? undefined : (e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-5xl max-h-[92vh] flex flex-col bg-gray-800 border border-gray-600 rounded-2xl shadow-2xl">
+      {!embedded && <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />}
+      <div className={embedded ? "relative w-full flex flex-col bg-gray-800 border border-gray-700/70 rounded-2xl shadow-2xl overflow-hidden" : "relative z-10 w-full max-w-5xl max-h-[92vh] flex flex-col bg-gray-800 border border-gray-600 rounded-2xl shadow-2xl"}>
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-800 flex-shrink-0">
           <div className="flex items-center gap-2">
@@ -1951,13 +1960,15 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
             <span className="text-sm font-semibold text-gray-200">Wiring Diagram</span>
             <span className="text-xs text-gray-600">— click any component for details</span>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-gray-500 hover:text-gray-200 hover:bg-gray-800 transition-colors">
-            <X size={15} />
-          </button>
+          {!embedded && (
+            <button onClick={onClose} className="p-1.5 rounded-lg text-gray-500 hover:text-gray-200 hover:bg-gray-800 transition-colors">
+              <X size={15} />
+            </button>
+          )}
         </div>
 
         {/* SVG Body */}
-        <div className="flex-1 overflow-auto p-4">
+        <div className={embedded ? "overflow-auto p-4" : "flex-1 overflow-auto p-4"}>
           {!hasAny ? (
             <div className="flex flex-col items-center justify-center h-48 text-center">
               <span className="text-4xl mb-3">🔌</span>
@@ -2310,7 +2321,6 @@ export default function Home() {
   const [loadingPorts, setLoadingPorts] = useState(false);
   const [loadingSketch, setLoadingSketch] = useState(false);
   const [showLedInfo, setShowLedInfo] = useState(false);
-  const [showWiring, setShowWiring] = useState(false);
   const [showRemap, setShowRemap] = useState(false);
   const [wiringPreview, setWiringPreview] = useState<({ kind: "board"; title: string; subtitle: string } | { kind: "component"; card: WiringSetupCard }) | null>(null);
   const [showTutorial, setShowTutorial] = useState(false);
@@ -3430,12 +3440,6 @@ export default function Home() {
                   >
                     <Settings size={12} /> Edit Setup
                   </button>
-                  <button
-                    onClick={() => setShowWiring(true)}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-gray-700 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-semibold transition-colors"
-                  >
-                    <ExternalLink size={12} /> Full Diagram
-                  </button>
                 </div>
               </div>
             </section>
@@ -3479,14 +3483,16 @@ export default function Home() {
                   </button>
                 </div>
                 <div className="rounded-2xl border border-gray-700/60 bg-gray-900/40 p-3">
-                  <LiveWiringDiagram
-                    buttons={buttons}
-                    portInputs={portInputs}
-                    leds={leds}
-                    irSensors={irSensors}
-                    sipPuffs={sipPuffs}
-                    joysticks={joysticks}
-                  />
+                  <div className="h-[360px] sm:h-[420px]">
+                    <LiveWiringDiagram
+                      buttons={buttons}
+                      portInputs={portInputs}
+                      leds={leds}
+                      irSensors={irSensors}
+                      sipPuffs={sipPuffs}
+                      joysticks={joysticks}
+                    />
+                  </div>
                 </div>
               </section>
 
@@ -3525,25 +3531,22 @@ export default function Home() {
               <div className="flex items-center justify-between gap-3 mb-4">
                 <div>
                   <h2 className="text-sm font-semibold text-gray-200">Individual Component Wiring</h2>
-                  <p className="text-[11px] text-gray-500 mt-1">Open any component for a larger, easier-to-follow wiring view.</p>
+                  <p className="text-[11px] text-gray-500 mt-1">The full visual component diagram is now built in right here.</p>
                 </div>
                 <span className="text-[10px] text-gray-600">{wiringSetupCards.length} items</span>
               </div>
 
               {wiringSetupCards.length > 0 ? (
-                <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {wiringSetupCards.map((card) => (
-                    <WiringPreviewCard
-                      key={`${card.id}-grid`}
-                      title={card.title}
-                      subtitle={card.subtitle}
-                      accentClass={card.accentClass}
-                      onOpen={() => setWiringPreview({ kind: "component", card })}
-                    >
-                      <WiringTable wires={card.wires} docsUrl={card.docsUrl} docsLabel={card.docsLabel} compact />
-                    </WiringPreviewCard>
-                  ))}
-                </div>
+                <WiringDiagramModal
+                  buttons={buttons}
+                  portInputs={portInputs}
+                  leds={leds}
+                  irSensors={irSensors}
+                  sipPuffs={sipPuffs}
+                  joysticks={joysticks}
+                  onClose={() => {}}
+                  embedded
+                />
               ) : (
                 <div className="rounded-2xl border border-dashed border-gray-700/70 bg-gray-900/20 px-4 py-10 text-center">
                   <p className="text-sm text-gray-300">No components yet. Add them in Configure and they will appear here automatically.</p>
@@ -4954,15 +4957,6 @@ export default function Home() {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Wiring diagram modal */}
-      {showWiring && (
-        <WiringDiagramModal
-          buttons={buttons} portInputs={portInputs} leds={leds}
-          irSensors={irSensors} sipPuffs={sipPuffs} joysticks={joysticks}
-          onClose={() => setShowWiring(false)}
-        />
       )}
 
       {wiringPreview && (
