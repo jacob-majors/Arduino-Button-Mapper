@@ -1118,6 +1118,63 @@ function WiringPreviewModal({
 
 // ─── Pin Selector ─────────────────────────────────────────────────────────────
 
+const COMPONENT_LAYOUT_COLLAPSE_THRESHOLD = 4;
+
+function ComponentLayoutSection({ wiringSetupCards, onOpen }: {
+  wiringSetupCards: WiringSetupCard[];
+  onOpen: (card: WiringSetupCard) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const needsCollapse = wiringSetupCards.length > COMPONENT_LAYOUT_COLLAPSE_THRESHOLD;
+  const visibleCards = needsCollapse && !expanded
+    ? wiringSetupCards.slice(0, COMPONENT_LAYOUT_COLLAPSE_THRESHOLD)
+    : wiringSetupCards;
+
+  return (
+    <section className="bg-gray-800/80 border border-gray-700/70 rounded-3xl p-5">
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <div>
+          <h2 className="text-sm font-semibold text-gray-200">Component Layout</h2>
+          <p className="text-[11px] text-gray-500 mt-1">A live index of each component wiring block in this setup.</p>
+        </div>
+        <span className="text-[10px] text-gray-600">{wiringSetupCards.length} cards</span>
+      </div>
+
+      {wiringSetupCards.length > 0 ? (
+        <>
+          <div className="grid sm:grid-cols-2 gap-3">
+            {visibleCards.map((card) => (
+              <WiringPreviewCard
+                key={card.id}
+                title={card.title}
+                subtitle={card.subtitle}
+                accentClass={card.accentClass}
+                onOpen={() => onOpen(card)}
+              >
+                <WiringTable wires={card.wires} docsUrl={card.docsUrl} docsLabel={card.docsLabel} compact />
+              </WiringPreviewCard>
+            ))}
+          </div>
+          {needsCollapse && (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              className="mt-3 w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border border-gray-700/60 bg-gray-900/30 hover:bg-gray-900/60 text-[11px] text-gray-400 hover:text-gray-200 transition-all"
+            >
+              <ChevronDown size={12} className={`transition-transform ${expanded ? "rotate-180" : ""}`} />
+              {expanded ? "Show less" : `Show all ${wiringSetupCards.length} components`}
+            </button>
+          )}
+        </>
+      ) : (
+        <div className="rounded-2xl border border-dashed border-gray-700/70 bg-gray-900/20 px-4 py-10 text-center">
+          <p className="text-sm text-gray-300">Add an input in Configure to generate the component layout.</p>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function PinSelect({ value, onChange, label, excludePins }: {
   value: number; onChange: (v: number) => void; label: string; excludePins: number[];
 }) {
@@ -2900,7 +2957,10 @@ export default function Home() {
         wires: [
           { label: button.mode === "power" ? "SW" : "SIG", to: `D${button.pin}`, color: button.mode === "power" ? "#f59e0b" : "#60a5fa" },
           { label: "GND", to: "GND", color: "#9ca3af" },
-          ...((button.ledPin ?? -1) >= 0 ? [{ label: "LED", to: `D${button.ledPin}`, color: "#fbbf24" }] : []),
+          ...((button.ledPin ?? -1) >= 0 ? [
+            { label: "LED (+)", to: `220Ω → D${button.ledPin}`, color: "#fbbf24" },
+            { label: "LED (−)", to: "GND", color: "#9ca3af" },
+          ] : []),
         ],
       });
     });
@@ -2916,7 +2976,10 @@ export default function Home() {
         wires: [
           { label: "SIG", to: `D${port.pin}`, color: "#38bdf8" },
           { label: "GND", to: "GND", color: "#9ca3af" },
-          ...((port.ledPin ?? -1) >= 0 ? [{ label: "LED", to: `D${port.ledPin}`, color: "#fbbf24" }] : []),
+          ...((port.ledPin ?? -1) >= 0 ? [
+            { label: "LED (+)", to: `220Ω → D${port.ledPin}`, color: "#fbbf24" },
+            { label: "LED (−)", to: "GND", color: "#9ca3af" },
+          ] : []),
         ],
       });
     });
@@ -2933,7 +2996,10 @@ export default function Home() {
           { label: "VCC", to: "5V", color: "#f87171" },
           { label: "GND", to: "GND", color: "#9ca3af" },
           { label: "OUT", to: `D${sensor.pin}`, color: "#34d399" },
-          ...((sensor.ledPin ?? -1) >= 0 ? [{ label: "LED", to: `D${sensor.ledPin}`, color: "#fbbf24" }] : []),
+          ...((sensor.ledPin ?? -1) >= 0 ? [
+            { label: "LED (+)", to: `220Ω → D${sensor.ledPin}`, color: "#fbbf24" },
+            { label: "LED (−)", to: "GND", color: "#9ca3af" },
+          ] : []),
         ],
       });
     });
@@ -2949,7 +3015,10 @@ export default function Home() {
         wires: [
           { label: "SIG", to: `D${sensor.pin}`, color: "#22d3ee" },
           { label: "GND", to: "GND", color: "#9ca3af" },
-          ...((sensor.ledPin ?? -1) >= 0 ? [{ label: "LED", to: `D${sensor.ledPin}`, color: "#fbbf24" }] : []),
+          ...((sensor.ledPin ?? -1) >= 0 ? [
+            { label: "LED (+)", to: `220Ω → D${sensor.ledPin}`, color: "#fbbf24" },
+            { label: "LED (−)", to: "GND", color: "#9ca3af" },
+          ] : []),
         ],
       });
     });
@@ -2968,7 +3037,10 @@ export default function Home() {
           { label: "VRx", to: `A${joy.xPin}`, color: "#a78bfa" },
           { label: "VRy", to: `A${joy.yPin}`, color: "#c4b5fd" },
           ...(joy.buttonPin >= 0 ? [{ label: "SW", to: `D${joy.buttonPin}`, color: "#818cf8" }] : []),
-          ...((joy.ledPin ?? -1) >= 0 ? [{ label: "LED", to: `D${joy.ledPin}`, color: "#fbbf24" }] : []),
+          ...((joy.ledPin ?? -1) >= 0 ? [
+            { label: "LED (+)", to: `220Ω → D${joy.ledPin}`, color: "#fbbf24" },
+            { label: "LED (−)", to: "GND", color: "#9ca3af" },
+          ] : []),
         ],
       });
     });
@@ -2982,8 +3054,10 @@ export default function Home() {
         docsUrl: "https://www.arduino.cc/reference/en/language/functions/digital-io/digitalwrite/",
         docsLabel: "Arduino digitalWrite() docs",
         wires: [
-          { label: "Active", to: `D${leds.onPin}`, color: "#fbbf24" },
-          { label: "Idle", to: `D${leds.offPin}`, color: "#a3a3a3" },
+          { label: "Active (+)", to: `220Ω → D${leds.onPin}`, color: "#fbbf24" },
+          { label: "Active (−)", to: "GND", color: "#9ca3af" },
+          { label: "Idle (+)", to: `220Ω → D${leds.offPin}`, color: "#a3a3a3" },
+          { label: "Idle (−)", to: "GND", color: "#9ca3af" },
         ],
       });
     }
@@ -3633,35 +3707,10 @@ export default function Home() {
                 )}
               </section>
 
-              <section className="bg-gray-800/80 border border-gray-700/70 rounded-3xl p-5">
-                <div className="flex items-center justify-between gap-3 mb-4">
-                  <div>
-                    <h2 className="text-sm font-semibold text-gray-200">Component Layout</h2>
-                    <p className="text-[11px] text-gray-500 mt-1">A live index of each component wiring block in this setup.</p>
-                  </div>
-                  <span className="text-[10px] text-gray-600">{wiringSetupCards.length} cards</span>
-                </div>
-
-                {wiringSetupCards.length > 0 ? (
-                  <div className="grid sm:grid-cols-2 gap-3">
-                    {wiringSetupCards.map((card) => (
-                      <WiringPreviewCard
-                        key={card.id}
-                        title={card.title}
-                        subtitle={card.subtitle}
-                        accentClass={card.accentClass}
-                        onOpen={() => setWiringPreview({ kind: "component", card })}
-                      >
-                        <WiringTable wires={card.wires} docsUrl={card.docsUrl} docsLabel={card.docsLabel} compact />
-                      </WiringPreviewCard>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-gray-700/70 bg-gray-900/20 px-4 py-10 text-center">
-                    <p className="text-sm text-gray-300">Add an input in Configure to generate the component layout.</p>
-                  </div>
-                )}
-              </section>
+              <ComponentLayoutSection
+                wiringSetupCards={wiringSetupCards}
+                onOpen={(card) => setWiringPreview({ kind: "component", card })}
+              />
             </div>
 
             <section className="bg-gray-800/80 border border-gray-700/70 rounded-3xl p-5">

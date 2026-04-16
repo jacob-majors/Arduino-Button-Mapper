@@ -40,132 +40,270 @@
 
 /* ══════════════════════════════════════════════════════════════
    LIGHT MODE — applied when <html class="light">
+   Palette: bright slate with soft tinted surfaces
    ══════════════════════════════════════════════════════════════ */
 
 html.light,
 html.light body {
-  background-color: #dfe4eb;
-  color: #17212f;
+  background-color: #f4f7fb;
+  color: #0f172a;
   color-scheme: light;
 }
 
 /* ── Page / structural backgrounds ──────────────────────── */
-html.light .bg-gray-900   { background-color: #dfe4eb !important; }
-html.light .bg-gray-800   { background-color: #eef2f6 !important; }
+html.light .bg-gray-950 { background-color: #edf2f7 !important; }
+html.light .bg-gray-900 { background-color: #f8fafc !important; }
+html.light .bg-gray-800 { background-color: #ffffff !important; }
+html.light .bg-gray-700 { background-color: #f1f5f9 !important; }
+html.light .bg-gray-600 { background-color: #e2e8f0 !important; }
+html.light .bg-gray-500 { background-color: #cbd5e1 !important; }
 
-html.light .bg-gray-800\/80 { background-color: rgba(238,242,246,0.94) !important; }
-html.light .bg-gray-800\/70 { background-color: rgba(238,242,246,0.9) !important; }
-html.light .bg-gray-800\/60 { background-color: rgba(238,242,246,0.86) !important; }
-html.light .bg-gray-800\/50 { background-color: rgba(238,242,246,0.8) !important; }
-html.light .bg-gray-800\/40 { background-color: rgba(238,242,246,0.72) !important; }
-html.light .bg-gray-800\/30 { background-color: rgba(238,242,246,0.58) !important; }
-html.light .bg-gray-700   { background-color: #d1d8e1 !important; }
-
-html.light .bg-gray-900\/40 { background-color: rgba(223,228,235,0.82) !important; }
-html.light .bg-gray-900\/20 { background-color: rgba(223,228,235,0.56) !important; }
+html.light .bg-gray-950\/40 { background-color: rgba(237, 242, 247, 0.72) !important; }
+html.light .bg-gray-900\/80 { background-color: rgba(248, 250, 252, 0.95) !important; }
+html.light .bg-gray-900\/70 { background-color: rgba(248, 250, 252, 0.88) !important; }
+html.light .bg-gray-900\/60 { background-color: rgba(248, 250, 252, 0.8) !important; }
+html.light .bg-gray-900\/50 { background-color: rgba(248, 250, 252, 0.72) !important; }
+html.light .bg-gray-900\/40 { background-color: rgba(248, 250, 252, 0.58) !important; }
+html.light .bg-gray-900\/30 { background-color: rgba(248, 250, 252, 0.46) !important; }
+html.light .bg-gray-900\/20 { background-color: rgba(248, 250, 252, 0.34) !important; }
+html.light .bg-gray-900\/18 { background-color: rgba(248, 250, 252, 0.28) !important; }
+html.light .bg-gray-900\/12 { background-color: rgba(248, 250, 252, 0.18) !important; }
+html.light .bg-gray-800\/80 { background-color: rgba(255, 255, 255, 0.9) !important; }
+html.light .bg-gray-800\/70 { background-color: rgba(255, 255, 255, 0.84) !important; }
+html.light .bg-gray-800\/60 { background-color: rgba(255, 255, 255, 0.76) !important; }
+html.light .bg-gray-800\/50 { background-color: rgba(255, 255, 255, 0.68) !important; }
+html.light .bg-gray-800\/40 { background-color: rgba(255, 255, 255, 0.58) !important; }
+html.light .bg-gray-800\/35 { background-color: rgba(255, 255, 255, 0.5) !important; }
+html.light .bg-gray-800\/30 { background-color: rgba(255, 255, 255, 0.42) !important; }
+html.light .bg-gray-700\/80 { background-color: rgba(241, 245, 249, 0.9) !important; }
+html.light .bg-gray-700\/70 { background-color: rgba(241, 245, 249, 0.82) !important; }
+html.light .bg-gray-700\/60 { background-color: rgba(241, 245, 249, 0.76) !important; }
+html.light .bg-gray-700\/40 { background-color: rgba(241, 245, 249, 0.72) !important; }
+html.light .bg-gray-100 { background-color: #ffffff !important; }
 html.light .bg-\[radial-gradient\(circle_at_top\,_rgba\(56\,189\,248\,0\.12\)\,_transparent_30\%\)\,linear-gradient\(180deg\,_rgba\(15\,23\,42\,0\.96\)_0\%\,_rgba\(15\,23\,42\,1\)_24\%\,_rgba\(2\,6\,23\,1\)_100\%\)\] {
   background-image:
-    radial-gradient(circle at top, rgba(56, 189, 248, 0.06), transparent 28%),
-    linear-gradient(180deg, #e7ebf1 0%, #dfe4eb 22%, #d5dbe3 100%) !important;
+    radial-gradient(circle at top, rgba(59, 130, 246, 0.12), transparent 32%),
+    linear-gradient(180deg, #f8fbff 0%, #f4f7fb 24%, #eef3f8 100%) !important;
 }
 
 /* ── Inputs / selects / textareas ──────────────────────── */
 html.light select,
 html.light input:not([type="range"]),
 html.light textarea {
-  background-color: #f1f4f7 !important;
-  color: #17212f !important;
-  border-color: #b8c3d1 !important;
+  background-color: rgba(255, 255, 255, 0.94) !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
 }
 html.light input::placeholder,
-html.light textarea::placeholder { color: #738294 !important; }
+html.light textarea::placeholder { color: #94a3b8 !important; }
 
 /* ── Text ───────────────────────────────────────────────── */
-html.light .text-gray-100 { color: #17212f !important; }
-html.light .text-gray-200 { color: #283548 !important; }
-html.light .text-gray-300 { color: #415166 !important; }
-html.light .text-gray-400 { color: #57677d !important; }
-html.light .text-gray-500 { color: #6b7b8f !important; }
-html.light .text-gray-600 { color: #8694a6 !important; }
-html.light .text-gray-700 { color: #8694a6 !important; }
+html.light .text-gray-100 { color: #0f172a !important; }
+html.light .text-gray-200 { color: #1e293b !important; }
+html.light .text-gray-300 { color: #334155 !important; }
+html.light .text-gray-400 { color: #475569 !important; }
+html.light .text-gray-500 { color: #64748b !important; }
+html.light .text-gray-600 { color: #7c8ba1 !important; }
+html.light .text-gray-700 { color: #94a3b8 !important; }
+html.light .text-gray-800 { color: #334155 !important; }
+html.light .text-gray-900 { color: #0f172a !important; }
 
-/* ── Borders ────────────────────────────────────────────── */
-html.light .border-gray-900 { border-color: #ccd4de !important; }
-html.light .border-gray-800 { border-color: #ccd4de !important; }
-html.light .border-gray-700 { border-color: #b8c3d1 !important; }
-html.light .border-gray-700\/80 { border-color: rgba(184,195,209,0.9) !important; }
-html.light .border-gray-700\/70 { border-color: rgba(184,195,209,0.84) !important; }
-html.light .border-gray-700\/60 { border-color: rgba(184,195,209,0.78) !important; }
-html.light .border-gray-700\/40 { border-color: rgba(184,195,209,0.62) !important; }
-html.light .border-gray-600 { border-color: #8c9aac !important; }
-html.light .border-gray-600\/50 { border-color: rgba(140,154,172,0.72) !important; }
-html.light .shadow-\[0_18px_45px_rgba\(15\,23\,42\,0\.12\)\] { box-shadow: 0 16px 36px rgba(107, 123, 143, 0.16) !important; }
-html.light .shadow-\[0_8px_30px_rgba\(15\,23\,42\,0\.05\)\] { box-shadow: 0 8px 24px rgba(107, 123, 143, 0.1) !important; }
+/* ── Borders / shadows ──────────────────────────────────── */
+html.light .border-gray-900 { border-color: #d9e2ec !important; }
+html.light .border-gray-800 { border-color: #d9e2ec !important; }
+html.light .border-gray-800\/70 { border-color: rgba(217, 226, 236, 0.88) !important; }
+html.light .border-gray-800\/60 { border-color: rgba(217, 226, 236, 0.78) !important; }
+html.light .border-gray-800\/50 { border-color: rgba(217, 226, 236, 0.68) !important; }
+html.light .border-gray-800\/40 { border-color: rgba(217, 226, 236, 0.56) !important; }
+html.light .border-gray-700 { border-color: #cbd5e1 !important; }
+html.light .border-gray-700\/80 { border-color: rgba(203, 213, 225, 0.9) !important; }
+html.light .border-gray-700\/70 { border-color: rgba(203, 213, 225, 0.82) !important; }
+html.light .border-gray-700\/60 { border-color: rgba(203, 213, 225, 0.74) !important; }
+html.light .border-gray-700\/50 { border-color: rgba(203, 213, 225, 0.66) !important; }
+html.light .border-gray-700\/40 { border-color: rgba(203, 213, 225, 0.56) !important; }
+html.light .border-gray-700\/30 { border-color: rgba(203, 213, 225, 0.44) !important; }
+html.light .border-gray-600 { border-color: #b7c4d4 !important; }
+html.light .border-gray-600\/50 { border-color: rgba(183, 196, 212, 0.72) !important; }
+html.light .border-gray-500 { border-color: #94a3b8 !important; }
+html.light .border-gray-400 { border-color: #7c8ba1 !important; }
+html.light .border-gray-200 { border-color: #e2e8f0 !important; }
+html.light .shadow-\[0_18px_45px_rgba\(15\,23\,42\,0\.12\)\] { box-shadow: 0 18px 42px rgba(148, 163, 184, 0.18) !important; }
+html.light .shadow-\[0_8px_30px_rgba\(15\,23\,42\,0\.05\)\]  { box-shadow: 0 10px 26px rgba(148, 163, 184, 0.14) !important; }
 
-/* ── Button / Switch / Port cards — BLUE ───────────────── */
-html.light .bg-blue-950\/60  { background-color: #d5e2ef !important; }
-html.light .bg-blue-950\/50  { background-color: #e3ecf5 !important; }
-html.light .bg-blue-900\/70  { background-color: #c7d8e9 !important; }
-html.light .bg-blue-900\/60  { background-color: #d5e2ef !important; }
-html.light .bg-blue-900\/40  { background-color: #e3ecf5 !important; }
-html.light .border-blue-800\/50  { border-color: #93c5fd !important; }
-html.light .border-blue-700\/60  { border-color: #60a5fa !important; }
-html.light .border-blue-600\/50  { border-color: #3b82f6 !important; }
-html.light .border-blue-500\/80  { border-color: #2563eb !important; }
-html.light .border-blue-500      { border-color: #2563eb !important; }
+/* ── Blue surfaces ──────────────────────────────────────── */
+html.light .bg-blue-950\/60,
+html.light .bg-blue-900\/70 { background-color: rgba(191, 219, 254, 0.86) !important; }
+html.light .bg-blue-950\/50,
+html.light .bg-blue-900\/60,
+html.light .bg-blue-700\/60 { background-color: rgba(219, 234, 254, 0.82) !important; }
+html.light .bg-blue-950\/40,
+html.light .bg-blue-900\/50,
+html.light .bg-blue-900\/40,
+html.light .bg-blue-800\/40,
+html.light .bg-blue-700\/40,
+html.light .bg-blue-600\/20,
+html.light .bg-blue-500\/20,
+html.light .bg-blue-500\/15,
+html.light .bg-blue-500\/10 { background-color: rgba(219, 234, 254, 0.62) !important; }
+html.light .border-blue-800\/60,
+html.light .border-blue-700\/60 { border-color: rgba(96, 165, 250, 0.78) !important; }
+html.light .border-blue-800\/50,
+html.light .border-blue-700\/50,
+html.light .border-blue-600\/60,
+html.light .border-blue-500\/60 { border-color: rgba(96, 165, 250, 0.66) !important; }
+html.light .border-blue-700\/40,
+html.light .border-blue-600\/50,
+html.light .border-blue-600\/40,
+html.light .border-blue-600\/30,
+html.light .border-blue-500\/20,
+html.light .border-blue-500\/50,
+html.light .border-blue-500\/40,
+html.light .border-blue-800\/30,
+html.light .border-blue-500 { border-color: rgba(96, 165, 250, 0.54) !important; }
 
-/* ── Power button cards — AMBER ─────────────────────────── */
-html.light .bg-amber-950\/60  { background-color: #ece3bc !important; }
-html.light .bg-amber-950\/50  { background-color: #f1ead1 !important; }
-html.light .bg-amber-900\/70  { background-color: #e6d79c !important; }
-html.light .bg-amber-900\/50  { background-color: #ece3bc !important; }
-html.light .bg-amber-900\/40  { background-color: #f1ead1 !important; }
-html.light .bg-amber-900\/20  { background-color: #f3efde !important; }
-html.light .border-amber-700\/60 { border-color: #fcd34d !important; }
-html.light .border-amber-700\/50 { border-color: #fcd34d !important; }
-html.light .border-amber-600\/60 { border-color: #f59e0b !important; }
-html.light .border-amber-500\/80 { border-color: #d97706 !important; }
-html.light .border-amber-500     { border-color: #d97706 !important; }
+/* ── Amber surfaces ─────────────────────────────────────── */
+html.light .bg-amber-950\/50,
+html.light .bg-amber-900\/70,
+html.light .bg-amber-700\/60 { background-color: rgba(253, 230, 138, 0.84) !important; }
+html.light .bg-amber-950\/40,
+html.light .bg-amber-900\/60,
+html.light .bg-amber-900\/50,
+html.light .bg-amber-900\/40 { background-color: rgba(254, 240, 138, 0.7) !important; }
+html.light .bg-amber-950\/20,
+html.light .bg-amber-950\/10,
+html.light .bg-amber-900\/30,
+html.light .bg-amber-900\/20,
+html.light .bg-amber-500\/20 { background-color: rgba(254, 243, 199, 0.7) !important; }
+html.light .border-amber-800\/40,
+html.light .border-amber-700\/60,
+html.light .border-amber-600\/70,
+html.light .border-amber-600\/60 { border-color: rgba(217, 119, 6, 0.68) !important; }
+html.light .border-amber-700\/50,
+html.light .border-amber-700\/40,
+html.light .border-amber-700\/30,
+html.light .border-amber-500\/30,
+html.light .border-amber-500\/80,
+html.light .border-amber-500 { border-color: rgba(217, 119, 6, 0.54) !important; }
 
-/* ── IR sensor cards — EMERALD ──────────────────────────── */
-html.light .bg-emerald-950\/60  { background-color: #d3e8de !important; }
-html.light .bg-emerald-950\/50  { background-color: #e2efe8 !important; }
-html.light .bg-emerald-900\/70  { background-color: #c0dfd0 !important; }
-html.light .bg-emerald-900\/40  { background-color: #d3e8de !important; }
-html.light .bg-emerald-900\/20  { background-color: #e2efe8 !important; }
-html.light .border-emerald-700\/60 { border-color: #34d399 !important; }
-html.light .border-emerald-700\/50 { border-color: #34d399 !important; }
-html.light .border-emerald-600\/60 { border-color: #10b981 !important; }
-html.light .border-emerald-500\/80 { border-color: #059669 !important; }
-html.light .border-emerald-500     { border-color: #059669 !important; }
+/* ── Emerald surfaces ───────────────────────────────────── */
+html.light .bg-emerald-950\/60,
+html.light .bg-emerald-900\/70,
+html.light .bg-emerald-700\/80 { background-color: rgba(167, 243, 208, 0.82) !important; }
+html.light .bg-emerald-950\/50,
+html.light .bg-emerald-900\/40,
+html.light .bg-emerald-500\/20 { background-color: rgba(209, 250, 229, 0.72) !important; }
+html.light .bg-emerald-900\/20 { background-color: rgba(209, 250, 229, 0.58) !important; }
+html.light .border-emerald-700\/60,
+html.light .border-emerald-600\/70,
+html.light .border-emerald-600\/60 { border-color: rgba(16, 185, 129, 0.62) !important; }
+html.light .border-emerald-500\/40,
+html.light .border-emerald-500\/80,
+html.light .border-emerald-500 { border-color: rgba(16, 185, 129, 0.48) !important; }
 
-/* ── Sip & Puff cards — CYAN ────────────────────────────── */
-html.light .bg-cyan-950\/60  { background-color: #d0e5ea !important; }
-html.light .bg-cyan-950\/50  { background-color: #e0edf0 !important; }
-html.light .bg-cyan-900\/70  { background-color: #bfd9df !important; }
-html.light .bg-cyan-900\/40  { background-color: #d0e5ea !important; }
-html.light .bg-cyan-900\/20  { background-color: #e0edf0 !important; }
-html.light .border-cyan-700\/60 { border-color: #22d3ee !important; }
-html.light .border-cyan-700\/50 { border-color: #22d3ee !important; }
-html.light .border-cyan-600\/60 { border-color: #06b6d4 !important; }
-html.light .border-cyan-500\/80 { border-color: #0891b2 !important; }
-html.light .border-cyan-500     { border-color: #0891b2 !important; }
+/* ── Cyan surfaces ──────────────────────────────────────── */
+html.light .bg-cyan-950\/60,
+html.light .bg-cyan-900\/70,
+html.light .bg-cyan-700\/60 { background-color: rgba(165, 243, 252, 0.82) !important; }
+html.light .bg-cyan-950\/50,
+html.light .bg-cyan-900\/40,
+html.light .bg-cyan-500\/20 { background-color: rgba(207, 250, 254, 0.72) !important; }
+html.light .bg-cyan-900\/20 { background-color: rgba(207, 250, 254, 0.58) !important; }
+html.light .border-cyan-900\/40,
+html.light .border-cyan-700\/60,
+html.light .border-cyan-600\/70,
+html.light .border-cyan-600\/60 { border-color: rgba(6, 182, 212, 0.62) !important; }
+html.light .border-cyan-700\/30,
+html.light .border-cyan-500\/50,
+html.light .border-cyan-500\/40,
+html.light .border-cyan-500\/80,
+html.light .border-cyan-500 { border-color: rgba(6, 182, 212, 0.48) !important; }
 
-/* ── Joystick cards — VIOLET ────────────────────────────── */
-html.light .bg-violet-950\/60  { background-color: #dfdbea !important; }
-html.light .bg-violet-950\/50  { background-color: #eae7f0 !important; }
-html.light .bg-violet-900\/70  { background-color: #d2cae0 !important; }
-html.light .bg-violet-900\/40  { background-color: #dfdbea !important; }
-html.light .bg-violet-900\/20  { background-color: #eae7f0 !important; }
-html.light .border-violet-700\/60 { border-color: #a78bfa !important; }
-html.light .border-violet-700\/50 { border-color: #a78bfa !important; }
-html.light .border-violet-600\/60 { border-color: #7c3aed !important; }
-html.light .border-violet-500\/80 { border-color: #6d28d9 !important; }
-html.light .border-violet-500     { border-color: #6d28d9 !important; }
+/* ── Violet surfaces ────────────────────────────────────── */
+html.light .bg-violet-950\/60,
+html.light .bg-violet-900\/70,
+html.light .bg-violet-700\/70 { background-color: rgba(221, 214, 254, 0.84) !important; }
+html.light .bg-violet-950\/50,
+html.light .bg-violet-900\/40,
+html.light .bg-violet-700\/40,
+html.light .bg-violet-600\/30,
+html.light .bg-violet-600\/20,
+html.light .bg-violet-500\/20 { background-color: rgba(237, 233, 254, 0.74) !important; }
+html.light .bg-violet-950\/20,
+html.light .bg-violet-900\/20,
+html.light .bg-violet-600\/10 { background-color: rgba(245, 243, 255, 0.7) !important; }
+html.light .border-violet-900\/40,
+html.light .border-violet-700\/60,
+html.light .border-violet-600\/70,
+html.light .border-violet-600\/60 { border-color: rgba(139, 92, 246, 0.62) !important; }
+html.light .border-violet-700\/50,
+html.light .border-violet-700\/30,
+html.light .border-violet-600\/50,
+html.light .border-violet-600\/30,
+html.light .border-violet-500\/50,
+html.light .border-violet-500\/40,
+html.light .border-violet-500\/30,
+html.light .border-violet-500\/80,
+html.light .border-violet-500 { border-color: rgba(139, 92, 246, 0.48) !important; }
 
-/* ── Hover overrides ─────────────────────────────────────── */
-html.light .hover\:bg-gray-800:hover  { background-color: #e4eaf0 !important; }
-html.light .hover\:bg-gray-700:hover  { background-color: #d6dde5 !important; }
-html.light .hover\:border-gray-600:hover { border-color: #8c9aac !important; }
-html.light .hover\:text-gray-200:hover   { color: #283548 !important; }
-html.light .hover\:text-gray-300:hover   { color: #415166 !important; }
+/* ── Red surfaces ───────────────────────────────────────── */
+html.light .bg-red-950\/60,
+html.light .bg-red-900\/60 { background-color: rgba(254, 202, 202, 0.82) !important; }
+html.light .bg-red-950\/50,
+html.light .bg-red-950\/40,
+html.light .bg-red-900\/40,
+html.light .bg-red-900\/30 { background-color: rgba(254, 226, 226, 0.72) !important; }
+html.light .bg-red-950\/30,
+html.light .bg-red-900\/20,
+html.light .bg-red-500\/10,
+html.light .bg-red-400\/10 { background-color: rgba(254, 242, 242, 0.76) !important; }
+html.light .border-red-900\/40,
+html.light .border-red-800\/50,
+html.light .border-red-800\/40,
+html.light .border-red-700\/60,
+html.light .border-red-700\/50 { border-color: rgba(239, 68, 68, 0.56) !important; }
+html.light .border-red-800\/30,
+html.light .border-red-700\/40 { border-color: rgba(239, 68, 68, 0.44) !important; }
+
+/* ── Hover overrides ────────────────────────────────────── */
+html.light .hover\:bg-gray-900\/50:hover { background-color: rgba(248, 250, 252, 0.72) !important; }
+html.light .hover\:bg-gray-800:hover,
+html.light .hover\:bg-gray-800\/30:hover,
+html.light .hover\:bg-gray-800\/50:hover { background-color: rgba(255, 255, 255, 0.82) !important; }
+html.light .hover\:bg-gray-700:hover,
+html.light .hover\:bg-gray-700\/80:hover,
+html.light .hover\:bg-gray-700\/70:hover,
+html.light .hover\:bg-gray-700\/60:hover { background-color: rgba(241, 245, 249, 0.88) !important; }
+html.light .hover\:bg-gray-600:hover { background-color: #e2e8f0 !important; }
+html.light .hover\:bg-gray-100:hover { background-color: #f8fafc !important; }
+html.light .hover\:bg-blue-600\/30:hover,
+html.light .hover\:bg-blue-600\/20:hover { background-color: rgba(219, 234, 254, 0.82) !important; }
+html.light .hover\:bg-violet-900\/40:hover,
+html.light .hover\:bg-violet-900\/20:hover,
+html.light .hover\:bg-violet-700\/70:hover,
+html.light .hover\:bg-violet-600\/30:hover,
+html.light .hover\:bg-violet-600\/20:hover { background-color: rgba(237, 233, 254, 0.88) !important; }
+html.light .hover\:bg-amber-900\/40:hover,
+html.light .hover\:bg-amber-900\/30:hover { background-color: rgba(254, 240, 138, 0.82) !important; }
+html.light .hover\:bg-cyan-600\/20:hover { background-color: rgba(207, 250, 254, 0.84) !important; }
+html.light .hover\:bg-red-900\/60:hover,
+html.light .hover\:bg-red-900\/30:hover,
+html.light .hover\:bg-red-900\/20:hover { background-color: rgba(254, 226, 226, 0.88) !important; }
+html.light .hover\:border-gray-700:hover,
+html.light .hover\:border-gray-600:hover,
+html.light .hover\:border-gray-500:hover,
+html.light .hover\:border-gray-400:hover { border-color: #94a3b8 !important; }
+html.light .hover\:border-blue-700\/60:hover,
+html.light .hover\:border-blue-500\/50:hover { border-color: rgba(59, 130, 246, 0.62) !important; }
+html.light .hover\:border-violet-700\/50:hover,
+html.light .hover\:border-violet-600\/70:hover,
+html.light .hover\:border-violet-600\/60:hover,
+html.light .hover\:border-violet-500\/50:hover { border-color: rgba(124, 58, 237, 0.56) !important; }
+html.light .hover\:border-cyan-600\/70:hover,
+html.light .hover\:border-cyan-500\/50:hover { border-color: rgba(8, 145, 178, 0.56) !important; }
+html.light .hover\:border-emerald-600\/70:hover { border-color: rgba(5, 150, 105, 0.56) !important; }
+html.light .hover\:border-amber-600\/70:hover { border-color: rgba(180, 83, 9, 0.56) !important; }
+html.light .hover\:border-red-700\/60:hover { border-color: rgba(220, 38, 38, 0.56) !important; }
+html.light .hover\:text-gray-400:hover { color: #475569 !important; }
+html.light .hover\:text-gray-300:hover { color: #334155 !important; }
+html.light .hover\:text-gray-200:hover,
+html.light .hover\:text-gray-100:hover { color: #0f172a !important; }
