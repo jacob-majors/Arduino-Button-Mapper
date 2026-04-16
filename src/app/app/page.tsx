@@ -3463,7 +3463,6 @@ export default function Home() {
         </div>
       )}
 
-      <div className={["flex-1 min-h-0 transition-all duration-300 ease-out", wsUploading ? "upload-picker-backdrop-active" : ""].join(" ")}>
       {/* ══ WIRING TAB ═════════════════════════════════════════════════════ */}
       {tab === "wiring" && (
         <div className="flex-1 overflow-y-auto">
@@ -4868,7 +4867,13 @@ export default function Home() {
           </div>
         </div>
       )}
-      </div>
+
+      {wsUploading && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none fixed inset-0 z-[45] bg-slate-950/22 backdrop-blur-[2px]"
+        />
+      )}
 
       {/* IDE modal */}
       {showSketch && sketchCode && (
