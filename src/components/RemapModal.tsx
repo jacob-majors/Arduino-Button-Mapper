@@ -48,6 +48,8 @@ function KeyCell({ entry, onChange }: { entry: RemapEntry; onChange: (newKey: st
 
   return (
     <button
+      type="button"
+      onMouseDown={(e) => e.stopPropagation()}
       onClick={handleCapture}
       className={[
         "flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-mono transition-all border",
@@ -540,7 +542,11 @@ export default function RemapModal({
   return (
     <div className="fixed inset-0 z-[400] flex items-center justify-center p-4" onClick={(ev) => ev.target === ev.currentTarget && onClose()}>
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-2xl max-h-[92vh] flex flex-col bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl overflow-hidden">
+      <div
+        className="relative z-10 w-full max-w-2xl max-h-[92vh] flex flex-col bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl overflow-hidden"
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+      >
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-800 flex-shrink-0">

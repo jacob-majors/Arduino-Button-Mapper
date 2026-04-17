@@ -80,6 +80,37 @@ async function openPort(port: any, options: Record<string, unknown>, timeoutMs =
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function closePortQuietly(port: any): Promise<void> {
+  try { await port?.close?.(); } catch { /* ignore */ }
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function probeCaterinaBootloader(port: any, timeoutMs = 500): Promise<string | null> {
+  const flashOpts = { baudRate: 57600, dataBits: 8, stopBits: 1, parity: "none" };
+  if (!await openPort(port, flashOpts, timeoutMs)) return null;
+
+  let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
+  let writer: WritableStreamDefaultWriter<Uint8Array> | null = null;
+  try {
+    writer = port.writable?.getWriter?.() ?? null;
+    reader = port.readable?.getReader?.() ?? null;
+    if (!writer || !reader) return null;
+
+    await writer.write(new Uint8Array([0x53])); // 'S' — software identifier
+    const resp = await readExact(reader, 7, timeoutMs);
+    const id = String.fromCharCode(...Array.from(resp)).trim();
+    if (id.includes("CATERIN") || id.includes("Arduino")) return id;
+    return null;
+  } catch {
+    return null;
+  } finally {
+    try { reader?.releaseLock(); } catch { /* ignore */ }
+    try { writer?.releaseLock(); } catch { /* ignore */ }
+    await closePortQuietly(port);
+  }
+}
+
 async function readExact(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   n: number,
@@ -192,85 +223,122 @@ export async function compileAndUpload(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let port: any = null;
 
-  onProgress("Select your Arduino in the browser dialog…");
-  try {
-    port = await serial.requestPort({ filters: ARDUINO_SERIAL_FILTERS });
-  } catch (e: unknown) {
-    const err = e as Error;
-    if (err?.name === "NotAllowedError" || err?.message?.includes("No port selected")) {
-      throw new Error("Upload cancelled — no port was selected.");
+  if (!forceNewPort) {
+    try {
+      const grantedPorts = await getGrantedArduinoPorts(serial);
+      if (grantedPorts.length === 1) {
+        port = grantedPorts[0];
+        onProgress("Using your saved Arduino port…");
+      } else if (grantedPorts.length > 1) {
+        port = grantedPorts[0];
+        onProgress("Using the first saved Arduino-compatible port…");
+      }
+    } catch { /* fall through to picker */ }
+  }
+
+  if (!port) {
+    onProgress("Select your Arduino in the browser dialog…");
+    try {
+      port = await serial.requestPort({ filters: ARDUINO_SERIAL_FILTERS });
+    } catch (e: unknown) {
+      const err = e as Error;
+      const pickerBlocked = err?.name === "NotFoundError" || err?.message?.includes("No port selected");
+      if (!pickerBlocked) {
+        throw new Error(`Could not open port picker: ${err?.message ?? String(e)}`);
+      }
     }
-    throw new Error(`Could not open port picker: ${err?.message ?? String(e)}`);
+  }
+
+  if (!port) {
+    onProgress("No filtered Arduino port found — opening full serial device list…");
+    try {
+      port = await serial.requestPort({ filters: [] });
+    } catch (e: unknown) {
+      const err = e as Error;
+      if (err?.name === "NotAllowedError" || err?.name === "NotFoundError" || err?.message?.includes("No port selected")) {
+        throw new Error("Upload cancelled — no port was selected.");
+      }
+      throw new Error(`Could not open port picker: ${err?.message ?? String(e)}`);
+    }
   }
 
   // ── Step 3 & 4: Bootloader detection / 1200-baud touch ──────────────────
   const flashOpts = { baudRate: 57600, dataBits: 8, stopBits: 1, parity: "none" };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let bp: any = null;
+  let bootloaderId: string | null = null;
 
   // Fast-path: if the selected port IS already the bootloader (user held/double-
   // pressed reset before clicking upload) verify with a Caterina handshake.
-  if (await openPort(port, flashOpts, 500)) {
-    try {
-      const tw = port.writable!.getWriter();
-      const tr = port.readable!.getReader();
-      try {
-        await tw.write(new Uint8Array([0x53]));
-        const resp = await readExact(tr, 7, 300);
-        const id = String.fromCharCode(...Array.from(resp));
-        if (id.includes("CATERIN") || id.includes("Arduino")) {
-          bp = port;
-          onProgress("✓ Bootloader detected — uploading…");
-        }
-      } catch { /* sketch mode — do 1200-baud touch below */ }
-      try { tr.releaseLock(); } catch { /* ignore */ }
-      try { tw.releaseLock(); } catch { /* ignore */ }
-      if (!bp) { try { await port.close(); } catch { /* ignore */ } }
-    } catch {
-      try { await port.close(); } catch { /* ignore */ }
+  bootloaderId = await probeCaterinaBootloader(port, 500);
+  if (bootloaderId) {
+    if (!await openPort(port, flashOpts, 1200)) {
+      throw new Error("Bootloader was detected, but the connection could not be reopened for flashing.");
     }
+    bp = port;
+    onProgress("✓ Bootloader detected — uploading…");
   }
 
   if (!bp) {
-    // Trigger the bootloader via 1200-baud touch
     onProgress("Resetting board into bootloader…");
     await openPort(port, { baudRate: 1200 }, 3000);
-    try { await port.close(); } catch { /* ignore */ }
+    await closePortQuietly(port);
 
-    // Wait just long enough for the old device to disappear from USB (~400 ms).
-    // We open the browser dialog immediately after — Chrome's port picker updates
-    // in real-time, so the bootloader device appears in the list as it enumerates
-    // (~1–2 s after the touch). The user just has to wait a moment then click it.
-    await new Promise((r) => setTimeout(r, 400));
+    onProgress("Waiting for bootloader to enumerate…");
+    await new Promise((r) => setTimeout(r, 1200));
 
-    // Quick check: if this user has uploaded before the bootloader port is already
-    // known to Chrome and we can connect without any dialog.
-    const allGranted: unknown[] = await serial.getPorts().catch(() => []);
-    for (const candidate of allGranted.filter((p) => p !== port)) {
-      if (await openPort(candidate, flashOpts, 200)) { bp = candidate; break; }
+    onProgress("Connecting to bootloader…");
+    const deadline = Date.now() + 6500;
+    let loopCount = 0;
+
+    while (!bp && Date.now() < deadline) {
+      const grantedPorts: unknown[] = await serial.getPorts().catch(() => []);
+      const seen = new Set<unknown>();
+      const candidates = [port, ...grantedPorts].filter((candidate) => {
+        if (!candidate || seen.has(candidate)) return false;
+        seen.add(candidate);
+        return true;
+      });
+
+      for (const candidate of candidates) {
+        const id = await probeCaterinaBootloader(candidate, 250);
+        if (!id) continue;
+        if (!await openPort(candidate, flashOpts, 1200)) continue;
+        bp = candidate;
+        bootloaderId = id;
+        break;
+      }
+
+      if (!bp) {
+        loopCount += 1;
+        if (loopCount === 4) onProgress("Still waiting for the bootloader port to appear…");
+        await new Promise((r) => setTimeout(r, 250));
+      }
     }
 
     if (!bp) {
-      // Open the dialog straight away — the bootloader will appear in it within
-      // 1–2 s. Tell the user to WAIT in the dialog until they see it, then click.
-      onProgress("📋 Dialog open — WAIT a moment for 'Arduino Leonardo bootloader' to appear, then click Connect");
+      onProgress("📋 Auto-connect failed — if a dialog appears, choose the bootloader port and click Connect");
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const chosen: any = await serial.requestPort({ filters: [] });
-        if (await openPort(chosen, flashOpts, 4000)) bp = chosen;
-      } catch { /* user cancelled */ }
+        const id = await probeCaterinaBootloader(chosen, 600);
+        if (id && await openPort(chosen, flashOpts, 1500)) {
+          bp = chosen;
+          bootloaderId = id;
+        }
+      } catch { /* user cancelled or browser blocked a second picker */ }
     }
   }
 
   if (!bp) {
     throw new Error(
       "Could not connect to the bootloader.\n\n" +
-      "For a guaranteed first-time upload:\n" +
-      "① Double-press the reset button — the LED will pulse slowly (stays in bootloader)\n" +
-      "② Click Compile & Upload\n" +
-      "③ Select your Arduino in the first dialog\n" +
-      "  → It will say 'Arduino Leonardo bootloader' since you double-pressed reset\n\n" +
-      "After doing this once Chrome remembers the port and future uploads need no reset."
+      "Things to check:\n" +
+      "① Use Chrome or Edge\n" +
+      "② Keep the board still and connected during reset\n" +
+      "③ Try a USB data cable, not a charge-only cable\n" +
+      "④ If it is a clone board, use the full serial picker when prompted\n\n" +
+      "If it still misses the bootloader, double-press reset first so the bootloader stays visible longer."
     );
   }
   const writer = bp.writable!.getWriter();
@@ -294,7 +362,7 @@ export async function compileAndUpload(
         "Make sure you selected the correct port."
       );
     }
-    onProgress(`Bootloader: ${id.trim()}`);
+    onProgress(`Bootloader: ${(bootloaderId ?? id).trim()}`);
 
     // Select device (ATmega32U4 = 0x44)
     await send([0x54, 0x44]); // 'T'
