@@ -229,35 +229,30 @@ export async function compileAndUpload(
   await openPort(port, { baudRate: 1200 }, 3000);
   try { await port.close(); } catch { /* ignore */ }
 
-  // Fixed 1.5 s wait for the bootloader to enumerate.
-  // The total auto-detection budget is ~4.5 s, well inside the 8-second window.
+  // Wait for bootloader to enumerate. 2.5 s covers slow USB hubs / Windows.
+  // Total budget before dialog: 2.5s wait + up to 4×800ms tries = ~5.7s,
+  // leaving ~2.3s of the 8-second bootloader window for the user dialog.
   onProgress("Waiting for bootloader to enumerate…");
-  await new Promise((r) => setTimeout(r, 1500));
+  await new Promise((r) => setTimeout(r, 2500));
 
   // ── Step 4: Connect to bootloader at 57600 ───────────────────────────────
-  // The bootloader window is ~8 seconds total. Budget: 1.5s wait + 3×1s tries
-  // = 4.5s used, leaving 3.5s for the user to pick the port in the dialog.
   onProgress("Connecting to bootloader…");
-  const QUICK = 1000; // ms per auto-detect attempt
+  const QUICK = 800; // ms per open attempt — short so we cycle through all candidates fast
 
-  // Try 1: original port handle (Mac/Linux often reconnect at the same handle)
-  if (await openPort(port, flashOpts, QUICK)) { bp = port; }
-
-  // Try 2: any other previously-granted port (Windows COM number may change,
-  // or the bootloader was granted in a prior session and is in getPorts())
-  if (!bp) {
-    const allGranted: unknown[] = await serial.getPorts().catch(() => []);
-    for (const candidate of allGranted) {
-      if (candidate === port) continue;
-      if (await openPort(candidate, flashOpts, QUICK)) { bp = candidate; break; }
-    }
+  // Scan every previously-granted port including the original handle.
+  // On Mac/Linux the same handle reconnects as the bootloader after re-enum.
+  // On Windows a previously-granted bootloader port appears as a separate entry.
+  const allGranted: unknown[] = await serial.getPorts().catch(() => []);
+  const candidates = [port, ...allGranted.filter((p) => p !== port)];
+  for (const candidate of candidates) {
+    if (await openPort(candidate, flashOpts, QUICK)) { bp = candidate; break; }
   }
 
-  // Try 3: ask the user — the browser dialog lists the bootloader device by
-  // name. After the user selects it once, Chrome remembers it permanently and
-  // future uploads are fully automatic (Try 1 or Try 2 will catch it).
+  // If auto-detection failed, ask the user. The browser dialog lists the
+  // bootloader device by name. After selecting it once, Chrome remembers it
+  // permanently — future uploads are fully automatic without any dialog.
   if (!bp) {
-    onProgress("📋 Select 'Arduino Leonardo bootloader' in the browser dialog that just opened…");
+    onProgress("📋 Select 'Arduino Leonardo bootloader' in the browser dialog…");
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const chosen: any = await serial.requestPort({ filters: [] });

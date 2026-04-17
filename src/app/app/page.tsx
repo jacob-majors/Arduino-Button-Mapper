@@ -2378,6 +2378,7 @@ export default function Home() {
   const [uploading, setUploading] = useState(false);
   const [uploadDone, setUploadDone] = useState<boolean | null>(null);
   const [loadingPorts, setLoadingPorts] = useState(false);
+  const [backendError, setBackendError] = useState<string | null>(null);
   const [loadingSketch, setLoadingSketch] = useState(false);
   const [showLedInfo, setShowLedInfo] = useState(false);
   const [showRemap, setShowRemap] = useState(false);
@@ -2863,15 +2864,20 @@ export default function Home() {
     setLoadingPorts(true);
     try {
       const res = await fetch(`${BACKEND_URL}/api/ports`);
+      if (!res.ok) throw new Error(`Backend returned HTTP ${res.status}`);
       const data = await res.json();
       const portList = data.ports || [];
       setPorts(portList);
+      setBackendError(null);
       if (portList.length > 0 && !selectedPort) {
         // Prefer Arduino-labeled or usbmodem ports over generic ones
         const best = portList.find((p: Port) => p.description?.toLowerCase().includes('arduino') || p.path?.includes('usbmodem')) ?? portList[0];
         setSelectedPort(best.path);
       }
-    } catch { setPorts([]); }
+    } catch {
+      setPorts([]);
+      setBackendError(`Cannot reach the upload backend at ${BACKEND_URL}. Start the local backend in /backend or set NEXT_PUBLIC_BACKEND_URL to your live backend.`);
+    }
     finally { setLoadingPorts(false); }
   };
 
@@ -3763,6 +3769,20 @@ export default function Home() {
                 </button>
                 <span className="text-[10px] text-gray-600 ml-auto hidden sm:block">Chrome / Edge only</span>
               </div>
+              {backendError && (
+                <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-amber-700/40 bg-amber-950/30 px-3 py-2">
+                  <AlertCircle size={12} className="text-amber-400 flex-shrink-0" />
+                  <p className="text-[11px] text-amber-200 flex-1 min-w-[220px]">{backendError}</p>
+                  <button
+                    onClick={fetchPorts}
+                    disabled={loadingPorts}
+                    className="flex items-center gap-1 rounded-lg border border-amber-700/50 px-2 py-1 text-[10px] text-amber-200 hover:bg-amber-900/30 disabled:opacity-50 transition-colors"
+                  >
+                    {loadingPorts ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
+                    Retry backend
+                  </button>
+                </div>
+              )}
               {(wsUploading || wsLog.length > 0) && (() => {
                 const joined = wsLog.join("\n");
                 const failed = wsLog.some((l) => l.startsWith("✗") || l.toLowerCase().includes("failed") || l.toLowerCase().includes("error"));

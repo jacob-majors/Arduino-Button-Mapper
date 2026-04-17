@@ -126,7 +126,11 @@ export function resolveKey(
 function keyLiteral(k: string): string {
   if (!k) return "0";
   if (k.startsWith("KEY_")) return k;
-  return `'${k}'`;
+  // Only single printable ASCII chars are valid char literals in Arduino C
+  if (k.length !== 1 || k.charCodeAt(0) < 32 || k.charCodeAt(0) > 126) return "0";
+  // Escape backslash and single-quote so they don't break the C literal
+  const escaped = k === "\\" ? "\\\\" : k === "'" ? "\\'" : k;
+  return `'${escaped}'`;
 }
 
 // ─── Sketch generation ────────────────────────────────────────────────────────
@@ -147,9 +151,10 @@ export function generateSketch(
 
   const n = configured.length;
 
+  const safeName = (s: string) => s.replace(/[\r\n*/]/g, " ").trim();
   const btnComments = configured
     .map((b, i) => {
-      const label = b.name ? `: ${b.name}` : "";
+      const label = b.name ? `: ${safeName(b.name)}` : "";
       const key = b.mode === "power" ? "POWER TOGGLE" : `${b.keyDisplay || b.arduinoKey}`;
       return `// Button ${i + 1}${label} — Pin ${b.pin} → ${key} (${b.mode})`;
     })
@@ -506,9 +511,9 @@ bool toggleState[${n}] = {${configured.map(() => "false").join(", ")}};` : "";
   const resetRuntimeStateSection = `
 void resetRuntimeState(int powerButtonIndex) {
 ${resetRuntimeStateParts.join("\n")}
-  if (powerButtonIndex >= 0 && powerButtonIndex < ${Math.max(n, 1)}) {
+${n > 0 ? `  if (powerButtonIndex >= 0 && powerButtonIndex < ${n}) {
     lastButtonState[powerButtonIndex] = LOW;
-  }
+  }` : ""}
 }`;
 
   const btnLoopBody = n > 0 ? `  for (int i = 0; i < numButtons; i++) {
