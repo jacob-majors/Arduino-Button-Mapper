@@ -54,7 +54,8 @@ import {
 } from "@/lib/supabase";
 import type { SaveSlot, AppUser, AdminSettings, DinoScore, DbTemplate, Issue } from "@/lib/supabase";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:3001";
+const REMOTE_BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL?.trim() || "";
+const LOCAL_BACKEND_URL = "http://localhost:3001";
 const ALL_PINS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
 const ANALOG_PINS = [0, 1, 2, 3, 4, 5]; // A0–A5
 
@@ -2358,6 +2359,13 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
 
 export default function Home() {
   const [tab, setTab] = useState<"wiring" | "configure" | "test" | "admin">("configure");
+  const [uploadMethod, setUploadMethod] = useState<"web" | "local">(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("uploadMethod");
+      if (stored === "web" || stored === "local") return stored;
+    }
+    return REMOTE_BACKEND_URL && REMOTE_BACKEND_URL !== LOCAL_BACKEND_URL ? "web" : "local";
+  });
   const [ports, setPorts] = useState<Port[]>([]);
   const [selectedPort, setSelectedPort] = useState("");
   const [buttons, setButtons] = useState<ButtonConfig[]>([
@@ -2463,6 +2471,13 @@ export default function Home() {
   const [reportCategory, setReportCategory] = useState<Issue["category"]>("bug");
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [reportDone, setReportDone] = useState(false);
+  const canUseRemoteBackend = !!REMOTE_BACKEND_URL && REMOTE_BACKEND_URL !== LOCAL_BACKEND_URL;
+  const activeBackendUrl = uploadMethod === "local" || !canUseRemoteBackend ? LOCAL_BACKEND_URL : REMOTE_BACKEND_URL;
+  const uploadMethodLabel = uploadMethod === "local" ? "Local Helper" : "Web Compiler";
+
+  useEffect(() => {
+    if (typeof window !== "undefined") localStorage.setItem("uploadMethod", uploadMethod);
+  }, [uploadMethod]);
   const [isOffline, setIsOffline] = useState(false);
   const [arduinoDetected, setArduinoDetected] = useState(false);
   const arduinoDetectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -2514,7 +2529,7 @@ export default function Home() {
     };
   }, [tab]);
 
-  useEffect(() => { fetchPorts(); }, []);
+  useEffect(() => { fetchPorts(); }, [activeBackendUrl]);
   useEffect(() => { loadDbTemplates().then(setDbTemplates); }, []);
   useEffect(() => {
     if (!showSaveMenu) return;
@@ -2863,7 +2878,7 @@ export default function Home() {
   const fetchPorts = async () => {
     setLoadingPorts(true);
     try {
-      const res = await fetch(`${BACKEND_URL}/api/ports`);
+      const res = await fetch(`${activeBackendUrl}/api/ports`);
       if (!res.ok) throw new Error(`Backend returned HTTP ${res.status}`);
       const data = await res.json();
       const portList = data.ports || [];
@@ -2876,7 +2891,11 @@ export default function Home() {
       }
     } catch {
       setPorts([]);
-      setBackendError(`Cannot reach the upload backend at ${BACKEND_URL}. Start the local backend in /backend or set NEXT_PUBLIC_BACKEND_URL to your live backend.`);
+      setBackendError(
+        uploadMethod === "local"
+          ? `Cannot reach the local helper at ${activeBackendUrl}. Start the local helper package, or run the backend in /backend.`
+          : `Cannot reach the web compiler at ${activeBackendUrl}. Switch to Local Helper or check your deployed backend URL.`
+      );
     }
     finally { setLoadingPorts(false); }
   };
@@ -3098,7 +3117,7 @@ export default function Home() {
     const log = (msg: string) => setWsLog((p) => [...p, msg]);
     try {
       const sketch = customSketch ?? generateSketch(buttons, leds, portInputs, irSensors, sipPuffs, joysticks);
-      await compileAndUpload(BACKEND_URL, sketch, log, forceNewPort);
+      await compileAndUpload(activeBackendUrl, sketch, log, forceNewPort);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       log(`✗ ${msg}`);
@@ -3355,7 +3374,7 @@ export default function Home() {
     setUploading(true); setUploadDone(null); setUploadLog([]);
     const sketch = customSketch ?? generateSketch(buttons, leds, portInputs, irSensors, sipPuffs, joysticks);
     try {
-      const response = await fetch(`${BACKEND_URL}/api/upload`, {
+      const response = await fetch(`${activeBackendUrl}/api/upload`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ port: selectedPort, sketch }),
@@ -3455,6 +3474,52 @@ export default function Home() {
                         <div className="px-3.5 py-2.5 border-b border-gray-700">
                           <p className="text-xs font-semibold text-gray-200 truncate">{appUser.username}</p>
                           <p className="text-[10px] text-gray-500 mt-0.5">Signed in</p>
+                        </div>
+                        <div className="px-3.5 py-2.5 border-b border-gray-700">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-500">Upload Method</p>
+                          <div className="mt-2 flex rounded-lg border border-gray-700 bg-gray-900/60 p-0.5">
+                            <button
+                              onClick={() => setUploadMethod("web")}
+                              disabled={!canUseRemoteBackend}
+                              className={[
+                                "flex-1 rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors",
+                                uploadMethod === "web" ? "bg-sky-600 text-white" : "text-gray-400 hover:text-gray-200",
+                                !canUseRemoteBackend ? "opacity-40 cursor-not-allowed" : "",
+                              ].join(" ")}
+                            >
+                              Web
+                            </button>
+                            <button
+                              onClick={() => setUploadMethod("local")}
+                              className={[
+                                "flex-1 rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors",
+                                uploadMethod === "local" ? "bg-emerald-600 text-white" : "text-gray-400 hover:text-gray-200",
+                              ].join(" ")}
+                            >
+                              Local
+                            </button>
+                          </div>
+                          <p className="mt-2 text-[10px] text-gray-500">
+                            Saved on this browser. Current: <span className="text-gray-300">{uploadMethodLabel}</span>
+                          </p>
+                          {uploadMethod === "local" && (
+                            <div className="mt-2 flex flex-col gap-1.5">
+                              <a
+                                href="/downloads/Arduino-Button-Mapper-Helper-Mac.zip"
+                                download
+                                className="inline-flex items-center gap-1.5 text-[10px] text-emerald-300 hover:text-emerald-200 transition-colors"
+                              >
+                                <Download size={10} /> Download Mac Helper
+                              </a>
+                              <a
+                                href="/downloads/LOCAL-HELPER-README.txt"
+                                download
+                                className="inline-flex items-center gap-1.5 text-[10px] text-gray-400 hover:text-gray-200 transition-colors"
+                              >
+                                <ExternalLink size={10} /> Local helper setup notes
+                              </a>
+                            </div>
+                          )}
                         </div>
                         <button
                           onClick={() => setLightMode(v => !v)}
@@ -3736,6 +3801,31 @@ export default function Home() {
 
             {/* Top bar: Get Code */}
             {adminSettings.show_upload && <section className="bg-gray-800/80 border border-gray-700/70 rounded-2xl px-4 py-3 flex-shrink-0">
+              <div className="mb-3 flex flex-wrap items-start gap-3 rounded-2xl border border-gray-700/60 bg-gray-900/40 px-3 py-3 text-[11px] text-gray-400">
+                <div className="min-w-[160px]">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-gray-500">Upload Method</p>
+                  <p className="mt-1 text-sm font-medium text-gray-200">{uploadMethodLabel}</p>
+                  <p className="mt-1 text-[10px] text-gray-500">Change this from your profile menu.</p>
+                </div>
+                {uploadMethod === "local" ? (
+                  <>
+                    <p className="flex-1 min-w-[240px]">
+                      Local Helper uses a tiny Mac helper running on your computer at <span className="font-mono text-emerald-300">{LOCAL_BACKEND_URL}</span>, so uploads do not depend on the hosted compiler.
+                    </p>
+                    <a
+                      href="/downloads/Arduino-Button-Mapper-Helper-Mac.zip"
+                      download
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-700/50 px-2.5 py-1.5 text-[10px] font-medium text-emerald-200 hover:bg-emerald-900/30 transition-colors"
+                    >
+                      <Download size={10} /> Download Mac Helper
+                    </a>
+                  </>
+                ) : (
+                  <p className="flex-1 min-w-[240px]">
+                    Web Compiler uses your hosted backend and flashes from Chrome or Edge without needing the local helper app.
+                  </p>
+                )}
+              </div>
               <div className="flex flex-wrap items-center gap-2">
                 <button onClick={() => handleWebSerialUpload(false)} disabled={wsUploading} data-tutorial="upload-btn"
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-green-700 to-teal-700 hover:from-green-600 hover:to-teal-600 disabled:opacity-50 text-white font-semibold text-xs transition-all"
@@ -3767,7 +3857,9 @@ export default function Home() {
                 >
                   <RefreshCw size={12} /> Remap
                 </button>
-                <span className="text-[10px] text-gray-600 ml-auto hidden sm:block">Chrome / Edge only</span>
+                <span className="text-[10px] text-gray-600 ml-auto hidden sm:block">
+                  {uploadMethod === "local" ? "Local helper + Chrome / Edge" : "Chrome / Edge only"}
+                </span>
               </div>
               {backendError && (
                 <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-amber-700/40 bg-amber-950/30 px-3 py-2">
@@ -4069,7 +4161,7 @@ export default function Home() {
 
       {showRemap && (
         <RemapModal
-          backendUrl={BACKEND_URL}
+          backendUrl={activeBackendUrl}
           onClose={() => setShowRemap(false)}
           onSave={(remapEntries: RemapEntry[]) => {
             const applyRemap = (entries: RemapEntry[]) => {
@@ -4586,7 +4678,7 @@ export default function Home() {
                 <div className="p-5 flex flex-col gap-3">
                   <div className="p-3 bg-gray-800/50 rounded-xl border border-gray-700/50">
                     <p className="text-[11px] font-medium text-gray-400 mb-1">Compile Backend</p>
-                    <code className="text-[11px] text-green-400 font-mono break-all">{BACKEND_URL}</code>
+                    <code className="text-[11px] text-green-400 font-mono break-all">{activeBackendUrl}</code>
                   </div>
                   <div className="p-3 bg-gray-800/50 rounded-xl border border-gray-700/50">
                     <p className="text-[11px] font-medium text-gray-400 mb-1">Board FQBN</p>

@@ -10,7 +10,11 @@ A web app for programming an Arduino Leonardo as a USB HID controller — map ph
 | Backend | Node.js / Express + `arduino-cli` | Railway (Docker) |
 | Database / Auth | Supabase | Supabase cloud |
 
-The frontend calls the backend at the URL set in `NEXT_PUBLIC_BACKEND_URL`. The backend compiles sketches server-side with `arduino-cli` and streams upload progress back via SSE. Flashing to the board uses the **Web Serial API** in the browser (Chrome/Edge only).
+The frontend can talk to either:
+- a hosted backend set in `NEXT_PUBLIC_BACKEND_URL` for the **Web Compiler** path
+- a local helper running on `http://localhost:3001` for the **Local Helper** path
+
+Both backends compile sketches with `arduino-cli`, and flashing to the board still uses the **Web Serial API** in the browser (Chrome/Edge only).
 
 ---
 
@@ -19,6 +23,7 @@ The frontend calls the backend at the URL set in `NEXT_PUBLIC_BACKEND_URL`. The 
 ### Configure tab
 - Add **buttons**, **joysticks**, **IR sensors**, and **sip/puff** inputs, each mapped to an Arduino pin and a keyboard key or HID action
 - Per-button **LED** pin assignment
+- Switch between **Web Compiler** and **Local Helper** upload methods
 - **Wiring diagram** modal showing how to connect each component
 - **Board connection** modal — lists already-granted serial ports, or opens the browser's native Web Serial picker to grant a new one
 - Live **sketch preview** (generated `.ino` before upload)
@@ -59,7 +64,7 @@ The frontend calls the backend at the URL set in `NEXT_PUBLIC_BACKEND_URL`. The 
 
 ## Running Locally
 
-### 1. Start the backend
+### 1. Start the local helper / backend
 
 ```bash
 cd backend
@@ -67,7 +72,9 @@ npm install
 npm start
 ```
 
-The backend listens on `http://localhost:3001`.
+The local helper listens on `http://localhost:3001`.
+
+If you want the website to use that helper instead of the hosted compiler, switch the in-app Upload Method to `Local Helper`.
 
 ### 2. Start the frontend
 
@@ -90,7 +97,7 @@ NEXT_PUBLIC_SUPABASE_URL=https://<your-project>.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<your-anon-key>
 ```
 
-For the Railway backend deployment, the `arduino-cli` installation and AVR core setup are handled automatically by the Dockerfile — no manual setup needed.
+For the hosted backend deployment, the `arduino-cli` installation and AVR core setup are handled automatically by the Dockerfile — no manual setup needed.
 
 ---
 
@@ -104,9 +111,18 @@ npx vercel
 
 Set the same environment variables in your Vercel project settings. Point `NEXT_PUBLIC_BACKEND_URL` at your Railway backend URL.
 
-### Backend → Railway
+### Hosted Backend → Railway
 
 The `backend/` directory contains a `Dockerfile` that installs `arduino-cli`, the `arduino:avr` core, and the `Keyboard`/`Mouse` libraries at build time. Push to Railway and it builds automatically.
+
+### Local Helper Package
+
+If you want uploads to work without depending on the hosted compiler, ship a small helper package that includes:
+- `backend/`
+- `Arduino-Button-Mapper-Helper.command` for macOS
+- `Arduino-Button-Mapper-Helper.bat` for Windows
+
+The UI already supports switching users to that local helper mode.
 
 ---
 
@@ -133,5 +149,5 @@ For LEDs, connect each LED + resistor (220 Ω) between the assigned pin and GND.
 | No ports listed | Plug in the Arduino, use Chrome/Edge, and click "Connect new board…" to grant serial access |
 | Compile fails — Keyboard.h not found | Run `arduino-cli lib install "Keyboard" "Mouse"` on the machine running the backend |
 | Upload fails | Verify the correct port is selected; try pressing the Arduino's reset button and re-uploading |
-| Backend connection refused | Make sure `npm start` is running in `backend/` and `NEXT_PUBLIC_BACKEND_URL` is set correctly |
+| Backend connection refused | Start the local helper on `localhost:3001`, or switch back to the Web Compiler method |
 | Web Serial not available | Use Chrome or Edge — Firefox does not support the Web Serial API |
