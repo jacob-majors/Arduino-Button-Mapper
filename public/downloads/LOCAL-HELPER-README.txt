@@ -9,27 +9,35 @@ http://localhost:3001
 That means the website can still do the UI work, but sketch compilation happens
 locally instead of depending on the hosted compiler.
 
-How to use it
--------------
-1. Download the helper package or this project folder.
-2. Make sure the backend folder is included beside the launcher script.
-3. Install Node.js if it is not already installed.
-4. Install arduino-cli and the AVR core:
+How to use it on Mac
+--------------------
+1. Download `Arduino-Button-Mapper-Helper-Mac.zip`.
+2. Unzip it.
+3. Open `Arduino Button Mapper Helper.app`.
+4. If macOS warns that the app was downloaded from the internet, open it from Finder with right-click -> Open.
+5. The helper starts in the background on `localhost:3001`. You do not need to keep a Terminal window open.
+
+Before first launch, install:
+- Node.js
+- arduino-cli
+- the Arduino AVR core and Keyboard/Mouse libraries
+
+Install the Arduino tooling with:
 
    arduino-cli core update-index
    arduino-cli core install arduino:avr
    arduino-cli lib install "Keyboard" "Mouse"
 
-5. Open the launcher:
-   - Mac: Arduino-Button-Mapper-Helper.command
-   - Windows: Arduino-Button-Mapper-Helper.bat
-
-6. In the web app, switch Upload Method to "Local Helper".
-7. Upload from Chrome or Edge as usual.
+Then in the web app:
+1. Open your profile menu.
+2. Set Upload Method to `Local`.
+3. Upload from Chrome or Edge as usual.
 
 If it does not connect
 ----------------------
-- Confirm the helper is running on localhost:3001
+- Confirm the helper app is running on localhost:3001
 - Use a data USB cable
 - Use Chrome or Edge
 - Try the full serial picker if your board is a clone
+- Check the helper log at:
+  `~/Library/Logs/Arduino Button Mapper Helper/helper.log`
