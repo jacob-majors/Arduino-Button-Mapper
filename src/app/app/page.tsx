@@ -1591,12 +1591,12 @@ function LiveWiringDiagram({ buttons, portInputs, leds, irSensors, sipPuffs, joy
   buttons: ButtonConfig[]; portInputs: PortConfig[]; leds: LedConfig;
   irSensors: IRSensorConfig[]; sipPuffs: SipPuffConfig[]; joysticks: JoystickConfig[];
 }) {
-  const BX = 255, BY = 25, BW = 110, BH = 308;
+  const BX = 240, BY = 16, BW = 132, BH = 332;
   const dpY = (pin: number) => BY + 46 + (13 - pin) * 18;
   const dpX = BX + BW;
   const apY = (pin: number) => BY + 120 + pin * 22;
   const apX = BX;
-  const leftPinLabelX = apX - 20;
+  const leftPinLabelX = apX + 10;
   const leftWireEndX = apX - 52;
   const leftConnLabelX = apX - 58;
 
@@ -1639,7 +1639,7 @@ function LiveWiringDiagram({ buttons, portInputs, leds, irSensors, sipPuffs, joy
 
   return (
     <svg
-      viewBox="0 0 620 372"
+      viewBox="0 0 620 392"
       width="100%"
       height="100%"
       preserveAspectRatio="xMidYMid meet"
@@ -1691,14 +1691,14 @@ function LiveWiringDiagram({ buttons, portInputs, leds, irSensors, sipPuffs, joy
       {/* 5V power */}
       <line x1={apX - 8} y1={BY + 52} x2={apX - 14} y2={BY + 52} stroke="#f87171" strokeWidth="1.5" />
       <circle cx={apX - 14} cy={BY + 52} r={3} fill="#f87171" />
-      <text x={leftPinLabelX} y={BY + 55.5} textAnchor="end" fontFamily="monospace" fontSize="7" fill="#6b7280">5V</text>
+      <text x={leftPinLabelX} y={BY + 55.5} textAnchor="start" fontFamily="monospace" fontSize="7" fill="#6b7280">5V</text>
       <line x1={apX - 14} y1={BY + 52} x2={leftWireEndX} y2={BY + 52} stroke="#f87171" strokeWidth="1.5" strokeDasharray="4 2" opacity="0.7" />
       <text x={leftConnLabelX} y={BY + 55.5} textAnchor="end" fontFamily="sans-serif" fontSize="9.5" fill="#f87171">Power (VCC)</text>
 
       {/* GND power */}
       <line x1={apX - 8} y1={BY + 70} x2={apX - 14} y2={BY + 70} stroke="#9ca3af" strokeWidth="1.5" />
       <circle cx={apX - 14} cy={BY + 70} r={3} fill="#9ca3af" />
-      <text x={leftPinLabelX} y={BY + 73.5} textAnchor="end" fontFamily="monospace" fontSize="7" fill="#6b7280">GND</text>
+      <text x={leftPinLabelX} y={BY + 73.5} textAnchor="start" fontFamily="monospace" fontSize="7" fill="#6b7280">GND</text>
       <line x1={apX - 14} y1={BY + 70} x2={leftWireEndX} y2={BY + 70} stroke="#9ca3af" strokeWidth="1.5" strokeDasharray="4 2" opacity="0.7" />
       <text x={leftConnLabelX} y={BY + 73.5} textAnchor="end" fontFamily="sans-serif" fontSize="9.5" fill="#9ca3af">Ground</text>
 
@@ -1711,7 +1711,7 @@ function LiveWiringDiagram({ buttons, portInputs, leds, irSensors, sipPuffs, joy
           <g key={`a${pin}`}>
             <line x1={apX - 8} y1={y} x2={apX - 14} y2={y} stroke={used ? conn!.color : "#374151"} strokeWidth={used ? 1.5 : 1} />
             <circle cx={apX - 14} cy={y} r={used ? 3.5 : 2} fill={used ? conn!.color : "#1f2937"} stroke={used ? conn!.color : "#4b5563"} strokeWidth="1" />
-            <text x={leftPinLabelX} y={y + 3.5} textAnchor="end" fontFamily="monospace" fontSize="7" fill={used ? "#6b7280" : "#374151"}>A{pin}</text>
+            <text x={leftPinLabelX} y={y + 3.5} textAnchor="start" fontFamily="monospace" fontSize="7" fill={used ? "#6b7280" : "#374151"}>A{pin}</text>
             {used && conn && (
               <>
                 <line x1={apX - 14} y1={y} x2={leftWireEndX} y2={y} stroke={conn.color} strokeWidth="1.5" strokeDasharray="4 2" opacity="0.85" />
