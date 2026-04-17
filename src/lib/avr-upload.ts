@@ -219,33 +219,59 @@ export async function compileAndUpload(
     }
   }
 
-  // ── Step 3: 1200-baud touch (triggers Leonardo bootloader) ───────────────
-  onProgress("Triggering bootloader (1200-baud touch)…");
+  // ── Step 3 & 4: Bootloader detection / 1200-baud touch ──────────────────
   const flashOpts = { baudRate: 57600, dataBits: 8, stopBits: 1, parity: "none" };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let bp: any = null;
 
-  // Open at 1200 baud — Leonardo treats close as "reset into bootloader"
-  await openPort(port, { baudRate: 1200 }, 3000);
-  try { await port.close(); } catch { /* ignore */ }
+  // Fast-path: board may already be in bootloader mode from a previous
+  // incomplete upload (shows as "Arduino Leonardo" even on a Pro Micro).
+  // Test with a quick Caterina handshake — if it responds, skip the touch.
+  if (await openPort(port, flashOpts, 1500)) {
+    try {
+      const tw = port.writable!.getWriter();
+      const tr = port.readable!.getReader();
+      try {
+        await tw.write(new Uint8Array([0x53])); // 'S' — software identifier
+        const resp = await readExact(tr, 7, 600);
+        const id = String.fromCharCode(...Array.from(resp));
+        if (id.includes("CATERIN") || id.includes("Arduino")) {
+          bp = port;
+          onProgress("Board already in bootloader mode — uploading directly…");
+        }
+      } catch { /* not a bootloader — will do 1200-baud touch below */ }
+      // Always release locks; the main flash block re-acquires them
+      try { tr.releaseLock(); } catch { /* ignore */ }
+      try { tw.releaseLock(); } catch { /* ignore */ }
+      if (!bp) { try { await port.close(); } catch { /* ignore */ } }
+    } catch {
+      try { await port.close(); } catch { /* ignore */ }
+    }
+  }
 
-  // Wait for bootloader to enumerate. 2.5 s covers slow USB hubs / Windows.
-  // Total budget before dialog: 2.5s wait + up to 4×800ms tries = ~5.7s,
-  // leaving ~2.3s of the 8-second bootloader window for the user dialog.
-  onProgress("Waiting for bootloader to enumerate…");
-  await new Promise((r) => setTimeout(r, 2500));
+  if (!bp) {
+    // Normal path: trigger the bootloader via 1200-baud touch
+    onProgress("Triggering bootloader (1200-baud touch)…");
+    await openPort(port, { baudRate: 1200 }, 3000);
+    try { await port.close(); } catch { /* ignore */ }
 
-  // ── Step 4: Connect to bootloader at 57600 ───────────────────────────────
-  onProgress("Connecting to bootloader…");
-  const QUICK = 800; // ms per open attempt — short so we cycle through all candidates fast
+    // Wait for bootloader to enumerate. 2.5 s covers slow USB hubs / Windows.
+    // Total budget before dialog: 2.5s wait + up to 4×800ms tries = ~5.7s,
+    // leaving ~2.3s of the 8-second bootloader window for the user dialog.
+    onProgress("Waiting for bootloader to enumerate…");
+    await new Promise((r) => setTimeout(r, 2500));
 
-  // Scan every previously-granted port including the original handle.
-  // On Mac/Linux the same handle reconnects as the bootloader after re-enum.
-  // On Windows a previously-granted bootloader port appears as a separate entry.
-  const allGranted: unknown[] = await serial.getPorts().catch(() => []);
-  const candidates = [port, ...allGranted.filter((p) => p !== port)];
-  for (const candidate of candidates) {
-    if (await openPort(candidate, flashOpts, QUICK)) { bp = candidate; break; }
+    onProgress("Connecting to bootloader…");
+    const QUICK = 800; // ms per open attempt — short so we cycle through all candidates fast
+
+    // Scan every previously-granted port including the original handle.
+    // On Mac/Linux the same handle reconnects as the bootloader after re-enum.
+    // On Windows a previously-granted bootloader port appears as a separate entry.
+    const allGranted: unknown[] = await serial.getPorts().catch(() => []);
+    const candidates = [port, ...allGranted.filter((p) => p !== port)];
+    for (const candidate of candidates) {
+      if (await openPort(candidate, flashOpts, QUICK)) { bp = candidate; break; }
+    }
   }
 
   // If auto-detection failed, ask the user. The browser dialog lists the
