@@ -295,39 +295,52 @@ export async function compileAndUpload(
   }
 
   if (!bp) {
-    onProgress("Resetting board into bootloader…");
-    await openPort(port, { baudRate: 1200 }, 3000);
-    await closePortQuietly(port);
-
-    onProgress("Waiting for bootloader to enumerate…");
-    await new Promise((r) => setTimeout(r, 1200));
-
-    onProgress("Connecting to bootloader…");
-    const deadline = Date.now() + 6500;
-    let loopCount = 0;
-
-    while (!bp && Date.now() < deadline) {
-      const grantedPorts: unknown[] = await serial.getPorts().catch(() => []);
-      const seen = new Set<unknown>();
-      const candidates = [port, ...grantedPorts].filter((candidate) => {
-        if (!candidate || seen.has(candidate)) return false;
-        seen.add(candidate);
-        return true;
-      });
-
-      for (const candidate of candidates) {
-        const id = await probeCaterinaBootloader(candidate, 250);
-        if (!id) continue;
-        if (!await openPort(candidate, flashOpts, 1200)) continue;
-        bp = candidate;
-        bootloaderId = id;
-        break;
+    const autoResetAttempts = 3;
+    for (let attempt = 1; attempt <= autoResetAttempts && !bp; attempt++) {
+      onProgress(
+        attempt === 1
+          ? "Resetting board into bootloader…"
+          : `Retrying bootloader reset… (${attempt}/${autoResetAttempts})`
+      );
+      const touched = await openPort(port, { baudRate: 1200 }, 3000);
+      await closePortQuietly(port);
+      if (!touched && attempt === autoResetAttempts) {
+        throw new Error(
+          "Could not open the selected Arduino port for reset.\n" +
+          "Reconnect the board, choose the correct port again, then retry."
+        );
       }
 
-      if (!bp) {
-        loopCount += 1;
-        if (loopCount === 4) onProgress("Still waiting for the bootloader port to appear…");
-        await new Promise((r) => setTimeout(r, 250));
+      onProgress("Waiting for bootloader to enumerate…");
+      await new Promise((r) => setTimeout(r, 1100 + (attempt - 1) * 350));
+
+      onProgress("Connecting to bootloader…");
+      const deadline = Date.now() + 6500;
+      let loopCount = 0;
+
+      while (!bp && Date.now() < deadline) {
+        const grantedPorts: unknown[] = await serial.getPorts().catch(() => []);
+        const seen = new Set<unknown>();
+        const candidates = [port, ...grantedPorts].filter((candidate) => {
+          if (!candidate || seen.has(candidate)) return false;
+          seen.add(candidate);
+          return true;
+        });
+
+        for (const candidate of candidates) {
+          const id = await probeCaterinaBootloader(candidate, 250);
+          if (!id) continue;
+          if (!await openPort(candidate, flashOpts, 1200)) continue;
+          bp = candidate;
+          bootloaderId = id;
+          break;
+        }
+
+        if (!bp) {
+          loopCount += 1;
+          if (loopCount === 4) onProgress("Still waiting for the bootloader port to appear…");
+          await new Promise((r) => setTimeout(r, 250));
+        }
       }
     }
 
