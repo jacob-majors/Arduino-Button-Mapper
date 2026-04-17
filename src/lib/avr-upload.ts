@@ -208,21 +208,21 @@ export async function compileAndUpload(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let bp: any = null;
 
-  // Fast-path: board may already be in bootloader mode (e.g. user held reset,
-  // or a previous upload left it there). Short timeouts — this is just a probe.
+  // Fast-path: if the selected port IS already the bootloader (user held/double-
+  // pressed reset before clicking upload) verify with a Caterina handshake.
   if (await openPort(port, flashOpts, 500)) {
     try {
       const tw = port.writable!.getWriter();
       const tr = port.readable!.getReader();
       try {
-        await tw.write(new Uint8Array([0x53])); // 'S' — software identifier
-        const resp = await readExact(tr, 7, 200);
+        await tw.write(new Uint8Array([0x53]));
+        const resp = await readExact(tr, 7, 300);
         const id = String.fromCharCode(...Array.from(resp));
         if (id.includes("CATERIN") || id.includes("Arduino")) {
           bp = port;
-          onProgress("Board already in bootloader mode — uploading directly…");
+          onProgress("✓ Bootloader detected — uploading…");
         }
-      } catch { /* not a bootloader — will do 1200-baud touch below */ }
+      } catch { /* sketch mode — do 1200-baud touch below */ }
       try { tr.releaseLock(); } catch { /* ignore */ }
       try { tw.releaseLock(); } catch { /* ignore */ }
       if (!bp) { try { await port.close(); } catch { /* ignore */ } }
@@ -232,48 +232,45 @@ export async function compileAndUpload(
   }
 
   if (!bp) {
-    // Normal path: trigger the bootloader via 1200-baud touch
-    onProgress("Triggering bootloader (1200-baud touch)…");
+    // Trigger the bootloader via 1200-baud touch
+    onProgress("Resetting board into bootloader…");
     await openPort(port, { baudRate: 1200 }, 3000);
     try { await port.close(); } catch { /* ignore */ }
 
-    // Wait 1200 ms — enough for the device to disconnect and the bootloader
-    // to start enumerating. The dialog (if needed) opens at ~1.8 s into the
-    // 8-second bootloader window, giving the user ~6 seconds to click.
-    onProgress("Waiting for bootloader…");
-    await new Promise((r) => setTimeout(r, 1200));
+    // Wait just long enough for the old device to disappear from USB (~400 ms).
+    // We open the browser dialog immediately after — Chrome's port picker updates
+    // in real-time, so the bootloader device appears in the list as it enumerates
+    // (~1–2 s after the touch). The user just has to wait a moment then click it.
+    await new Promise((r) => setTimeout(r, 400));
 
-    onProgress("Connecting to bootloader…");
-    const QUICK = 300; // ms per attempt — fast scan so dialog appears sooner
-
-    // Check previously-granted ports (returning users skip the dialog entirely)
+    // Quick check: if this user has uploaded before the bootloader port is already
+    // known to Chrome and we can connect without any dialog.
     const allGranted: unknown[] = await serial.getPorts().catch(() => []);
-    const candidates = [port, ...allGranted.filter((p) => p !== port)];
-    for (const candidate of candidates) {
-      if (await openPort(candidate, flashOpts, QUICK)) { bp = candidate; break; }
+    for (const candidate of allGranted.filter((p) => p !== port)) {
+      if (await openPort(candidate, flashOpts, 200)) { bp = candidate; break; }
     }
-  }
 
-  // If auto-detection failed, ask the user. The browser dialog lists the
-  // bootloader device by name. After selecting it once, Chrome remembers it
-  // permanently — future uploads are fully automatic without any dialog.
-  if (!bp) {
-    onProgress("📋 A dialog is opening — select 'Arduino Leonardo bootloader' and click Connect…");
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const chosen: any = await serial.requestPort({ filters: [] });
-      if (await openPort(chosen, flashOpts, 3000)) bp = chosen;
-    } catch { /* user cancelled */ }
+    if (!bp) {
+      // Open the dialog straight away — the bootloader will appear in it within
+      // 1–2 s. Tell the user to WAIT in the dialog until they see it, then click.
+      onProgress("📋 Dialog open — WAIT a moment for 'Arduino Leonardo bootloader' to appear, then click Connect");
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const chosen: any = await serial.requestPort({ filters: [] });
+        if (await openPort(chosen, flashOpts, 4000)) bp = chosen;
+      } catch { /* user cancelled */ }
+    }
   }
 
   if (!bp) {
     throw new Error(
       "Could not connect to the bootloader.\n\n" +
-      "Try this reliable method:\n" +
-      "① Double-press the reset button quickly — the LED will pulse slowly\n" +
-      "② Immediately click Compile & Upload\n" +
-      "③ In the dialog, select 'Arduino Leonardo bootloader' and click Connect\n\n" +
-      "After doing this once, future uploads will work without pressing reset."
+      "For a guaranteed first-time upload:\n" +
+      "① Double-press the reset button — the LED will pulse slowly (stays in bootloader)\n" +
+      "② Click Compile & Upload\n" +
+      "③ Select your Arduino in the first dialog\n" +
+      "  → It will say 'Arduino Leonardo bootloader' since you double-pressed reset\n\n" +
+      "After doing this once Chrome remembers the port and future uploads need no reset."
     );
   }
   const writer = bp.writable!.getWriter();
