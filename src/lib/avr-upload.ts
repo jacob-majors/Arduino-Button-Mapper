@@ -119,7 +119,8 @@ async function readExact(
   const buf: number[] = [];
   const deadline = Date.now() + timeoutMs;
   while (buf.length < n) {
-    if (Date.now() > deadline) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) {
       throw new Error(
         "Board not responding. Check that:\n" +
         "① You selected the correct port\n" +
@@ -128,7 +129,23 @@ async function readExact(
         "Try pressing the Reset button and uploading again."
       );
     }
-    const { value, done } = await reader.read();
+    const { value, done } = await Promise.race([
+      reader.read(),
+      new Promise<ReadableStreamReadResult<Uint8Array>>((_, reject) =>
+        setTimeout(() => reject(new Error("read-timeout")), remaining)
+      ),
+    ]).catch((err: unknown) => {
+      if (err instanceof Error && err.message === "read-timeout") {
+        throw new Error(
+          "Board not responding. Check that:\n" +
+          "① You selected the correct port\n" +
+          "② It's a data USB cable (not charge-only)\n" +
+          "③ The board is an Arduino Leonardo or compatible\n" +
+          "Try pressing the Reset button and uploading again."
+        );
+      }
+      throw err;
+    });
     if (done) throw new Error("Port closed unexpectedly — the Arduino may have disconnected.");
     if (value) buf.push(...Array.from(value));
   }
@@ -138,7 +155,7 @@ async function readExact(
 /**
  * Full compile-and-upload flow:
  *  1. POST /api/compile → receive .hex
- *  2. Web Serial: auto-select or prompt for port
+ *  2. Web Serial: prompt for the active port
  *  3. Web Serial: 1200-baud touch to trigger bootloader
  *  4. Web Serial: avr109 (Catarina) protocol to flash the .hex
  *
@@ -236,29 +253,14 @@ export async function compileAndUpload(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let port: any = null;
 
-  if (!forceNewPort) {
-    try {
-      const grantedPorts = await getGrantedArduinoPorts(serial);
-      if (grantedPorts.length === 1) {
-        port = grantedPorts[0];
-        onProgress("Using your saved Arduino port…");
-      } else if (grantedPorts.length > 1) {
-        port = grantedPorts[0];
-        onProgress("Using the first saved Arduino-compatible port…");
-      }
-    } catch { /* fall through to picker */ }
-  }
-
-  if (!port) {
-    onProgress("Select your Arduino in the browser dialog…");
-    try {
-      port = await serial.requestPort({ filters: ARDUINO_SERIAL_FILTERS });
-    } catch (e: unknown) {
-      const err = e as Error;
-      const pickerBlocked = err?.name === "NotFoundError" || err?.message?.includes("No port selected");
-      if (!pickerBlocked) {
-        throw new Error(`Could not open port picker: ${err?.message ?? String(e)}`);
-      }
+  onProgress("Select your Arduino in the browser dialog…");
+  try {
+    port = await serial.requestPort({ filters: ARDUINO_SERIAL_FILTERS });
+  } catch (e: unknown) {
+    const err = e as Error;
+    const pickerBlocked = err?.name === "NotFoundError" || err?.message?.includes("No port selected");
+    if (!pickerBlocked) {
+      throw new Error(`Could not open port picker: ${err?.message ?? String(e)}`);
     }
   }
 
