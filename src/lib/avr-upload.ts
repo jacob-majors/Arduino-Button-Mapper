@@ -208,23 +208,21 @@ export async function compileAndUpload(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let bp: any = null;
 
-  // Fast-path: board may already be in bootloader mode from a previous
-  // incomplete upload (shows as "Arduino Leonardo" even on a Pro Micro).
-  // Test with a quick Caterina handshake — if it responds, skip the touch.
-  if (await openPort(port, flashOpts, 1500)) {
+  // Fast-path: board may already be in bootloader mode (e.g. user held reset,
+  // or a previous upload left it there). Short timeouts — this is just a probe.
+  if (await openPort(port, flashOpts, 500)) {
     try {
       const tw = port.writable!.getWriter();
       const tr = port.readable!.getReader();
       try {
         await tw.write(new Uint8Array([0x53])); // 'S' — software identifier
-        const resp = await readExact(tr, 7, 600);
+        const resp = await readExact(tr, 7, 200);
         const id = String.fromCharCode(...Array.from(resp));
         if (id.includes("CATERIN") || id.includes("Arduino")) {
           bp = port;
           onProgress("Board already in bootloader mode — uploading directly…");
         }
       } catch { /* not a bootloader — will do 1200-baud touch below */ }
-      // Always release locks; the main flash block re-acquires them
       try { tr.releaseLock(); } catch { /* ignore */ }
       try { tw.releaseLock(); } catch { /* ignore */ }
       if (!bp) { try { await port.close(); } catch { /* ignore */ } }
@@ -239,18 +237,16 @@ export async function compileAndUpload(
     await openPort(port, { baudRate: 1200 }, 3000);
     try { await port.close(); } catch { /* ignore */ }
 
-    // Wait for bootloader to enumerate. 2.5 s covers slow USB hubs / Windows.
-    // Total budget before dialog: 2.5s wait + up to 4×800ms tries = ~5.7s,
-    // leaving ~2.3s of the 8-second bootloader window for the user dialog.
-    onProgress("Waiting for bootloader to enumerate…");
-    await new Promise((r) => setTimeout(r, 2500));
+    // Wait 1200 ms — enough for the device to disconnect and the bootloader
+    // to start enumerating. The dialog (if needed) opens at ~1.8 s into the
+    // 8-second bootloader window, giving the user ~6 seconds to click.
+    onProgress("Waiting for bootloader…");
+    await new Promise((r) => setTimeout(r, 1200));
 
     onProgress("Connecting to bootloader…");
-    const QUICK = 800; // ms per open attempt — short so we cycle through all candidates fast
+    const QUICK = 300; // ms per attempt — fast scan so dialog appears sooner
 
-    // Scan every previously-granted port including the original handle.
-    // On Mac/Linux the same handle reconnects as the bootloader after re-enum.
-    // On Windows a previously-granted bootloader port appears as a separate entry.
+    // Check previously-granted ports (returning users skip the dialog entirely)
     const allGranted: unknown[] = await serial.getPorts().catch(() => []);
     const candidates = [port, ...allGranted.filter((p) => p !== port)];
     for (const candidate of candidates) {
@@ -262,7 +258,7 @@ export async function compileAndUpload(
   // bootloader device by name. After selecting it once, Chrome remembers it
   // permanently — future uploads are fully automatic without any dialog.
   if (!bp) {
-    onProgress("📋 Select 'Arduino Leonardo bootloader' in the browser dialog…");
+    onProgress("📋 A dialog is opening — select 'Arduino Leonardo bootloader' and click Connect…");
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const chosen: any = await serial.requestPort({ filters: [] });
@@ -273,11 +269,11 @@ export async function compileAndUpload(
   if (!bp) {
     throw new Error(
       "Could not connect to the bootloader.\n\n" +
-      "The most reliable method:\n" +
-      "① Double-press the reset button — the LED will pulse slowly\n" +
-      "② Within 3 seconds, click Compile & Upload again\n" +
-      "③ When the browser dialog appears, select 'Arduino Leonardo bootloader'\n\n" +
-      "If the port never appears, try a different USB cable (data cable, not charge-only)."
+      "Try this reliable method:\n" +
+      "① Double-press the reset button quickly — the LED will pulse slowly\n" +
+      "② Immediately click Compile & Upload\n" +
+      "③ In the dialog, select 'Arduino Leonardo bootloader' and click Connect\n\n" +
+      "After doing this once, future uploads will work without pressing reset."
     );
   }
   const writer = bp.writable!.getWriter();
