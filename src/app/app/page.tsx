@@ -598,15 +598,15 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose, initialShow
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
-      <div className={`relative z-10 flex flex-col bg-gray-800 border border-gray-600 rounded-2xl shadow-2xl overflow-hidden transition-all ${showAIChat ? "w-full max-w-5xl h-[90vh]" : "w-full max-w-3xl h-[85vh]"}`}>
+      <div className={`relative z-10 flex w-full flex-col overflow-hidden border border-gray-600 bg-gray-800 shadow-2xl transition-all h-[calc(100dvh-1rem)] rounded-2xl sm:h-[90vh] ${showAIChat ? "sm:max-w-5xl" : "sm:max-w-3xl"}`}>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-800 flex-shrink-0">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-800 px-3 py-3 sm:px-5 flex-shrink-0">
+          <div className="flex min-w-0 items-center gap-2">
             <Terminal size={14} className="text-green-400" />
             <span className="text-sm font-semibold text-gray-200">Arduino Sketch</span>
             {isModified && (
@@ -615,7 +615,7 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose, initialShow
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
             {isModified && (
               <button
                 onClick={() => { onCodeUpdate(originalCode); setShowDiff(false); }}
@@ -651,19 +651,19 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose, initialShow
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-hidden flex min-h-0">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
 
           {/* Code panel */}
-          <div className={`flex flex-col min-h-0 ${showAIChat ? "flex-1 border-r border-gray-800" : "flex-1"}`}>
+          <div className={`flex min-h-0 flex-col ${showAIChat ? "flex-1 md:border-r md:border-gray-800" : "flex-1"}`}>
             {showDiff && isModified ? (
-              <div className="flex flex-1 min-h-0">
-                <div className="flex-1 flex flex-col min-h-0 border-r border-gray-800">
+              <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+                <div className="flex min-h-0 flex-1 flex-col border-b border-gray-800 md:border-b-0 md:border-r md:border-gray-800">
                   <div className="px-3 py-1.5 bg-red-950/30 text-[10px] text-red-400 font-semibold flex-shrink-0 border-b border-gray-800">
                     Before
                   </div>
                   <pre className="flex-1 overflow-auto p-4 text-xs font-mono text-red-300/70 leading-relaxed whitespace-pre">{originalCode}</pre>
                 </div>
-                <div className="flex-1 flex flex-col min-h-0">
+                <div className="flex flex-1 min-h-0 flex-col">
                   <div className="px-3 py-1.5 bg-green-950/30 text-[10px] text-green-400 font-semibold flex-shrink-0 border-b border-gray-800">
                     After
                   </div>
@@ -684,7 +684,7 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose, initialShow
 
           {/* AI Chat panel */}
           {showAIChat && (
-            <div className="w-96 flex flex-col min-h-0 bg-gray-800/40 flex-shrink-0">
+            <div className="flex max-h-[42dvh] w-full flex-col min-h-0 flex-shrink-0 border-t border-gray-800 bg-gray-800/40 md:max-h-none md:w-96 md:border-t-0">
 
               {/* AI intro */}
               <div className="px-3 py-2.5 border-b border-gray-800 flex-shrink-0">
@@ -763,8 +763,8 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose, initialShow
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-2.5 border-t border-gray-800 flex items-center justify-between flex-shrink-0">
-          <p className="text-[11px] text-gray-600">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-800 px-3 py-2.5 sm:px-5 flex-shrink-0">
+          <p className="text-[11px] text-gray-600 min-w-0">
             {isModified
               ? "Modified code will be used on next upload."
               : "Edit directly or use Cloudflare AI. Upload flashes from Chrome/Edge."}
@@ -791,9 +791,9 @@ function LedInfoModal({ onClose }: { onClose: () => void }) {
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4">
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-2xl max-h-[90vh] flex flex-col bg-gray-800 border border-gray-600 rounded-2xl shadow-2xl overflow-hidden">
+      <div className="relative z-10 flex h-[calc(100dvh-1rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-gray-600 bg-gray-800 shadow-2xl sm:h-auto sm:max-h-[90vh]">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-800 flex-shrink-0">
           <div className="flex items-center gap-2">
@@ -1041,10 +1041,10 @@ function WiringPreviewModal({
   }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-5xl max-h-[90vh] bg-gray-800 border border-gray-600 rounded-3xl shadow-2xl flex flex-col overflow-hidden">
-        <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-gray-700 flex-shrink-0">
+      <div className="relative z-10 flex h-[calc(100dvh-1rem)] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-gray-600 bg-gray-800 shadow-2xl sm:h-auto sm:max-h-[90vh]">
+        <div className="flex items-center justify-between gap-4 border-b border-gray-700 px-4 py-4 sm:px-5 flex-shrink-0">
           <div>
             <h2 className="text-lg font-semibold text-gray-100">{title}</h2>
             <p className="text-sm text-gray-500 mt-1">{subtitle}</p>
@@ -1053,7 +1053,7 @@ function WiringPreviewModal({
             <X size={16} />
           </button>
         </div>
-        <div className="flex-1 overflow-auto p-5 bg-gray-900/30">
+        <div className="flex-1 overflow-auto bg-gray-900/30 p-3 sm:p-5">
           {children}
         </div>
       </div>
@@ -1596,6 +1596,9 @@ function LiveWiringDiagram({ buttons, portInputs, leds, irSensors, sipPuffs, joy
   const dpX = BX + BW;
   const apY = (pin: number) => BY + 120 + pin * 22;
   const apX = BX;
+  const leftPinLabelX = apX - 20;
+  const leftWireEndX = apX - 52;
+  const leftConnLabelX = apX - 58;
 
   type Conn = { pin: number; label: string; color: string };
   const right: Conn[] = [];
@@ -1688,16 +1691,16 @@ function LiveWiringDiagram({ buttons, portInputs, leds, irSensors, sipPuffs, joy
       {/* 5V power */}
       <line x1={apX - 8} y1={BY + 52} x2={apX - 14} y2={BY + 52} stroke="#f87171" strokeWidth="1.5" />
       <circle cx={apX - 14} cy={BY + 52} r={3} fill="#f87171" />
-      <text x={apX - 4} y={BY + 55.5} textAnchor="end" fontFamily="monospace" fontSize="7" fill="#6b7280">5V</text>
-      <line x1={apX - 14} y1={BY + 52} x2={apX - 40} y2={BY + 52} stroke="#f87171" strokeWidth="1.5" strokeDasharray="4 2" opacity="0.7" />
-      <text x={apX - 44} y={BY + 55.5} textAnchor="end" fontFamily="sans-serif" fontSize="9.5" fill="#f87171">Power (VCC)</text>
+      <text x={leftPinLabelX} y={BY + 55.5} textAnchor="end" fontFamily="monospace" fontSize="7" fill="#6b7280">5V</text>
+      <line x1={apX - 14} y1={BY + 52} x2={leftWireEndX} y2={BY + 52} stroke="#f87171" strokeWidth="1.5" strokeDasharray="4 2" opacity="0.7" />
+      <text x={leftConnLabelX} y={BY + 55.5} textAnchor="end" fontFamily="sans-serif" fontSize="9.5" fill="#f87171">Power (VCC)</text>
 
       {/* GND power */}
       <line x1={apX - 8} y1={BY + 70} x2={apX - 14} y2={BY + 70} stroke="#9ca3af" strokeWidth="1.5" />
       <circle cx={apX - 14} cy={BY + 70} r={3} fill="#9ca3af" />
-      <text x={apX - 4} y={BY + 73.5} textAnchor="end" fontFamily="monospace" fontSize="7" fill="#6b7280">GND</text>
-      <line x1={apX - 14} y1={BY + 70} x2={apX - 40} y2={BY + 70} stroke="#9ca3af" strokeWidth="1.5" strokeDasharray="4 2" opacity="0.7" />
-      <text x={apX - 44} y={BY + 73.5} textAnchor="end" fontFamily="sans-serif" fontSize="9.5" fill="#9ca3af">Ground</text>
+      <text x={leftPinLabelX} y={BY + 73.5} textAnchor="end" fontFamily="monospace" fontSize="7" fill="#6b7280">GND</text>
+      <line x1={apX - 14} y1={BY + 70} x2={leftWireEndX} y2={BY + 70} stroke="#9ca3af" strokeWidth="1.5" strokeDasharray="4 2" opacity="0.7" />
+      <text x={leftConnLabelX} y={BY + 73.5} textAnchor="end" fontFamily="sans-serif" fontSize="9.5" fill="#9ca3af">Ground</text>
 
       {/* ── Analog pins (left) */}
       {Array.from({ length: 6 }, (_, pin) => {
@@ -1708,11 +1711,11 @@ function LiveWiringDiagram({ buttons, portInputs, leds, irSensors, sipPuffs, joy
           <g key={`a${pin}`}>
             <line x1={apX - 8} y1={y} x2={apX - 14} y2={y} stroke={used ? conn!.color : "#374151"} strokeWidth={used ? 1.5 : 1} />
             <circle cx={apX - 14} cy={y} r={used ? 3.5 : 2} fill={used ? conn!.color : "#1f2937"} stroke={used ? conn!.color : "#4b5563"} strokeWidth="1" />
-            <text x={apX - 4} y={y + 3.5} textAnchor="end" fontFamily="monospace" fontSize="7" fill={used ? "#6b7280" : "#374151"}>A{pin}</text>
+            <text x={leftPinLabelX} y={y + 3.5} textAnchor="end" fontFamily="monospace" fontSize="7" fill={used ? "#6b7280" : "#374151"}>A{pin}</text>
             {used && conn && (
               <>
-                <line x1={apX - 14} y1={y} x2={apX - 40} y2={y} stroke={conn.color} strokeWidth="1.5" strokeDasharray="4 2" opacity="0.85" />
-                <text x={apX - 44} y={y + 3.5} textAnchor="end" fontFamily="sans-serif" fontSize="9.5" fill={conn.color} fontWeight="500">{conn.label}</text>
+                <line x1={apX - 14} y1={y} x2={leftWireEndX} y2={y} stroke={conn.color} strokeWidth="1.5" strokeDasharray="4 2" opacity="0.85" />
+                <text x={leftConnLabelX} y={y + 3.5} textAnchor="end" fontFamily="sans-serif" fontSize="9.5" fill={conn.color} fontWeight="500">{conn.label}</text>
               </>
             )}
           </g>
@@ -3385,7 +3388,7 @@ export default function Home() {
     <div className="h-screen bg-gray-900 flex flex-col overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(56,189,248,0.12),_transparent_30%),linear-gradient(180deg,_rgba(15,23,42,0.96)_0%,_rgba(15,23,42,1)_24%,_rgba(2,6,23,1)_100%)]">
       {/* Header */}
       <header className="border-b border-gray-700/40 bg-gray-800/70 backdrop-blur-xl flex-shrink-0 relative z-50 shadow-[0_18px_45px_rgba(15,23,42,0.12)]">
-        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-3 grid grid-cols-[auto_1fr_auto] items-center gap-3">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-3 grid grid-cols-1 sm:grid-cols-[auto_1fr_auto] items-center gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center shadow-lg shadow-sky-500/20 flex-shrink-0">
               <Zap size={16} className="text-white" />
@@ -3396,8 +3399,8 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="flex justify-center">
-            <div className="flex items-center gap-1 rounded-2xl border border-gray-700/70 bg-gray-800/70 p-1 shadow-sm">
+          <div className="flex justify-start sm:justify-center overflow-x-auto">
+            <div className="flex min-w-max items-center gap-1 rounded-2xl border border-gray-700/70 bg-gray-800/70 p-1 shadow-sm">
               {(adminSettings.show_wiring ? ([
                 { id: "wiring", label: "Wiring", icon: <Zap size={13} /> },
                 { id: "configure", label: "Configure", icon: <Settings size={13} /> },
@@ -3411,7 +3414,7 @@ export default function Home() {
                   onClick={() => setTab(item.id)}
                   data-tutorial={item.id === "configure" ? "configure-tab" : item.id === "test" ? "test-tab" : "wiring-tab"}
                   className={[
-                    "flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold transition-all",
+                    "flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap",
                     tab === item.id
                       ? "bg-white text-slate-900 shadow-sm"
                       : "text-gray-500 hover:text-gray-200 hover:bg-gray-700/70",
@@ -3424,7 +3427,7 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-start sm:justify-end gap-2">
             {authReady && (
               appUser ? (
                 <div className="relative flex-shrink-0">
@@ -3619,7 +3622,7 @@ export default function Home() {
                   </button>
                 </div>
                 <div className="rounded-2xl border border-gray-700/60 bg-gray-900/40 p-3">
-                  <div className="h-[360px] sm:h-[420px]">
+                  <div className="h-[280px] sm:h-[420px]">
                     <LiveWiringDiagram
                       buttons={buttons}
                       portInputs={portInputs}
@@ -4363,7 +4366,7 @@ export default function Home() {
         <div className="flex-1 overflow-hidden flex flex-col">
           {/* Admin sub-nav */}
           <div className="flex-shrink-0 border-b border-gray-700/60 bg-gray-800/40 px-4 sm:px-6">
-            <div className="max-w-3xl mx-auto flex items-center gap-1 py-2">
+            <div className="max-w-3xl mx-auto flex items-center gap-1 py-2 overflow-x-auto">
               <div className="flex items-center gap-2 mr-4">
                 <div className="w-6 h-6 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
                   <Settings size={11} className="text-amber-400" />
