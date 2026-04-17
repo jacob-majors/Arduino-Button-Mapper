@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Zap, RefreshCw, Plus, Trash2, X, Upload, ChevronDown,
   Loader2, CheckCircle2, XCircle, Terminal, Usb, Keyboard,
-  RotateCcw, Pencil, Gamepad2, Settings, Lightbulb, Power, Code,
+  RotateCcw, Pencil, Gamepad2, Settings, Lightbulb, Power, Code, FileCode,
   Info, ExternalLink, Radio, Wind, Joystick, Minimize2, Maximize2, Download, Star, Square,
   AlertCircle, MessageSquare, CheckCheck, Clock, Ban, Sun, Moon,
 } from "lucide-react";
@@ -3516,6 +3516,13 @@ export default function Home() {
                   {item.label}
                 </button>
               ))}
+              <button
+                onClick={() => router.push("/app/sketch")}
+                className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap text-gray-500 hover:text-gray-200 hover:bg-gray-700/70"
+              >
+                <FileCode size={13} />
+                Sketch
+              </button>
             </div>
           </div>
 

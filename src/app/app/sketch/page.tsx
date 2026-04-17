@@ -4,20 +4,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
-  Bot,
   CheckCircle2,
-  Code2,
   Copy,
+  FileCode,
   Loader2,
-  MessageSquare,
-  Pencil,
   RotateCcw,
-  Save,
+  Send,
   Sparkles,
 } from "lucide-react";
 import {
   classifySketchLines,
-  extractMarkedSection,
   loadSketchWorkspace,
   saveSketchWorkspace,
   type SketchWorkspace,
@@ -27,109 +23,81 @@ type AIMessage = { role: "user" | "assistant"; content: string };
 
 const SUGGESTIONS = [
   "Add debounce to all buttons",
-  "Make the joystick smoother",
   "Flash an LED when a key is pressed",
+  "Make the joystick smoother",
   "Require a long press before firing",
-  "Explain what this sketch is doing",
+  "Explain what this sketch does",
 ];
 
-const SOURCE_STYLES = {
-  button: {
-    label: "Button code",
-    chip: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
-    line: "bg-emerald-500/10 text-emerald-100",
-  },
-  ai: {
-    label: "AI added",
-    chip: "border-cyan-500/30 bg-cyan-500/10 text-cyan-200",
-    line: "bg-cyan-500/10 text-cyan-100",
-  },
-  user: {
-    label: "You added",
-    chip: "border-amber-500/30 bg-amber-500/10 text-amber-200",
-    line: "bg-amber-500/10 text-amber-100",
-  },
-  generated: {
-    label: "Generated",
-    chip: "border-gray-700 bg-gray-800/80 text-gray-400",
-    line: "text-gray-400",
-  },
-} as const;
+function highlightLine(raw: string): React.ReactNode {
+  if (!raw.trim()) return <span>{raw || " "}</span>;
+  if (/^\s*\/\//.test(raw)) return <span className="text-gray-500 italic">{raw}</span>;
+  if (/^\s*#/.test(raw)) return <span className="text-violet-400">{raw}</span>;
 
-function snippetForSource(workspace: SketchWorkspace, source: "ai" | "user") {
-  const lines = classifySketchLines(workspace)
-    .filter((line) => line.source === source && line.line.trim())
-    .map((line) => line.line);
-  return lines.length > 0 ? lines.join("\n") : `// No ${source === "ai" ? "AI" : "manual"} additions yet`;
+  const patterns: { re: RegExp; cls: string }[] = [
+    { re: /"[^"]*"/g, cls: "text-amber-300" },
+    { re: /\b(void|int|bool|const|if|else|for|while|return|true|false|HIGH|LOW|INPUT_PULLUP|OUTPUT|long|unsigned|char|byte)\b/g, cls: "text-sky-300" },
+    { re: /\b([A-Za-z_]\w*)\s*(?=\()/g, cls: "text-emerald-300" },
+    { re: /\b\d+\b/g, cls: "text-orange-300" },
+  ];
+
+  const tokens: React.ReactNode[] = [];
+  const combined = new RegExp(patterns.map((p) => `(${p.re.source})`).join("|"), "g");
+  let pos = 0;
+  let m: RegExpExecArray | null;
+  combined.lastIndex = 0;
+  while ((m = combined.exec(raw)) !== null) {
+    if (m.index > pos) tokens.push(<span key={pos} className="text-gray-200">{raw.slice(pos, m.index)}</span>);
+    const gi = patterns.findIndex((_, i) => m![i + 1] !== undefined);
+    tokens.push(<span key={m.index} className={patterns[gi]?.cls ?? "text-gray-200"}>{m[0]}</span>);
+    pos = m.index + m[0].length;
+  }
+  if (pos < raw.length) tokens.push(<span key={pos} className="text-gray-200">{raw.slice(pos)}</span>);
+  return <>{tokens}</>;
 }
+
+const SOURCE_BG: Record<string, string> = {
+  button:    "border-l-2 border-emerald-500/50 bg-emerald-500/5",
+  ai:        "border-l-2 border-cyan-500/50 bg-cyan-500/5",
+  user:      "border-l-2 border-amber-500/50 bg-amber-500/5",
+  generated: "",
+};
 
 export default function SketchPage() {
   const router = useRouter();
   const [workspace, setWorkspace] = useState<SketchWorkspace | null>(null);
   const [hydrated, setHydrated] = useState(false);
-  const [showAIChat, setShowAIChat] = useState(false);
   const [messages, setMessages] = useState<AIMessage[]>([]);
   const [apiHistory, setApiHistory] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
   const [userInput, setUserInput] = useState("");
   const [aiLoading, setAiLoading] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [justSaved, setJustSaved] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const existingWorkspace = loadSketchWorkspace();
-    setWorkspace(existingWorkspace);
-    setShowAIChat(new URLSearchParams(window.location.search).get("ai") === "1");
+    setWorkspace(loadSketchWorkspace());
     setHydrated(true);
   }, []);
 
   useEffect(() => {
-    if (!showAIChat) return;
-    const timer = setTimeout(() => inputRef.current?.focus(), 60);
-    return () => clearTimeout(timer);
-  }, [showAIChat]);
-
-  useEffect(() => {
     if (!hydrated || !workspace) return;
     saveSketchWorkspace(workspace);
-    setJustSaved(true);
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => setJustSaved(false), 1400);
-    return () => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    };
   }, [workspace, hydrated]);
+
+  useEffect(() => {
+    chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, aiLoading]);
 
   const classification = useMemo(() => (
     workspace ? classifySketchLines(workspace) : []
   ), [workspace]);
 
-  const buttonCode = useMemo(() => (
-    workspace ? extractMarkedSection(workspace.originalCode, "BUTTONS") || "// No button block found in this sketch yet" : ""
-  ), [workspace]);
-
-  const aiCode = useMemo(() => (
-    workspace ? snippetForSource(workspace, "ai") : ""
-  ), [workspace]);
-
-  const userCode = useMemo(() => (
-    workspace ? snippetForSource(workspace, "user") : ""
-  ), [workspace]);
-
-  const isModified = workspace ? workspace.editedCode !== workspace.originalCode : false;
-
-  const updateEditedCode = (nextCode: string) => {
-    setWorkspace((current) => current ? { ...current, editedCode: nextCode, updatedAt: Date.now() } : current);
-  };
+  const updateCode = (next: string) =>
+    setWorkspace((w) => w ? { ...w, editedCode: next, updatedAt: Date.now() } : w);
 
   const resetToGenerated = () => {
-    setWorkspace((current) => current ? {
-      ...current,
-      editedCode: current.originalCode,
-      aiCode: null,
-      updatedAt: Date.now(),
-    } : current);
+    setWorkspace((w) => w ? { ...w, editedCode: w.originalCode, aiCode: null, updatedAt: Date.now() } : w);
     setMessages([]);
     setApiHistory([]);
   };
@@ -144,7 +112,7 @@ export default function SketchPage() {
   const sendToAI = async () => {
     if (!workspace || !userInput.trim() || aiLoading) return;
     const request = userInput.trim();
-    setMessages((prev) => [...prev, { role: "user", content: request }]);
+    setMessages((p) => [...p, { role: "user", content: request }]);
     setUserInput("");
     setAiLoading(true);
 
@@ -152,33 +120,22 @@ export default function SketchPage() {
       "You are an expert Arduino programmer helping modify a HID input sketch. " +
       "Never change pin numbers. Return only the full updated sketch when the user requests code changes. " +
       "If the user is asking a question, answer plainly instead of returning code.";
-
     const prompt = `Current Arduino sketch:\n\`\`\`cpp\n${workspace.editedCode}\n\`\`\`\n\nRequest: ${request}`;
 
     try {
       const res = await fetch("/api/ai-proxy", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          systemPrompt,
-          prompt,
-          history: apiHistory,
-        }),
+        body: JSON.stringify({ systemPrompt, prompt, history: apiHistory }),
       });
       const data = await res.json() as { text?: string; error?: string; isQuota?: boolean };
-      const isQuotaError =
-        res.status === 429 ||
-        data.isQuota === true ||
+      const isQuota = res.status === 429 || data.isQuota === true ||
         /quota|rate.?limit|resource.?exhausted|limit.*exceeded/i.test(data.error ?? "");
 
-      if (isQuotaError) {
-        setMessages((prev) => [...prev, {
-          role: "assistant",
-          content: "The built-in AI quota is reached right now. Try again in a little bit.",
-        }]);
+      if (isQuota) {
+        setMessages((p) => [...p, { role: "assistant", content: "AI quota reached. Try again in a moment." }]);
         return;
       }
-
       if (!res.ok || data.error) throw new Error(data.error ?? `Error ${res.status}`);
 
       const raw = (data.text ?? "")
@@ -186,38 +143,17 @@ export default function SketchPage() {
         .replace(/\n?```$/i, "")
         .trim();
 
-      const looksLikeCode =
-        /^(\/\/|#include|void setup|void loop|bool |int |const |\/\*)/m.test(raw.slice(0, 300));
-
+      const looksLikeCode = /^(\/\/|#include|void setup|void loop|bool |int |const |\/\*)/m.test(raw.slice(0, 300));
       if (looksLikeCode) {
-        setWorkspace((current) => current ? {
-          ...current,
-          editedCode: raw,
-          aiCode: raw,
-          updatedAt: Date.now(),
-        } : current);
-        setMessages((prev) => [...prev, {
-          role: "assistant",
-          content: "Sketch updated. The cyan code blocks show what AI added or changed.",
-        }]);
-        setApiHistory((prev) => [
-          ...prev,
-          { role: "user", content: prompt },
-          { role: "assistant", content: "Sketch updated successfully." },
-        ]);
+        setWorkspace((w) => w ? { ...w, editedCode: raw, aiCode: raw, updatedAt: Date.now() } : w);
+        setMessages((p) => [...p, { role: "assistant", content: "Sketch updated — cyan lines show what AI changed." }]);
+        setApiHistory((p) => [...p, { role: "user", content: prompt }, { role: "assistant", content: "Sketch updated." }]);
       } else {
-        setMessages((prev) => [...prev, { role: "assistant", content: raw }]);
-        setApiHistory((prev) => [
-          ...prev,
-          { role: "user", content: prompt },
-          { role: "assistant", content: raw },
-        ]);
+        setMessages((p) => [...p, { role: "assistant", content: raw }]);
+        setApiHistory((p) => [...p, { role: "user", content: prompt }, { role: "assistant", content: raw }]);
       }
-    } catch (error) {
-      setMessages((prev) => [...prev, {
-        role: "assistant",
-        content: `Error: ${error instanceof Error ? error.message : "Something went wrong."}`,
-      }]);
+    } catch (err) {
+      setMessages((p) => [...p, { role: "assistant", content: `Error: ${err instanceof Error ? err.message : "Something went wrong."}` }]);
     } finally {
       setAiLoading(false);
       setTimeout(() => inputRef.current?.focus(), 50);
@@ -226,32 +162,21 @@ export default function SketchPage() {
 
   if (!hydrated) {
     return (
-      <div className="min-h-screen bg-gray-950 text-gray-200 flex items-center justify-center">
-        <div className="flex items-center gap-2 text-sm text-gray-400">
-          <Loader2 size={16} className="animate-spin" />
-          Loading sketch workspace...
-        </div>
+      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+        <Loader2 size={18} className="animate-spin text-gray-500" />
       </div>
     );
   }
 
   if (!workspace) {
     return (
-      <div className="min-h-screen bg-gray-950 text-gray-200 px-6 py-10">
-        <div className="mx-auto max-w-3xl rounded-3xl border border-gray-800 bg-gray-900/80 p-8">
-          <div className="flex items-center gap-2 text-cyan-300">
-            <Code2 size={18} />
-            <span className="text-sm font-semibold uppercase tracking-[0.2em]">Sketch Workspace</span>
-          </div>
-          <h1 className="mt-4 text-3xl font-semibold text-white">No sketch is loaded yet.</h1>
-          <p className="mt-3 text-sm leading-relaxed text-gray-400">
-            Open the builder first, then press Sketch or AI. That loads your generated Arduino code into this full-page editor.
-          </p>
-          <button
-            onClick={() => router.push("/app")}
-            className="mt-6 inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-cyan-500"
-          >
-            <ArrowLeft size={15} />
+      <div className="min-h-screen bg-gray-950 text-gray-200 flex items-center justify-center px-6">
+        <div className="max-w-md text-center space-y-4">
+          <FileCode size={40} className="mx-auto text-gray-600" />
+          <h1 className="text-xl font-semibold">No sketch loaded</h1>
+          <p className="text-sm text-gray-500">Configure your inputs first, then come back here to view and edit the sketch.</p>
+          <button onClick={() => router.push("/app")} className="inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-500 transition-colors">
+            <ArrowLeft size={14} />
             Back to Builder
           </button>
         </div>
@@ -259,232 +184,137 @@ export default function SketchPage() {
     );
   }
 
+  const isModified = workspace.editedCode !== workspace.originalCode;
+
   return (
-    <div className="min-h-screen bg-[#060816] text-gray-100">
-      <div className="border-b border-gray-800 bg-gray-950/90 backdrop-blur">
-        <div className="mx-auto flex max-w-[1700px] flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
-          <div className="min-w-0">
-            <button
-              onClick={() => router.push("/app")}
-              className="inline-flex items-center gap-2 text-xs font-semibold text-gray-400 transition-colors hover:text-cyan-200"
-            >
-              <ArrowLeft size={14} />
-              Back to Builder
-            </button>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <h1 className="text-xl font-semibold text-white sm:text-2xl">Arduino Sketch Workspace</h1>
-              {isModified && (
-                <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-200">
-                  modified
-                </span>
-              )}
-            </div>
-            <p className="mt-1 text-xs text-gray-500 sm:text-sm">
-              Green shows generated button code. Cyan shows AI edits. Amber shows what you changed by hand.
-            </p>
-          </div>
+    <div className="flex h-screen flex-col bg-[#060816] text-gray-100 overflow-hidden">
 
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-2 rounded-full border border-gray-800 bg-gray-900/80 px-3 py-1.5 text-[11px] text-gray-400">
-              <Save size={12} className={justSaved ? "text-emerald-300" : "text-gray-500"} />
-              {justSaved ? "Saved to builder" : "Autosaves to builder"}
-            </div>
-            <button
-              onClick={() => setShowAIChat((value) => !value)}
-              className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition-all ${
-                showAIChat
-                  ? "border-cyan-500/40 bg-cyan-500/15 text-cyan-100"
-                  : "border-gray-700 bg-gray-900 text-gray-300 hover:border-cyan-500/30 hover:text-cyan-100"
-              }`}
-            >
-              <MessageSquare size={13} />
-              AI
-            </button>
-            <button
-              onClick={copyCode}
-              className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-500"
-            >
-              {copied ? <CheckCircle2 size={13} /> : <Copy size={13} />}
-              {copied ? "Copied" : "Copy"}
-            </button>
-            <button
-              onClick={resetToGenerated}
-              className="inline-flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-200 transition-colors hover:bg-amber-500/15"
-            >
-              <RotateCcw size={13} />
-              Reset
-            </button>
-          </div>
+      {/* Header */}
+      <header className="flex items-center justify-between gap-3 border-b border-gray-800 bg-gray-950/90 px-4 py-2.5 flex-shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <button onClick={() => router.push("/app")} className="flex items-center gap-1.5 text-xs font-semibold text-gray-400 hover:text-cyan-200 transition-colors flex-shrink-0">
+            <ArrowLeft size={13} />
+            Back
+          </button>
+          <div className="h-4 w-px bg-gray-800 flex-shrink-0" />
+          <FileCode size={14} className="text-cyan-400 flex-shrink-0" />
+          <span className="text-sm font-semibold truncate">Arduino Sketch</span>
+          {isModified && (
+            <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300 flex-shrink-0">modified</span>
+          )}
         </div>
-      </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="hidden sm:flex items-center gap-3 text-[11px] text-gray-600 mr-1">
+            <span className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm border-l-2 border-emerald-500 bg-emerald-500/10" />Generated</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm border-l-2 border-cyan-500 bg-cyan-500/10" />AI</span>
+            <span className="flex items-center gap-1.5"><span className="inline-block w-2.5 h-2.5 rounded-sm border-l-2 border-amber-500 bg-amber-500/10" />Edited</span>
+          </div>
+          <button onClick={resetToGenerated} className="flex items-center gap-1.5 rounded-xl border border-gray-700 bg-gray-900 px-3 py-1.5 text-xs font-semibold text-gray-400 hover:text-gray-200 transition-colors">
+            <RotateCcw size={11} />Reset
+          </button>
+          <button onClick={copyCode} className="flex items-center gap-1.5 rounded-xl bg-cyan-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-cyan-600 transition-colors">
+            {copied ? <CheckCircle2 size={11} /> : <Copy size={11} />}
+            {copied ? "Copied!" : "Copy"}
+          </button>
+        </div>
+      </header>
 
-      <div className="mx-auto grid max-w-[1700px] gap-4 px-4 py-4 sm:px-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(340px,0.8fr)]">
-        <section className="min-h-[70vh] overflow-hidden rounded-[28px] border border-gray-800 bg-gray-950/80 shadow-[0_20px_80px_rgba(0,0,0,0.35)]">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-800 px-4 py-3">
-            <div className="flex items-center gap-2">
-              <Code2 size={15} className="text-cyan-300" />
-              <span className="text-sm font-semibold text-gray-200">Full Sketch</span>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 text-[11px]">
-              {(["button", "ai", "user"] as const).map((source) => (
-                <span
-                  key={source}
-                  className={`rounded-full border px-2 py-1 font-semibold ${SOURCE_STYLES[source].chip}`}
-                >
-                  {SOURCE_STYLES[source].label}
+      {/* Body */}
+      <div className="flex flex-1 overflow-hidden min-h-0">
+
+        {/* Code panel */}
+        <div className="flex flex-1 flex-col overflow-hidden min-w-0 border-r border-gray-800">
+          {/* Color-coded view */}
+          <div className="flex-1 overflow-auto font-mono text-[12.5px] leading-[1.65] bg-[#07091a]">
+            {classification.map((line, i) => (
+              <div key={i} className={`flex ${SOURCE_BG[line.source] ?? ""}`}>
+                <span className="w-12 flex-shrink-0 select-none text-right pr-3 text-[10px] text-gray-700 leading-[1.65]">
+                  {line.index + 1}
                 </span>
-              ))}
-            </div>
+                <span className="flex-1 whitespace-pre px-2 overflow-x-hidden">
+                  {highlightLine(line.line)}
+                </span>
+              </div>
+            ))}
           </div>
 
-          <div className="grid min-h-[70vh] xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+          {/* Edit bar */}
+          <div className="border-t border-gray-800 flex-shrink-0 bg-gray-950">
+            <div className="px-4 py-1.5 flex items-center gap-2 border-b border-gray-800/60">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-600">Edit — changes reflected above in real time</span>
+            </div>
             <textarea
               value={workspace.editedCode}
-              onChange={(event) => updateEditedCode(event.target.value)}
+              onChange={(e) => updateCode(e.target.value)}
               spellCheck={false}
               autoComplete="off"
               autoCorrect="off"
-              className="min-h-[36rem] w-full resize-none border-b border-gray-800 bg-transparent px-4 py-4 font-mono text-[12px] leading-6 text-gray-200 outline-none xl:min-h-full xl:border-b-0 xl:border-r"
+              className="h-36 w-full resize-none bg-transparent px-4 py-3 font-mono text-[12px] leading-6 text-gray-300 outline-none"
+              placeholder="Edit sketch here…"
             />
-
-            <div className="min-h-[36rem] overflow-auto bg-[#09101f] px-4 py-4 font-mono text-[12px] leading-6 xl:min-h-full">
-              {classification.map((line) => (
-                <div
-                  key={`${line.index}-${line.line}`}
-                  className={`grid grid-cols-[48px_minmax(0,1fr)] gap-3 rounded-md px-2 ${
-                    line.source === "generated" ? SOURCE_STYLES.generated.line : SOURCE_STYLES[line.source].line
-                  }`}
-                >
-                  <span className="select-none text-right text-[10px] text-gray-600">{line.index + 1}</span>
-                  <span className="whitespace-pre-wrap break-words">{line.line || " "}</span>
-                </div>
-              ))}
-            </div>
           </div>
-        </section>
+        </div>
 
-        <aside className="flex min-h-[70vh] flex-col gap-4">
-          <section className="rounded-[28px] border border-gray-800 bg-gray-950/80 p-4">
-            <div className="flex items-center gap-2">
-              <Sparkles size={15} className="text-cyan-300" />
-              <h2 className="text-sm font-semibold text-gray-100">Code Sources</h2>
-            </div>
-            <p className="mt-2 text-xs leading-relaxed text-gray-500">
-              This breaks the sketch into the hardware mapping block, AI-generated changes, and your manual edits.
-            </p>
+        {/* AI panel */}
+        <aside className="flex w-72 flex-shrink-0 flex-col bg-gray-950/70 xl:w-88">
+          <div className="flex items-center gap-2 border-b border-gray-800 px-4 py-3 flex-shrink-0">
+            <Sparkles size={13} className="text-cyan-400" />
+            <span className="text-sm font-semibold">AI Assistant</span>
+          </div>
 
-            <div className="mt-4 space-y-4">
-              <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10">
-                <div className="flex items-center gap-2 border-b border-emerald-500/20 px-3 py-2 text-xs font-semibold text-emerald-200">
-                  <Code2 size={12} />
-                  Code for your buttons
-                </div>
-                <pre className="max-h-52 overflow-auto whitespace-pre-wrap px-3 py-3 font-mono text-[11px] leading-5 text-emerald-100">{buttonCode}</pre>
+          <div className="flex-1 overflow-auto px-3 py-3 space-y-2 min-h-0">
+            {messages.length === 0 ? (
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-600 px-1 pb-1">Try asking…</p>
+                {SUGGESTIONS.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => { setUserInput(s); setTimeout(() => inputRef.current?.focus(), 20); }}
+                    className="block w-full rounded-xl border border-gray-800 bg-gray-900/60 px-3 py-2 text-left text-xs text-gray-400 hover:border-cyan-500/30 hover:text-cyan-200 transition-colors"
+                  >
+                    {s}
+                  </button>
+                ))}
               </div>
-
-              <div className="rounded-2xl border border-cyan-500/25 bg-cyan-500/10">
-                <div className="flex items-center gap-2 border-b border-cyan-500/20 px-3 py-2 text-xs font-semibold text-cyan-200">
-                  <Bot size={12} />
-                  Code AI added
-                </div>
-                <pre className="max-h-44 overflow-auto whitespace-pre-wrap px-3 py-3 font-mono text-[11px] leading-5 text-cyan-100">{aiCode}</pre>
-              </div>
-
-              <div className="rounded-2xl border border-amber-500/25 bg-amber-500/10">
-                <div className="flex items-center gap-2 border-b border-amber-500/20 px-3 py-2 text-xs font-semibold text-amber-200">
-                  <Pencil size={12} />
-                  Code you added
-                </div>
-                <pre className="max-h-44 overflow-auto whitespace-pre-wrap px-3 py-3 font-mono text-[11px] leading-5 text-amber-100">{userCode}</pre>
-              </div>
-            </div>
-          </section>
-
-          <section className="flex min-h-[22rem] flex-1 flex-col overflow-hidden rounded-[28px] border border-gray-800 bg-gray-950/80">
-            <div className="flex items-center justify-between border-b border-gray-800 px-4 py-3">
-              <div>
-                <h2 className="text-sm font-semibold text-gray-100">AI Sketch Help</h2>
-                <p className="mt-1 text-[11px] text-gray-500">Ask for edits or explanations without leaving the page.</p>
-              </div>
-              <button
-                onClick={() => setShowAIChat((value) => !value)}
-                className="rounded-xl border border-gray-700 bg-gray-900 px-3 py-1.5 text-[11px] font-semibold text-gray-300 transition-colors hover:border-cyan-500/30 hover:text-cyan-100"
-              >
-                {showAIChat ? "Hide" : "Show"}
-              </button>
-            </div>
-
-            {showAIChat ? (
-              <>
-                <div className="flex-1 overflow-auto px-4 py-4">
-                  {messages.length === 0 ? (
-                    <div className="space-y-2">
-                      <p className="text-xs font-medium text-gray-500">Try one of these:</p>
-                      {SUGGESTIONS.map((suggestion) => (
-                        <button
-                          key={suggestion}
-                          onClick={() => { setUserInput(suggestion); setTimeout(() => inputRef.current?.focus(), 20); }}
-                          className="block w-full rounded-2xl border border-gray-800 bg-gray-900/70 px-3 py-3 text-left text-xs text-gray-300 transition-colors hover:border-cyan-500/30 hover:text-cyan-100"
-                        >
-                          {suggestion}
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {messages.map((message, index) => (
-                        <div
-                          key={`${message.role}-${index}`}
-                          className={`rounded-2xl border px-3 py-2.5 text-sm leading-relaxed ${
-                            message.role === "user"
-                              ? "border-cyan-500/20 bg-cyan-500/10 text-cyan-50"
-                              : "border-gray-800 bg-gray-900/80 text-gray-200"
-                          }`}
-                        >
-                          {message.content}
-                        </div>
-                      ))}
-                      {aiLoading && (
-                        <div className="flex items-center gap-2 rounded-2xl border border-gray-800 bg-gray-900/80 px-3 py-2.5 text-sm text-gray-400">
-                          <Loader2 size={13} className="animate-spin text-cyan-300" />
-                          Updating sketch...
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <div className="border-t border-gray-800 px-4 py-4">
-                  <div className="flex gap-2">
-                    <input
-                      ref={inputRef}
-                      value={userInput}
-                      onChange={(event) => setUserInput(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" && !event.shiftKey) {
-                          event.preventDefault();
-                          sendToAI();
-                        }
-                      }}
-                      placeholder="Describe what to change..."
-                      className="flex-1 rounded-2xl border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-100 outline-none transition-colors focus:border-cyan-500"
-                    />
-                    <button
-                      onClick={sendToAI}
-                      disabled={aiLoading || !userInput.trim()}
-                      className="rounded-2xl bg-cyan-600 px-4 py-2 text-sm font-semibold text-slate-950 transition-colors hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {aiLoading ? <Loader2 size={14} className="animate-spin" /> : "Send"}
-                    </button>
-                  </div>
-                </div>
-              </>
             ) : (
-              <div className="flex flex-1 items-center justify-center px-6 text-center text-sm text-gray-500">
-                Open the AI panel when you want the assistant to edit or explain the sketch.
+              messages.map((msg, i) => (
+                <div key={i} className={`rounded-xl px-3 py-2.5 text-xs leading-relaxed ${
+                  msg.role === "user"
+                    ? "bg-cyan-500/10 border border-cyan-500/20 text-cyan-50 ml-3"
+                    : "bg-gray-900/80 border border-gray-800 text-gray-200"
+                }`}>
+                  {msg.content}
+                </div>
+              ))
+            )}
+            {aiLoading && (
+              <div className="flex items-center gap-2 rounded-xl border border-gray-800 bg-gray-900/80 px-3 py-2.5 text-xs text-gray-400">
+                <Loader2 size={11} className="animate-spin text-cyan-400" />
+                Thinking…
               </div>
             )}
-          </section>
+            <div ref={chatBottomRef} />
+          </div>
+
+          <div className="border-t border-gray-800 p-3 flex-shrink-0">
+            <div className="flex gap-2">
+              <input
+                ref={inputRef}
+                value={userInput}
+                onChange={(e) => setUserInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendToAI(); } }}
+                placeholder="Ask AI to modify the sketch…"
+                className="flex-1 rounded-xl border border-gray-700 bg-gray-900 px-3 py-2 text-xs text-gray-100 outline-none focus:border-cyan-500 transition-colors min-w-0"
+              />
+              <button
+                onClick={sendToAI}
+                disabled={aiLoading || !userInput.trim()}
+                className="rounded-xl bg-cyan-600 px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-cyan-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+              >
+                {aiLoading ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+              </button>
+            </div>
+          </div>
         </aside>
       </div>
     </div>
