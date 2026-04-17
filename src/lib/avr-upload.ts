@@ -150,6 +150,7 @@ export async function compileAndUpload(
   onProgress: Progress,
   forceNewPort = false
 ): Promise<void> {
+  const isLocalHelper = /localhost:3001|127\.0\.0\.1:3001/.test(backendUrl);
   // ── Check Web Serial support ─────────────────────────────────────────────
   if (!("serial" in navigator)) {
     throw new Error(
@@ -179,9 +180,21 @@ export async function compileAndUpload(
   } catch (e: unknown) {
     const err = e as Error;
     if (err?.name === "AbortError") {
+      if (isLocalHelper) {
+        throw new Error(
+          "The local helper at http://localhost:3001 did not respond in time.\n" +
+          "Open Arduino Button Mapper Helper.app again and wait a few seconds, then retry."
+        );
+      }
       throw new Error(
         "Compile server is taking too long to respond (>90 s).\n" +
         "The Railway backend may be cold-starting — wait 30 seconds and try again."
+      );
+    }
+    if (isLocalHelper) {
+      throw new Error(
+        `Cannot reach the local helper (${backendUrl}). ` +
+        "Open Arduino Button Mapper Helper.app and make sure it has finished starting in the background."
       );
     }
     throw new Error(
