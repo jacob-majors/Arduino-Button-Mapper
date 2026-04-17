@@ -327,6 +327,7 @@ void updateJoystickCenter(int rawValue, int &centerValue, int deadzone) {
       joyGlobals += `const int JOY${i}_X = A${j.xPin};\n`;
       joyGlobals += `const int JOY${i}_Y = A${j.yPin};\n`;
       joyGlobals += `const int JOY${i}_DZ = ${j.deadzone};\n`;
+      joyGlobals += `const int JOY${i}_REL = JOY${i}_DZ * 3 / 4;\n`;
       joyGlobals += `int joy${i}CenterX = 512;\n`;
       joyGlobals += `int joy${i}CenterY = 512;\n`;
       joyGlobals += `const int JOY${i}_UP    = ${keyLiteral(j.upKey)};\n`;
@@ -394,7 +395,7 @@ void updateJoystickCenter(int rawValue, int &centerValue, int deadzone) {
       updateJoystickCenter(rawX, joy${i}CenterX, JOY${i}_DZ);
       updateJoystickCenter(rawY, joy${i}CenterY, JOY${i}_DZ);
       int x = ${xi}; int y = ${yi};
-      // Y axis
+      // Y axis — press at DZ, release at REL (hysteresis prevents oscillation at threshold)
       if (y < -JOY${i}_DZ) {
         if (!joy${i}U && JOY${i}_UP   != 0) { Keyboard.press(JOY${i}_UP);   joy${i}U=true; }
         if ( joy${i}D && JOY${i}_DOWN != 0) { Keyboard.release(JOY${i}_DOWN); joy${i}D=false; }
@@ -402,10 +403,10 @@ void updateJoystickCenter(int rawValue, int &centerValue, int deadzone) {
         if (!joy${i}D && JOY${i}_DOWN != 0) { Keyboard.press(JOY${i}_DOWN); joy${i}D=true; }
         if ( joy${i}U && JOY${i}_UP   != 0) { Keyboard.release(JOY${i}_UP);  joy${i}U=false; }
       } else {
-        if (joy${i}U && JOY${i}_UP   != 0) { Keyboard.release(JOY${i}_UP);   joy${i}U=false; }
-        if (joy${i}D && JOY${i}_DOWN != 0) { Keyboard.release(JOY${i}_DOWN); joy${i}D=false; }
+        if (joy${i}U && y > -JOY${i}_REL && JOY${i}_UP   != 0) { Keyboard.release(JOY${i}_UP);   joy${i}U=false; }
+        if (joy${i}D && y <  JOY${i}_REL && JOY${i}_DOWN != 0) { Keyboard.release(JOY${i}_DOWN); joy${i}D=false; }
       }
-      // X axis
+      // X axis — same hysteresis
       if (x < -JOY${i}_DZ) {
         if (!joy${i}L && JOY${i}_LEFT  != 0) { Keyboard.press(JOY${i}_LEFT);  joy${i}L=true; }
         if ( joy${i}R && JOY${i}_RIGHT != 0) { Keyboard.release(JOY${i}_RIGHT); joy${i}R=false; }
@@ -413,8 +414,8 @@ void updateJoystickCenter(int rawValue, int &centerValue, int deadzone) {
         if (!joy${i}R && JOY${i}_RIGHT != 0) { Keyboard.press(JOY${i}_RIGHT); joy${i}R=true; }
         if ( joy${i}L && JOY${i}_LEFT  != 0) { Keyboard.release(JOY${i}_LEFT); joy${i}L=false; }
       } else {
-        if (joy${i}L && JOY${i}_LEFT  != 0) { Keyboard.release(JOY${i}_LEFT);  joy${i}L=false; }
-        if (joy${i}R && JOY${i}_RIGHT != 0) { Keyboard.release(JOY${i}_RIGHT); joy${i}R=false; }
+        if (joy${i}L && x > -JOY${i}_REL && JOY${i}_LEFT  != 0) { Keyboard.release(JOY${i}_LEFT);  joy${i}L=false; }
+        if (joy${i}R && x <  JOY${i}_REL && JOY${i}_RIGHT != 0) { Keyboard.release(JOY${i}_RIGHT); joy${i}R=false; }
       }${(j.ledPin ?? -1) >= 0 ? `
       if (JOY${i}_LED_MODE == 1) digitalWrite(JOY${i}_LED, HIGH);
       else { bool active = joy${i}U || joy${i}D || joy${i}L || joy${i}R; digitalWrite(JOY${i}_LED, active ? HIGH : LOW); }` : ""}${hasBtn ? `
