@@ -192,31 +192,15 @@ export async function compileAndUpload(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let port: any = null;
 
-  if (!forceNewPort) {
-    // Try to reuse a previously-granted port (no dialog shown)
-    try {
-      const grantedPorts = await getGrantedArduinoPorts(serial);
-      if (grantedPorts.length === 1) {
-        port = grantedPorts[0];
-        onProgress("Using your saved Arduino port…");
-      } else if (grantedPorts.length > 1) {
-        port = grantedPorts[0];
-        onProgress("Using the first saved Arduino-compatible port…");
-      }
-    } catch { /* getPorts not available — fall through to requestPort */ }
-  }
-
-  if (!port) {
-    onProgress("Choose your Arduino once in the browser dialog…");
-    try {
-      port = await serial.requestPort({ filters: ARDUINO_SERIAL_FILTERS });
-    } catch (e: unknown) {
-      const err = e as Error;
-      if (err?.name === "NotAllowedError" || err?.message?.includes("No port selected")) {
-        throw new Error("Upload cancelled — no port was selected.");
-      }
-      throw new Error(`Could not open port picker: ${err?.message ?? String(e)}`);
+  onProgress("Select your Arduino in the browser dialog…");
+  try {
+    port = await serial.requestPort({ filters: ARDUINO_SERIAL_FILTERS });
+  } catch (e: unknown) {
+    const err = e as Error;
+    if (err?.name === "NotAllowedError" || err?.message?.includes("No port selected")) {
+      throw new Error("Upload cancelled — no port was selected.");
     }
+    throw new Error(`Could not open port picker: ${err?.message ?? String(e)}`);
   }
 
   // ── Step 3 & 4: Bootloader detection / 1200-baud touch ──────────────────
