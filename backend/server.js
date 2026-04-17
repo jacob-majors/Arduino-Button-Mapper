@@ -11,6 +11,16 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+app.get('/api/health', async (req, res) => {
+  const cli = await findCli();
+  const ok = !!cli;
+  res.status(ok ? 200 : 503).json({
+    ok,
+    port: Number(PORT),
+    cliInstalled: ok,
+  });
+});
+
 const ALLOWED_FQBNS = new Set([
   'arduino:avr:leonardo',
   'arduino:avr:micro',

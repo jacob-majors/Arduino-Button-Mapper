@@ -11,6 +11,7 @@ LOG_FILE="$LOG_DIR/helper.log"
 LAUNCH_AGENT_DIR="$HOME/Library/LaunchAgents"
 LAUNCH_AGENT_FILE="$LAUNCH_AGENT_DIR/com.jacobmajors.arduino-button-mapper.helper.plist"
 HELPER_EXECUTABLE="$(cd "$(dirname "$0")" && pwd)/Arduino Button Mapper Helper"
+HEALTH_URL="http://127.0.0.1:3001/api/health"
 
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
@@ -37,6 +38,17 @@ EOF
 
   launchctl bootout "gui/$(id -u)" "$LAUNCH_AGENT_FILE" >/dev/null 2>&1 || true
   launchctl bootstrap "gui/$(id -u)" "$LAUNCH_AGENT_FILE" >/dev/null 2>&1 || launchctl load "$LAUNCH_AGENT_FILE" >/dev/null 2>&1 || true
+}
+
+wait_for_health() {
+  local attempt
+  for attempt in 1 2 3 4 5 6 7 8 9 10; do
+    if curl --silent --fail "$HEALTH_URL" | grep -q '"cliInstalled":true'; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
 }
 
 NODE_BIN="$(command -v node || true)"
@@ -69,9 +81,8 @@ fi
   echo $! > "$PID_FILE"
 ) >/dev/null 2>&1
 
-sleep 1
 STARTED_PID="$(cat "$PID_FILE" 2>/dev/null || true)"
-if [ -n "$STARTED_PID" ] && kill -0 "$STARTED_PID" >/dev/null 2>&1; then
+if [ -n "$STARTED_PID" ] && kill -0 "$STARTED_PID" >/dev/null 2>&1 && wait_for_health; then
   osascript -e 'display notification "Local helper started in the background and will launch again after login." with title "Arduino Button Mapper Helper"' >/dev/null 2>&1 || true
   exit 0
 fi
