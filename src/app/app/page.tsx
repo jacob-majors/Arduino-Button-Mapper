@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import {
   Zap, RefreshCw, Plus, Trash2, X, Upload, ChevronDown,
   Loader2, CheckCircle2, XCircle, Terminal, Usb, Keyboard,
@@ -24,6 +25,12 @@ import RemapModal from "@/components/RemapModal";
 import TutorialOverlay, { TUTORIAL_STEPS } from "@/components/TutorialOverlay";
 import { arduinoToBrowserKey } from "@/lib/keymap";
 import type { RemapEntry } from "@/lib/remap";
+import {
+  createSketchWorkspace,
+  getCustomSketchFromWorkspace,
+  loadSketchWorkspace,
+  saveSketchWorkspace,
+} from "@/lib/sketch-workspace";
 import {
   supabase,
   loginOrCreate,
@@ -2358,14 +2365,16 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function Home() {
+  const router = useRouter();
   const [tab, setTab] = useState<"wiring" | "configure" | "test" | "admin">("configure");
-  const [uploadMethod, setUploadMethod] = useState<"web" | "local">(() => {
+  const [uploadMethod, setUploadMethod] = useState<"auto" | "web" | "local">(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("uploadMethod");
-      if (stored === "web" || stored === "local") return stored;
+      if (stored === "auto" || stored === "web" || stored === "local") return stored;
     }
-    return REMOTE_BACKEND_URL && REMOTE_BACKEND_URL !== LOCAL_BACKEND_URL ? "web" : "local";
+    return "auto";
   });
+  const [localHelperState, setLocalHelperState] = useState<"checking" | "ready" | "unavailable">("checking");
   const [ports, setPorts] = useState<Port[]>([]);
   const [selectedPort, setSelectedPort] = useState("");
   const [buttons, setButtons] = useState<ButtonConfig[]>([
@@ -2373,8 +2382,6 @@ export default function Home() {
   ]);
   const [portInputs, setPortInputs] = useState<PortConfig[]>([]);
   const [leds, setLeds] = useState<LedConfig>({ enabled: false, onPin: 11, offPin: 12 });
-  const [showSketch, setShowSketch] = useState(false);
-  const [sketchCode, setSketchCode] = useState("");
   const [customSketch, setCustomSketch] = useState<string | null>(null);
   const [railwayToken, setRailwayToken] = useState(() => {
     if (typeof window !== "undefined") return localStorage.getItem("railway_api_token") ?? "";
@@ -2472,12 +2479,66 @@ export default function Home() {
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [reportDone, setReportDone] = useState(false);
   const canUseRemoteBackend = !!REMOTE_BACKEND_URL && REMOTE_BACKEND_URL !== LOCAL_BACKEND_URL;
-  const activeBackendUrl = uploadMethod === "local" || !canUseRemoteBackend ? LOCAL_BACKEND_URL : REMOTE_BACKEND_URL;
-  const uploadMethodLabel = uploadMethod === "local" ? "Local Helper" : "Web Compiler";
+  const activeBackendUrl =
+    uploadMethod === "local"
+      ? LOCAL_BACKEND_URL
+      : uploadMethod === "web"
+      ? (canUseRemoteBackend ? REMOTE_BACKEND_URL : LOCAL_BACKEND_URL)
+      : localHelperState === "ready"
+      ? LOCAL_BACKEND_URL
+      : canUseRemoteBackend
+      ? REMOTE_BACKEND_URL
+      : LOCAL_BACKEND_URL;
+  const uploadMethodLabel =
+    uploadMethod === "auto"
+      ? localHelperState === "ready"
+        ? "Auto (using Local Helper)"
+        : canUseRemoteBackend
+        ? "Auto (using Web Compiler)"
+        : "Auto (waiting for Local Helper)"
+      : uploadMethod === "local"
+      ? "Local Helper"
+      : "Web Compiler";
 
   useEffect(() => {
     if (typeof window !== "undefined") localStorage.setItem("uploadMethod", uploadMethod);
   }, [uploadMethod]);
+
+  useEffect(() => {
+    const syncSketchWorkspace = () => {
+      const workspace = loadSketchWorkspace();
+      if (!workspace) return;
+      setCustomSketch(getCustomSketchFromWorkspace(workspace));
+    };
+
+    syncSketchWorkspace();
+    window.addEventListener("focus", syncSketchWorkspace);
+    window.addEventListener("storage", syncSketchWorkspace);
+    return () => {
+      window.removeEventListener("focus", syncSketchWorkspace);
+      window.removeEventListener("storage", syncSketchWorkspace);
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const checkLocalHelper = async () => {
+      setLocalHelperState("checking");
+      try {
+        const res = await fetch(`${LOCAL_BACKEND_URL}/api/health`, { cache: "no-store" });
+        const data = await res.json().catch(() => null);
+        if (!cancelled) setLocalHelperState(res.ok && data?.ok === true && data?.cliInstalled === true ? "ready" : "unavailable");
+      } catch {
+        if (!cancelled) setLocalHelperState("unavailable");
+      }
+    };
+    checkLocalHelper();
+    const timer = setInterval(checkLocalHelper, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
   const [isOffline, setIsOffline] = useState(false);
   const [arduinoDetected, setArduinoDetected] = useState(false);
   const arduinoDetectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -3356,16 +3417,22 @@ export default function Home() {
     e.target.value = "";
   };
 
-  const [openSketchWithAI, setOpenSketchWithAI] = useState(false);
-
   const openSketch = async (withAI = false) => {
     setLoadingSketch(true);
     try {
       const sketch = generateSketch(buttons, leds, portInputs, irSensors, sipPuffs, joysticks);
-      setSketchCode(sketch);
-      if (customSketch === null) setCustomSketch(sketch);
-      setOpenSketchWithAI(withAI);
-      setShowSketch(true);
+      const existingWorkspace = loadSketchWorkspace();
+      const workspace =
+        existingWorkspace && existingWorkspace.originalCode === sketch
+          ? {
+              ...existingWorkspace,
+              editedCode: existingWorkspace.editedCode || sketch,
+              updatedAt: Date.now(),
+            }
+          : createSketchWorkspace(sketch, customSketch ?? sketch);
+      saveSketchWorkspace(workspace);
+      setCustomSketch(getCustomSketchFromWorkspace(workspace));
+      router.push(withAI ? "/app/sketch?ai=1" : "/app/sketch");
     } finally { setLoadingSketch(false); }
   };
 
@@ -3479,6 +3546,15 @@ export default function Home() {
                           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-gray-500">Upload Method</p>
                           <div className="mt-2 flex rounded-lg border border-gray-700 bg-gray-900/60 p-0.5">
                             <button
+                              onClick={() => setUploadMethod("auto")}
+                              className={[
+                                "flex-1 rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors",
+                                uploadMethod === "auto" ? "bg-violet-600 text-white" : "text-gray-400 hover:text-gray-200",
+                              ].join(" ")}
+                            >
+                              Auto
+                            </button>
+                            <button
                               onClick={() => setUploadMethod("web")}
                               disabled={!canUseRemoteBackend}
                               className={[
@@ -3502,7 +3578,13 @@ export default function Home() {
                           <p className="mt-2 text-[10px] text-gray-500">
                             Saved on this browser. Current: <span className="text-gray-300">{uploadMethodLabel}</span>
                           </p>
-                          {uploadMethod === "local" && (
+                          <p className="mt-1 text-[10px] text-gray-500">
+                            Local helper status:{" "}
+                            <span className={localHelperState === "ready" ? "text-emerald-300" : localHelperState === "checking" ? "text-amber-300" : "text-gray-400"}>
+                              {localHelperState === "ready" ? "Running" : localHelperState === "checking" ? "Checking..." : "Not detected"}
+                            </span>
+                          </p>
+                          {(uploadMethod === "local" || uploadMethod === "auto") && (
                             <div className="mt-2 flex flex-col gap-1.5">
                               <a
                                 href="/downloads/Arduino-Button-Mapper-Helper-Mac.zip"
@@ -3806,6 +3888,12 @@ export default function Home() {
                   <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-gray-500">Upload Method</p>
                   <p className="mt-1 text-sm font-medium text-gray-200">{uploadMethodLabel}</p>
                   <p className="mt-1 text-[10px] text-gray-500">Change this from your profile menu.</p>
+                  <p className="mt-1 text-[10px] text-gray-500">
+                    Helper status:{" "}
+                    <span className={localHelperState === "ready" ? "text-emerald-300" : localHelperState === "checking" ? "text-amber-300" : "text-gray-400"}>
+                      {localHelperState === "ready" ? "Running" : localHelperState === "checking" ? "Checking..." : "Not detected"}
+                    </span>
+                  </p>
                 </div>
                 {uploadMethod === "local" ? (
                   <>
@@ -3819,6 +3907,21 @@ export default function Home() {
                     >
                       <Download size={10} /> Download Mac Helper
                     </a>
+                  </>
+                ) : uploadMethod === "auto" ? (
+                  <>
+                    <p className="flex-1 min-w-[240px]">
+                      Auto mode prefers the Local Helper whenever it is running on <span className="font-mono text-emerald-300">{LOCAL_BACKEND_URL}</span>, and falls back to the Web Compiler when it is not.
+                    </p>
+                    {localHelperState !== "ready" && (
+                      <a
+                        href="/downloads/Arduino-Button-Mapper-Helper-Mac.zip"
+                        download
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-700/50 px-2.5 py-1.5 text-[10px] font-medium text-emerald-200 hover:bg-emerald-900/30 transition-colors"
+                      >
+                        <Download size={10} /> Download Mac Helper
+                      </a>
+                    )}
                   </>
                 ) : (
                   <p className="flex-1 min-w-[240px]">
@@ -5087,19 +5190,6 @@ export default function Home() {
             </div>
           </div>
         </div>
-      )}
-
-
-
-      {/* IDE modal */}
-      {showSketch && sketchCode && (
-        <IDEModal
-          originalCode={sketchCode}
-          editedCode={customSketch ?? sketchCode}
-          onCodeUpdate={(code) => setCustomSketch(code === sketchCode ? null : code)}
-          onClose={() => setShowSketch(false)}
-          initialShowAI={openSketchWithAI}
-        />
       )}
 
       {/* LED info modal */}

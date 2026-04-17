@@ -12,14 +12,31 @@ export default function QuickRemapPage() {
   const [backendUrl, setBackendUrl] = useState(REMOTE_BACKEND_URL || LOCAL_BACKEND_URL);
 
   useEffect(() => {
+    let cancelled = false;
     const method = localStorage.getItem("uploadMethod");
-    if (method === "local") {
-      setBackendUrl(LOCAL_BACKEND_URL);
-    } else if (REMOTE_BACKEND_URL && REMOTE_BACKEND_URL !== LOCAL_BACKEND_URL) {
-      setBackendUrl(REMOTE_BACKEND_URL);
-    } else {
-      setBackendUrl(LOCAL_BACKEND_URL);
-    }
+    const chooseBackend = async () => {
+      if (method === "local") {
+        setBackendUrl(LOCAL_BACKEND_URL);
+        return;
+      }
+      if (method === "web") {
+        setBackendUrl(REMOTE_BACKEND_URL && REMOTE_BACKEND_URL !== LOCAL_BACKEND_URL ? REMOTE_BACKEND_URL : LOCAL_BACKEND_URL);
+        return;
+      }
+      try {
+        const res = await fetch(`${LOCAL_BACKEND_URL}/api/health`, { cache: "no-store" });
+        const data = await res.json().catch(() => null);
+        if (!cancelled && res.ok && data?.ok === true && data?.cliInstalled === true) {
+          setBackendUrl(LOCAL_BACKEND_URL);
+          return;
+        }
+      } catch { /* ignore */ }
+      if (!cancelled) {
+        setBackendUrl(REMOTE_BACKEND_URL && REMOTE_BACKEND_URL !== LOCAL_BACKEND_URL ? REMOTE_BACKEND_URL : LOCAL_BACKEND_URL);
+      }
+    };
+    chooseBackend();
+    return () => { cancelled = true; };
   }, []);
 
   return (

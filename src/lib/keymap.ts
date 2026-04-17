@@ -479,6 +479,7 @@ void updateJoystickCenterFromIdle(int rawX, int rawY, int &centerX, int &centerY
   const hasMouseJoy = joysticks.some((j) => j.mouseMode);
 
   const btnSection = n > 0 ? `
+// <ABM:BUTTONS:START>
 ${btnComments}
 
 const int numButtons = ${n};
@@ -487,7 +488,8 @@ const int keyValues[${n}] = {${btnKeys}};
 const int buttonModes[${n}] = {${btnModes}}; // 0=hold 1=toggle 2=power 3=tap
 const int buttonLedPins[${n}] = {${btnLedPins}}; // -1 = no LED
 bool lastButtonState[${n}];
-bool toggleState[${n}] = {${configured.map(() => "false").join(", ")}};` : "";
+bool toggleState[${n}] = {${configured.map(() => "false").join(", ")}};
+// <ABM:BUTTONS:END>` : "";
 
   const resetRuntimeStateParts: string[] = [`  Keyboard.releaseAll();`];
   if (hasMouseJoy) {
