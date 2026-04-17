@@ -4977,12 +4977,7 @@ export default function Home() {
         </div>
       )}
 
-      {wsUploading && (
-        <div
-          aria-hidden="true"
-          className="pointer-events-none fixed inset-0 z-[45] bg-slate-950/22 backdrop-blur-[2px]"
-        />
-      )}
+
 
       {/* IDE modal */}
       {showSketch && sketchCode && (
