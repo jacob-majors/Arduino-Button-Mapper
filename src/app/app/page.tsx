@@ -313,11 +313,10 @@ function ButtonCard({ button, index, usedPins, onUpdate, onRemove, typeLabel, is
           ? isSelected ? "bg-amber-900/70 border-amber-500" : "bg-amber-950/50 border-amber-700/60 hover:border-amber-600/70"
           : isSelected ? "bg-blue-900/70 border-blue-500" : "bg-blue-950/50 border-blue-800/50 hover:border-blue-700/60"
       ].join(" ")}
-      onClick={() => onSelect?.(isSelected ? null : button.id)}
       onContextMenu={(e) => { e.preventDefault(); setCtxMenu({ x: e.clientX, y: e.clientY }); }}
     >
       {/* Header */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2" onClick={() => onSelect?.(isSelected ? null : button.id)}>
         {isPower ? (
           <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0 bg-amber-900/60 text-amber-400 border border-amber-700/60 flex items-center gap-1">
             <Power size={8} /> Power
@@ -332,6 +331,7 @@ function ButtonCard({ button, index, usedPins, onUpdate, onRemove, typeLabel, is
         <input
           type="text" value={button.name}
           onChange={(e) => onUpdate(button.id, { name: e.target.value })}
+          onClick={(e) => e.stopPropagation()}
           placeholder={isPower ? "Power Switch" : isPort ? `Port ${index + 1}` : `Input ${index + 1}`}
           className="flex-1 bg-transparent text-sm font-semibold text-gray-200 placeholder:text-gray-600 outline-none border-b border-transparent focus:border-gray-600 transition-colors min-w-0"
         />
@@ -347,7 +347,7 @@ function ButtonCard({ button, index, usedPins, onUpdate, onRemove, typeLabel, is
       </div>
 
       {!isSelected && (
-        <div className="flex items-center gap-2 text-[11px] text-gray-400">
+        <div className="flex items-center gap-2 text-[11px] text-gray-400" onClick={() => onSelect?.(button.id)}>
           <span className="font-mono text-gray-300 bg-gray-900/70 border border-gray-700 rounded-md px-2 py-1">D{button.pin}</span>
           {!isPower && <span className="truncate">{button.keyDisplay || button.arduinoKey || "No key assigned"}</span>}
           {isPower && <span className="truncate text-amber-500/80">Controller power switch</span>}
@@ -1175,14 +1175,14 @@ function IRSensorCard({ sensor, index, usedPins, onUpdate, onRemove, isSelected,
       className={["border rounded-xl p-3 flex flex-col gap-2 transition-colors group cursor-pointer",
         isSelected ? "bg-emerald-900/70 border-emerald-500" : "bg-emerald-950/50 border-emerald-700/60 hover:border-emerald-600/70"
       ].join(" ")}
-      onClick={() => onSelect?.(isSelected ? null : sensor.id)}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2" onClick={() => onSelect?.(isSelected ? null : sensor.id)}>
         <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 border bg-emerald-500/20 border-emerald-500/40">
           <span className="text-emerald-400 text-[9px] font-bold">IR</span>
         </div>
         <input type="text" value={sensor.name}
           onChange={(e) => onUpdate(sensor.id, { name: e.target.value })}
+          onClick={(e) => e.stopPropagation()}
           placeholder={`IR Sensor ${index + 1}`}
           className="flex-1 bg-transparent text-sm font-semibold text-gray-200 placeholder:text-gray-600 outline-none border-b border-transparent focus:border-gray-600 transition-colors min-w-0"
         />
@@ -1191,14 +1191,14 @@ function IRSensorCard({ sensor, index, usedPins, onUpdate, onRemove, isSelected,
             <Lightbulb size={8} /> D{sensor.ledPin}
           </span>
         )}
-        <button onClick={() => onRemove(sensor.id)}
+        <button onClick={(e) => { e.stopPropagation(); onRemove(sensor.id); }}
           className="p-1 rounded text-gray-700 hover:text-red-400 hover:bg-red-400/10 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0"
         ><Trash2 size={12} /></button>
         <ChevronDown size={12} className={["text-gray-600 transition-transform flex-shrink-0", isSelected ? "rotate-180" : ""].join(" ")} />
       </div>
 
       {!isSelected && (
-        <div className="flex items-center gap-2 text-[11px] text-gray-400">
+        <div className="flex items-center gap-2 text-[11px] text-gray-400" onClick={() => onSelect?.(sensor.id)}>
           <span className="font-mono text-emerald-300 bg-gray-900/70 border border-gray-700 rounded-md px-2 py-1">D{sensor.pin}</span>
           <span className="truncate flex-1">{sensor.keyDisplay || sensor.arduinoKey || "No key assigned"}</span>
           <span>{sensor.activeHigh ? "HIGH" : "LOW"}</span>
@@ -1302,14 +1302,14 @@ function SipPuffCard({ sensor, index, usedPins, onUpdate, onRemove, isSelected, 
       className={["border rounded-xl p-3 flex flex-col gap-2 transition-colors group cursor-pointer",
         isSelected ? "bg-cyan-900/70 border-cyan-500" : "bg-cyan-950/50 border-cyan-700/60 hover:border-cyan-600/70"
       ].join(" ")}
-      onClick={() => onSelect?.(isSelected ? null : sensor.id)}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2" onClick={() => onSelect?.(isSelected ? null : sensor.id)}>
         <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 border bg-cyan-500/20 border-cyan-500/40">
           <Wind size={9} className="text-cyan-400" />
         </div>
         <input type="text" value={sensor.name}
           onChange={(e) => onUpdate(sensor.id, { name: e.target.value })}
+          onClick={(e) => e.stopPropagation()}
           placeholder={`Sip & Puff ${index + 1}`}
           className="flex-1 bg-transparent text-sm font-semibold text-gray-200 placeholder:text-gray-600 outline-none border-b border-transparent focus:border-gray-600 transition-colors min-w-0"
         />
@@ -1318,14 +1318,14 @@ function SipPuffCard({ sensor, index, usedPins, onUpdate, onRemove, isSelected, 
             <Lightbulb size={8} /> D{sensor.ledPin}
           </span>
         )}
-        <button onClick={() => onRemove(sensor.id)}
+        <button onClick={(e) => { e.stopPropagation(); onRemove(sensor.id); }}
           className="p-1 rounded text-gray-700 hover:text-red-400 hover:bg-red-400/10 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0"
         ><Trash2 size={12} /></button>
         <ChevronDown size={12} className={["text-gray-600 transition-transform flex-shrink-0", isSelected ? "rotate-180" : ""].join(" ")} />
       </div>
 
       {!isSelected && (
-        <div className="flex items-center gap-2 text-[11px] text-gray-400">
+        <div className="flex items-center gap-2 text-[11px] text-gray-400" onClick={() => onSelect?.(sensor.id)}>
           <span className="font-mono text-cyan-300 bg-gray-900/70 border border-gray-700 rounded-md px-2 py-1">D{sensor.pin}</span>
           <span className="truncate flex-1">{sensor.keyDisplay || sensor.key || "No key assigned"}</span>
           <span className="capitalize">{sensor.inputMode ?? "hold"}</span>
@@ -1412,14 +1412,14 @@ function JoystickCard({ joy, index, usedPins, usedAnalogPins, onUpdate, onRemove
       className={["border rounded-xl p-3 flex flex-col gap-2 transition-colors group cursor-pointer",
         isSelected ? "bg-violet-900/70 border-violet-500" : "bg-violet-950/50 border-violet-700/60 hover:border-violet-600/70"
       ].join(" ")}
-      onClick={() => onSelect?.(isSelected ? null : joy.id)}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2" onClick={() => onSelect?.(isSelected ? null : joy.id)}>
         <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 border bg-violet-500/20 border-violet-500/40">
           <Joystick size={9} className="text-violet-400" />
         </div>
         <input type="text" value={joy.name}
           onChange={(e) => onUpdate(joy.id, { name: e.target.value })}
+          onClick={(e) => e.stopPropagation()}
           placeholder={`Joystick ${index + 1}`}
           className="flex-1 bg-transparent text-sm font-semibold text-gray-200 placeholder:text-gray-600 outline-none border-b border-transparent focus:border-gray-600 transition-colors min-w-0"
         />
@@ -1428,14 +1428,14 @@ function JoystickCard({ joy, index, usedPins, usedAnalogPins, onUpdate, onRemove
             <Lightbulb size={8} /> D{joy.ledPin}
           </span>
         )}
-        <button onClick={() => onRemove(joy.id)}
+        <button onClick={(e) => { e.stopPropagation(); onRemove(joy.id); }}
           className="p-1 rounded text-gray-700 hover:text-red-400 hover:bg-red-400/10 transition-all opacity-0 group-hover:opacity-100 flex-shrink-0"
         ><Trash2 size={12} /></button>
         <ChevronDown size={12} className={["text-gray-600 transition-transform flex-shrink-0", isSelected ? "rotate-180" : ""].join(" ")} />
       </div>
 
       {!isSelected && (
-        <div className="flex items-center gap-2 text-[11px] text-gray-400">
+        <div className="flex items-center gap-2 text-[11px] text-gray-400" onClick={() => onSelect?.(joy.id)}>
           <span className="font-mono text-violet-300 bg-gray-900/70 border border-gray-700 rounded-md px-2 py-1">A{joy.xPin}/A{joy.yPin}</span>
           <span className="truncate flex-1">{joy.mouseMode ? "Mouse mode" : "Key mode"}</span>
           {joy.buttonPin >= 0 && <span className="font-mono">D{joy.buttonPin}</span>}
