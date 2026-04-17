@@ -233,6 +233,12 @@ app.post('/api/upload', async (req, res) => {
   compile.stdout.on('data', (d) => d.toString().split('\n').forEach((l) => l.trim() && sendEvent('log', l.trim())));
   compile.stderr.on('data', (d) => d.toString().split('\n').forEach((l) => l.trim() && sendEvent('log', l.trim())));
 
+  compile.on('error', (err) => {
+    sendEvent('error', `Failed to start compiler: ${err.message}`);
+    sendEvent('done', JSON.stringify({ success: false }));
+    res.end(); cleanup();
+  });
+
   compile.on('close', (code) => {
     if (code !== 0) {
       sendEvent('error', `Compilation failed (exit ${code})`);
@@ -247,6 +253,12 @@ app.post('/api/upload', async (req, res) => {
 
     uploadProcess.stdout.on('data', (d) => d.toString().split('\n').forEach((l) => l.trim() && sendEvent('log', l.trim())));
     uploadProcess.stderr.on('data', (d) => d.toString().split('\n').forEach((l) => l.trim() && sendEvent('log', l.trim())));
+
+    uploadProcess.on('error', (err) => {
+      sendEvent('error', `Failed to start uploader: ${err.message}`);
+      sendEvent('done', JSON.stringify({ success: false }));
+      res.end(); cleanup();
+    });
 
     uploadProcess.on('close', (uploadCode) => {
       if (uploadCode !== 0) {
