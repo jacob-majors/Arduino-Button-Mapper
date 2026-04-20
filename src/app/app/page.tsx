@@ -63,6 +63,8 @@ import type { SaveSlot, AppUser, AdminSettings, DinoScore, DbTemplate, Issue } f
 
 const REMOTE_BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL?.trim() || "";
 const LOCAL_BACKEND_URL = "http://localhost:3001";
+const APP_TAB_STORAGE_KEY = "abm_active_tab";
+const ADMIN_SUBTAB_STORAGE_KEY = "abm_admin_subtab";
 const ALL_PINS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
 const ANALOG_PINS = [0, 1, 2, 3, 4, 5]; // A0–A5
 
@@ -2366,7 +2368,13 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
 
 export default function Home() {
   const router = useRouter();
-  const [tab, setTab] = useState<"wiring" | "configure" | "test" | "admin">("configure");
+  const [tab, setTab] = useState<"wiring" | "configure" | "test" | "admin">(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem(APP_TAB_STORAGE_KEY);
+      if (stored === "wiring" || stored === "configure" || stored === "test" || stored === "admin") return stored;
+    }
+    return "configure";
+  });
   const [uploadMethod, setUploadMethod] = useState<"auto" | "web" | "local">(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("uploadMethod");
@@ -2461,7 +2469,13 @@ export default function Home() {
   const [deleteConfirmUserId, setDeleteConfirmUserId] = useState<string | null>(null);
   const [userSaveCounts, setUserSaveCounts] = useState<Record<string, number>>({});
   const [userSearch, setUserSearch] = useState("");
-  const [adminSubTab, setAdminSubTab] = useState<"settings" | "users" | "railway" | "issues">("settings");
+  const [adminSubTab, setAdminSubTab] = useState<"settings" | "users" | "railway" | "issues">(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem(ADMIN_SUBTAB_STORAGE_KEY);
+      if (stored === "settings" || stored === "users" || stored === "railway" || stored === "issues") return stored;
+    }
+    return "settings";
+  });
   const [allIssues, setAllIssues] = useState<Issue[]>([]);
   const [issuesLoaded, setIssuesLoaded] = useState(false);
   const [lightMode, setLightMode] = useState(() => {
@@ -2503,6 +2517,14 @@ export default function Home() {
   useEffect(() => {
     if (typeof window !== "undefined") localStorage.setItem("uploadMethod", uploadMethod);
   }, [uploadMethod]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") localStorage.setItem(APP_TAB_STORAGE_KEY, tab);
+  }, [tab]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") localStorage.setItem(ADMIN_SUBTAB_STORAGE_KEY, adminSubTab);
+  }, [adminSubTab]);
 
   useEffect(() => {
     const syncSketchWorkspace = () => {
@@ -2685,7 +2707,17 @@ export default function Home() {
         const u = JSON.parse(stored) as AppUser;
         setAppUser(u);
         if (isAdmin(u.username)) {
-          getAdminSessionStatus().then(setHasAdminSession).catch(() => setHasAdminSession(false));
+          getAdminSessionStatus().then((active) => {
+            setHasAdminSession(active);
+            if (!active && localStorage.getItem(APP_TAB_STORAGE_KEY) === "admin") {
+              setTab("configure");
+            }
+          }).catch(() => {
+            setHasAdminSession(false);
+            if (localStorage.getItem(APP_TAB_STORAGE_KEY) === "admin") {
+              setTab("configure");
+            }
+          });
         }
         updateLastActive(u.id).catch(() => {});
         loadAllSaves(u.id).then((allSaves) => {
@@ -2808,6 +2840,7 @@ export default function Home() {
         if (cfg.joysticks)  setJoysticks(cfg.joysticks as JoystickConfig[]);
       }
       if (isAdmin(u.username) && adminUnlocked) {
+        setTab("admin");
         const overview = await loadAdminUsersOverview();
         setAllUsers(overview.users);
         setUserSaveCounts(overview.saveCounts);
@@ -2904,6 +2937,25 @@ export default function Home() {
     }).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!authReady || !appUser || !isAdmin(appUser.username)) return;
+    getAdminSessionStatus()
+      .then((active) => {
+        setHasAdminSession(active);
+        if (!active) {
+          if (tab === "admin") setTab("configure");
+          return;
+        }
+        if (typeof window !== "undefined" && localStorage.getItem(APP_TAB_STORAGE_KEY) === "admin") {
+          setTab("admin");
+        }
+      })
+      .catch(() => {
+        setHasAdminSession(false);
+        if (tab === "admin") setTab("configure");
+      });
+  }, [authReady, appUser]);
 
   // ── Auto-save config 1.5 s after any change (only when logged in) ─────────
   useEffect(() => {
@@ -3429,7 +3481,7 @@ export default function Home() {
               editedCode: existingWorkspace.editedCode || sketch,
               updatedAt: Date.now(),
             }
-          : createSketchWorkspace(sketch, customSketch ?? sketch);
+          : createSketchWorkspace(sketch);
       saveSketchWorkspace(workspace);
       setCustomSketch(getCustomSketchFromWorkspace(workspace));
       router.push(withAI ? "/app/sketch?ai=1" : "/app/sketch");
@@ -3889,51 +3941,46 @@ export default function Home() {
           <div className="h-full max-w-[1400px] mx-auto px-4 sm:px-6 py-4 w-full flex flex-col gap-4 min-w-0">
 
             {/* Top bar: Get Code */}
-            {adminSettings.show_upload && <section className="bg-gray-800/80 border border-gray-700/70 rounded-2xl px-4 py-3 flex-shrink-0">
-              <div className="mb-3 flex flex-wrap items-start gap-3 rounded-2xl border border-gray-700/60 bg-gray-900/40 px-3 py-3 text-[11px] text-gray-400">
-                <div className="min-w-[160px]">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-gray-500">Upload Method</p>
-                  <p className="mt-1 text-sm font-medium text-gray-200">{uploadMethodLabel}</p>
-                  <p className="mt-1 text-[10px] text-gray-500">Change this from your profile menu.</p>
-                  <p className="mt-1 text-[10px] text-gray-500">
-                    Helper status:{" "}
-                    <span className={localHelperState === "ready" ? "text-emerald-300" : localHelperState === "checking" ? "text-amber-300" : "text-gray-400"}>
-                      {localHelperState === "ready" ? "Running" : localHelperState === "checking" ? "Checking..." : "Not detected"}
-                    </span>
-                  </p>
-                </div>
+            {adminSettings.show_upload && <section className="bg-gray-800/80 border border-gray-700/70 rounded-2xl px-4 py-2.5 flex-shrink-0">
+              <div className="mb-2 flex flex-wrap items-center gap-1.5 rounded-xl border border-gray-700/50 bg-gray-900/30 px-2.5 py-1.5 text-[10px] text-gray-400">
+                <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-gray-500">Upload</span>
+                <span className="rounded-full border border-gray-700 bg-gray-800 px-2 py-0.5 text-[10px] font-medium text-gray-200">
+                  {uploadMethodLabel}
+                </span>
+                <span className="text-[9px] text-gray-500">Helper</span>
+                <span className={`rounded-full px-2 py-0.5 text-[9px] font-medium ${
+                  localHelperState === "ready"
+                    ? "bg-emerald-500/10 text-emerald-300"
+                    : localHelperState === "checking"
+                    ? "bg-amber-500/10 text-amber-300"
+                    : "bg-gray-800 text-gray-400"
+                }`}>
+                  {localHelperState === "ready" ? "Running" : localHelperState === "checking" ? "Checking..." : "Not detected"}
+                </span>
                 {uploadMethod === "local" ? (
                   <>
-                    <p className="flex-1 min-w-[240px]">
-                      Local Helper uses a tiny Mac helper running on your computer at <span className="font-mono text-emerald-300">{LOCAL_BACKEND_URL}</span>, so uploads do not depend on the hosted compiler.
-                    </p>
                     <a
                       href="/downloads/Arduino-Button-Mapper-Helper-Mac.zip"
                       download
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-700/50 px-2.5 py-1.5 text-[10px] font-medium text-emerald-200 hover:bg-emerald-900/30 transition-colors"
+                      className="ml-auto inline-flex items-center gap-1 rounded-lg border border-emerald-700/50 px-2 py-0.5 text-[9px] font-medium text-emerald-200 hover:bg-emerald-900/30 transition-colors"
                     >
-                      <Download size={10} /> Download Mac Helper
+                      <Download size={9} /> Helper
                     </a>
                   </>
                 ) : uploadMethod === "auto" ? (
                   <>
-                    <p className="flex-1 min-w-[240px]">
-                      Auto mode prefers the Local Helper whenever it is running on <span className="font-mono text-emerald-300">{LOCAL_BACKEND_URL}</span>, and falls back to the Web Compiler when it is not.
-                    </p>
                     {localHelperState !== "ready" && (
                       <a
                         href="/downloads/Arduino-Button-Mapper-Helper-Mac.zip"
                         download
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-700/50 px-2.5 py-1.5 text-[10px] font-medium text-emerald-200 hover:bg-emerald-900/30 transition-colors"
+                        className="ml-auto inline-flex items-center gap-1 rounded-lg border border-emerald-700/50 px-2 py-0.5 text-[9px] font-medium text-emerald-200 hover:bg-emerald-900/30 transition-colors"
                       >
-                        <Download size={10} /> Download Mac Helper
+                        <Download size={9} /> Helper
                       </a>
                     )}
                   </>
                 ) : (
-                  <p className="flex-1 min-w-[240px]">
-                    Web Compiler uses your hosted backend and flashes from Chrome or Edge without needing the local helper app.
-                  </p>
+                  <span className="ml-auto hidden md:inline text-[9px] text-gray-500">Profile menu</span>
                 )}
               </div>
               <div className="flex flex-wrap items-center gap-2">

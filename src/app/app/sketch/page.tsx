@@ -142,6 +142,7 @@ export default function SketchPage() {
   const inputRef = useRef<HTMLInputElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
+  const codeLayerRef = useRef<HTMLDivElement>(null);
   const historyRef = useRef<string[]>([]);
   const historyIndexRef = useRef(-1);
 
@@ -163,6 +164,13 @@ export default function SketchPage() {
   useEffect(() => {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, aiLoading]);
+
+  const syncCodeScroll = () => {
+    const editor = editorRef.current;
+    const codeLayer = codeLayerRef.current;
+    if (!editor || !codeLayer) return;
+    codeLayer.style.transform = `translate(${-editor.scrollLeft}px, ${-editor.scrollTop}px)`;
+  };
 
   const classification = useMemo(() => (
     workspace ? classifySketchLines(workspace) : []
@@ -424,27 +432,31 @@ export default function SketchPage() {
           )}
 
           {/* Color-coded view */}
-          <div className="relative flex-1 overflow-auto font-mono text-[12.5px] leading-[1.65] bg-[#07091a]">
-            <div className="pointer-events-none min-h-full">
+          <div className="relative flex-1 overflow-hidden font-mono text-[12.5px] leading-[1.65] bg-[#07091a]">
+            <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div ref={codeLayerRef} className="min-h-full min-w-full will-change-transform">
               {classification.map((line, i) => (
-                <div key={i} className={`flex ${SOURCE_BG[line.source] ?? ""}`}>
+                <div key={i} className={`flex min-w-full ${SOURCE_BG[line.source] ?? ""}`}>
                   <span className="w-12 flex-shrink-0 select-none text-right pr-3 text-[10px] text-gray-700 leading-[1.65]">
                     {line.index + 1}
                   </span>
-                  <span className="flex-1 whitespace-pre px-2 overflow-x-hidden">
+                  <span className="whitespace-pre px-2 pr-8">
                     {highlightLine(line.line)}
                   </span>
                 </div>
               ))}
             </div>
+            </div>
             <textarea
               ref={editorRef}
               value={workspace.editedCode}
               onChange={(e) => updateCode(e.target.value)}
+              onScroll={syncCodeScroll}
               spellCheck={false}
               autoComplete="off"
               autoCorrect="off"
-              className="absolute inset-0 min-h-full w-full resize-none bg-transparent px-[3.65rem] py-0 font-mono text-[12.5px] leading-[1.65] text-transparent caret-cyan-300 outline-none"
+              wrap="off"
+              className="absolute inset-0 h-full w-full resize-none overflow-auto bg-transparent px-[3.65rem] py-0 font-mono text-[12.5px] leading-[1.65] text-transparent caret-cyan-300 outline-none"
               style={{ textShadow: "0 0 0 rgba(0,0,0,0)", WebkitTextFillColor: "transparent" }}
               placeholder=""
             />
