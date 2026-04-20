@@ -20,9 +20,9 @@ import {
   saveSketchWorkspace,
   type SketchWorkspace,
 } from "@/lib/sketch-workspace";
+import { analyzeSketch } from "@/lib/sketch-diagnostics";
 
 type AIMessage = { role: "user" | "assistant"; content: string };
-type Diagnostic = { level: "error" | "warning"; message: string };
 
 const SUGGESTIONS = [
   "Add debounce to all buttons",
@@ -65,68 +65,6 @@ const SOURCE_BG: Record<string, string> = {
   user:      "border-l-2 border-amber-500/50 bg-amber-500/5",
   generated: "",
 };
-
-function analyzeSketch(code: string): Diagnostic[] {
-  const diagnostics: Diagnostic[] = [];
-  const braceStack: number[] = [];
-  const parenStack: number[] = [];
-  let inBlockComment = false;
-
-  const lines = code.split("\n");
-  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-    const line = lines[lineIndex];
-    let inString = false;
-    let escaped = false;
-
-    for (let i = 0; i < line.length; i++) {
-      const current = line[i];
-      const next = line[i + 1];
-
-      if (!inString && !inBlockComment && current === "/" && next === "/") break;
-      if (!inString && !inBlockComment && current === "/" && next === "*") {
-        inBlockComment = true;
-        i++;
-        continue;
-      }
-      if (!inString && inBlockComment && current === "*" && next === "/") {
-        inBlockComment = false;
-        i++;
-        continue;
-      }
-      if (inBlockComment) continue;
-
-      if (current === "\"" && !escaped) {
-        inString = !inString;
-      } else if (!inString) {
-        if (current === "{") braceStack.push(lineIndex + 1);
-        if (current === "}") {
-          if (braceStack.length === 0) diagnostics.push({ level: "error", message: `Extra closing brace on line ${lineIndex + 1}.` });
-          else braceStack.pop();
-        }
-        if (current === "(") parenStack.push(lineIndex + 1);
-        if (current === ")") {
-          if (parenStack.length === 0) diagnostics.push({ level: "error", message: `Extra closing parenthesis on line ${lineIndex + 1}.` });
-          else parenStack.pop();
-        }
-      }
-
-      escaped = current === "\\" && !escaped;
-      if (current !== "\\") escaped = false;
-    }
-  }
-
-  for (const line of braceStack) diagnostics.push({ level: "error", message: `Missing closing brace for block opened near line ${line}.` });
-  for (const line of parenStack) diagnostics.push({ level: "error", message: `Missing closing parenthesis for expression opened near line ${line}.` });
-  if (inBlockComment) diagnostics.push({ level: "error", message: "A block comment is not closed." });
-
-  if (!/\bvoid\s+setup\s*\(/.test(code)) diagnostics.push({ level: "error", message: "Missing `void setup()`." });
-  if (!/\bvoid\s+loop\s*\(/.test(code)) diagnostics.push({ level: "error", message: "Missing `void loop()`." });
-  if (!/#include\s+<Keyboard\.h>/.test(code) && !/#include\s+<Mouse\.h>/.test(code)) {
-    diagnostics.push({ level: "warning", message: "No `Keyboard.h` or `Mouse.h` include found. HID features may not compile." });
-  }
-
-  return diagnostics;
-}
 
 export default function SketchPage() {
   const router = useRouter();
