@@ -14,6 +14,19 @@
   <string>6.0</string>
   <key>CFBundleName</key>
   <string>Arduino Button Mapper Helper</string>
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleTypeRole</key>
+      <string>Viewer</string>
+      <key>CFBundleURLName</key>
+      <string>com.jacobmajors.arduino-button-mapper.helper</string>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>arduino-button-mapper-helper</string>
+      </array>
+    </dict>
+  </array>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>

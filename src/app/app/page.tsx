@@ -7,7 +7,7 @@ import {
   Loader2, CheckCircle2, XCircle, Terminal, Usb, Keyboard,
   RotateCcw, Pencil, Gamepad2, Settings, Lightbulb, Power, Code, FileCode,
   Info, ExternalLink, Radio, Wind, Joystick, Minimize2, Maximize2, Download, Star, Square,
-  AlertCircle, MessageSquare, CheckCheck, Clock, Ban, Sun, Moon,
+  AlertCircle, MessageSquare, CheckCheck, Clock, Ban,
 } from "lucide-react";
 import {
   ButtonConfig, ButtonMode, LedConfig, PortConfig,
@@ -64,6 +64,7 @@ import type { SaveSlot, AppUser, AdminSettings, DinoScore, DbTemplate, Issue } f
 
 const REMOTE_BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL?.trim() || "";
 const LOCAL_BACKEND_URL = "http://localhost:3001";
+const LOCAL_HELPER_SCHEME_URL = "arduino-button-mapper-helper://launch";
 const APP_TAB_STORAGE_KEY = "abm_active_tab";
 const ADMIN_SUBTAB_STORAGE_KEY = "abm_admin_subtab";
 const ALL_PINS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
@@ -2384,6 +2385,7 @@ export default function Home() {
     return "auto";
   });
   const [localHelperState, setLocalHelperState] = useState<"checking" | "ready" | "unavailable">("checking");
+  const [startingLocalHelper, setStartingLocalHelper] = useState(false);
   const [ports, setPorts] = useState<Port[]>([]);
   const [selectedPort, setSelectedPort] = useState("");
   const [buttons, setButtons] = useState<ButtonConfig[]>([
@@ -2479,13 +2481,6 @@ export default function Home() {
   });
   const [allIssues, setAllIssues] = useState<Issue[]>([]);
   const [issuesLoaded, setIssuesLoaded] = useState(false);
-  const [lightMode, setLightMode] = useState(() => {
-    if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("lightMode");
-      return stored === null ? false : stored === "1";
-    }
-    return false;
-  });
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportTitle, setReportTitle] = useState("");
@@ -2527,6 +2522,19 @@ export default function Home() {
     if (typeof window !== "undefined") localStorage.setItem(ADMIN_SUBTAB_STORAGE_KEY, adminSubTab);
   }, [adminSubTab]);
 
+  const probeLocalHelper = useCallback(async () => {
+    try {
+      const res = await fetch(`${LOCAL_BACKEND_URL}/api/health`, { cache: "no-store" });
+      const data = await res.json().catch(() => null);
+      const ready = res.ok && data?.ok === true && data?.cliInstalled === true;
+      setLocalHelperState(ready ? "ready" : "unavailable");
+      return ready;
+    } catch {
+      setLocalHelperState("unavailable");
+      return false;
+    }
+  }, []);
+
   useEffect(() => {
     const syncSketchWorkspace = () => {
       const workspace = loadSketchWorkspace();
@@ -2547,13 +2555,8 @@ export default function Home() {
     let cancelled = false;
     const checkLocalHelper = async () => {
       setLocalHelperState("checking");
-      try {
-        const res = await fetch(`${LOCAL_BACKEND_URL}/api/health`, { cache: "no-store" });
-        const data = await res.json().catch(() => null);
-        if (!cancelled) setLocalHelperState(res.ok && data?.ok === true && data?.cliInstalled === true ? "ready" : "unavailable");
-      } catch {
-        if (!cancelled) setLocalHelperState("unavailable");
-      }
+      const ready = await probeLocalHelper();
+      if (!cancelled) setLocalHelperState(ready ? "ready" : "unavailable");
     };
     checkLocalHelper();
     const timer = setInterval(checkLocalHelper, 5000);
@@ -2561,7 +2564,7 @@ export default function Home() {
       cancelled = true;
       clearInterval(timer);
     };
-  }, []);
+  }, [probeLocalHelper]);
   const [isOffline, setIsOffline] = useState(false);
   const [arduinoDetected, setArduinoDetected] = useState(false);
   const arduinoDetectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -2652,14 +2655,6 @@ export default function Home() {
       window.removeEventListener("online",  goOnline);
     };
   }, []);
-
-  // ── Light mode: apply/remove class on <html> ─────────────────────────────
-  useEffect(() => {
-    const root = document.documentElement;
-    if (lightMode) root.classList.add("light");
-    else root.classList.remove("light");
-    localStorage.setItem("lightMode", lightMode ? "1" : "0");
-  }, [lightMode]);
 
   // ── Serial port auto-detection banner ────────────────────────────────────
   useEffect(() => {
@@ -3014,6 +3009,36 @@ export default function Home() {
     finally { setLoadingPorts(false); }
   };
 
+  const openLocalHelper = async () => {
+    setStartingLocalHelper(true);
+    setBackendError("Trying to open the local helper and waiting for it to come online...");
+    try {
+      if (typeof window !== "undefined") {
+        window.location.href = LOCAL_HELPER_SCHEME_URL;
+      }
+    } catch {
+      // fall through to polling
+    }
+
+    let ready = false;
+    for (let attempt = 0; attempt < 12; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, attempt === 0 ? 1200 : 1000));
+      ready = await probeLocalHelper();
+      if (ready) break;
+    }
+
+    if (ready) {
+      setBackendError(null);
+      await fetchPorts();
+    } else {
+      setBackendError(
+        "The local helper did not come online yet. If it is not installed, download it once and open the app. After that, this site can reopen it for you."
+      );
+    }
+    setStartingLocalHelper(false);
+    return ready;
+  };
+
   const usedPins = Array.from(new Set([
     ...buttons.map((b) => b.pin),
     ...buttons.filter((b) => b.ledPin >= 0).map((b) => b.ledPin),
@@ -3226,6 +3251,16 @@ export default function Home() {
   const addInput = () => addInputByType(addInputType);
 
   const handleWebSerialUpload = async (forceNewPort = false) => {
+    if (uploadMethod === "local" && localHelperState !== "ready") {
+      setWsLog(["✗ Local Helper is not running yet. Trying to open it for you..."]);
+      const ready = await openLocalHelper();
+      if (!ready) return;
+    }
+    if (uploadMethod === "auto" && !canUseRemoteBackend && localHelperState !== "ready") {
+      setWsLog(["✗ Local Helper is required here. Trying to open it for you..."]);
+      const ready = await openLocalHelper();
+      if (!ready) return;
+    }
     setWsUploading(true);
     setWsLog([]);
     const log = (msg: string) => setWsLog((p) => [...p, msg]);
@@ -3582,7 +3617,7 @@ export default function Home() {
                 </button>
               ))}
               <button
-                onClick={() => router.push("/app/sketch")}
+                onClick={() => { void openSketch(false); }}
                 className="flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap text-gray-500 hover:text-gray-200 hover:bg-gray-700/70"
               >
                 <FileCode size={13} />
@@ -3658,6 +3693,14 @@ export default function Home() {
                           </p>
                           {(uploadMethod === "local" || uploadMethod === "auto") && (
                             <div className="mt-2 flex flex-col gap-1.5">
+                              <button
+                                onClick={() => { void openLocalHelper(); }}
+                                disabled={startingLocalHelper}
+                                className="inline-flex items-center gap-1.5 text-[10px] text-cyan-300 hover:text-cyan-200 transition-colors disabled:opacity-50"
+                              >
+                                {startingLocalHelper ? <Loader2 size={10} className="animate-spin" /> : <ExternalLink size={10} />}
+                                Open Local Helper
+                              </button>
                               <a
                                 href="/downloads/Arduino-Button-Mapper-Helper-Mac.zip"
                                 download
@@ -3676,18 +3719,6 @@ export default function Home() {
                           )}
                         </div>
                         <button
-                          onClick={() => setLightMode(v => !v)}
-                          className="w-full flex items-center justify-between px-3.5 py-2.5 hover:bg-gray-700/60 transition-colors"
-                        >
-                          <div className="flex items-center gap-2">
-                            {lightMode ? <Sun size={13} className="text-amber-400" /> : <Moon size={13} className="text-blue-400" />}
-                            <span className="text-xs text-gray-300">{lightMode ? "Light Mode" : "Dark Mode"}</span>
-                          </div>
-                          <div className={`w-8 h-4 rounded-full border transition-colors flex items-center ${lightMode ? "bg-amber-500 border-amber-400" : "bg-gray-700 border-gray-600"}`}>
-                            <div className={`w-3 h-3 rounded-full bg-white shadow transition-transform mx-0.5 ${lightMode ? "translate-x-4" : "translate-x-0"}`} />
-                          </div>
-                        </button>
-                        <button
                           onClick={() => { handleSignOut(); setShowProfileMenu(false); }}
                           className="w-full flex items-center gap-2 px-3.5 py-2.5 hover:bg-red-900/30 text-gray-400 hover:text-red-400 transition-colors border-t border-gray-700"
                         >
@@ -3704,13 +3735,6 @@ export default function Home() {
                     onClick={() => setShowAuthModal(true)}
                     className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-colors"
                   >Sign In</button>
-                  <button
-                    onClick={() => setLightMode(v => !v)}
-                    title={lightMode ? "Switch to dark mode" : "Switch to light mode"}
-                    className="w-8 h-8 rounded-xl bg-gray-800 border border-gray-700 flex items-center justify-center hover:border-gray-600 transition-colors"
-                  >
-                    {lightMode ? <Sun size={13} className="text-amber-400" /> : <Moon size={13} className="text-blue-400" />}
-                  </button>
                 </>
               )
             )}
@@ -3972,10 +3996,18 @@ export default function Home() {
                 </span>
                 {uploadMethod === "local" ? (
                   <>
+                    <button
+                      onClick={() => { void openLocalHelper(); }}
+                      disabled={startingLocalHelper}
+                      className="ml-auto inline-flex items-center gap-1 rounded-lg border border-cyan-700/50 px-2 py-0.5 text-[9px] font-medium text-cyan-200 hover:bg-cyan-900/30 transition-colors disabled:opacity-50"
+                    >
+                      {startingLocalHelper ? <Loader2 size={9} className="animate-spin" /> : <ExternalLink size={9} />}
+                      Open
+                    </button>
                     <a
                       href="/downloads/Arduino-Button-Mapper-Helper-Mac.zip"
                       download
-                      className="ml-auto inline-flex items-center gap-1 rounded-lg border border-emerald-700/50 px-2 py-0.5 text-[9px] font-medium text-emerald-200 hover:bg-emerald-900/30 transition-colors"
+                      className="inline-flex items-center gap-1 rounded-lg border border-emerald-700/50 px-2 py-0.5 text-[9px] font-medium text-emerald-200 hover:bg-emerald-900/30 transition-colors"
                     >
                       <Download size={9} /> Helper
                     </a>
@@ -3983,19 +4015,51 @@ export default function Home() {
                 ) : uploadMethod === "auto" ? (
                   <>
                     {localHelperState !== "ready" && (
-                      <a
-                        href="/downloads/Arduino-Button-Mapper-Helper-Mac.zip"
-                        download
-                        className="ml-auto inline-flex items-center gap-1 rounded-lg border border-emerald-700/50 px-2 py-0.5 text-[9px] font-medium text-emerald-200 hover:bg-emerald-900/30 transition-colors"
-                      >
-                        <Download size={9} /> Helper
-                      </a>
+                      <>
+                        <button
+                          onClick={() => { void openLocalHelper(); }}
+                          disabled={startingLocalHelper}
+                          className="ml-auto inline-flex items-center gap-1 rounded-lg border border-cyan-700/50 px-2 py-0.5 text-[9px] font-medium text-cyan-200 hover:bg-cyan-900/30 transition-colors disabled:opacity-50"
+                        >
+                          {startingLocalHelper ? <Loader2 size={9} className="animate-spin" /> : <ExternalLink size={9} />}
+                          Open
+                        </button>
+                        <a
+                          href="/downloads/Arduino-Button-Mapper-Helper-Mac.zip"
+                          download
+                          className="inline-flex items-center gap-1 rounded-lg border border-emerald-700/50 px-2 py-0.5 text-[9px] font-medium text-emerald-200 hover:bg-emerald-900/30 transition-colors"
+                        >
+                          <Download size={9} /> Helper
+                        </a>
+                      </>
                     )}
                   </>
                 ) : (
                   <span className="ml-auto hidden md:inline text-[9px] text-gray-500">Profile menu</span>
                 )}
               </div>
+              {(uploadMethod === "local" || (!canUseRemoteBackend && uploadMethod === "auto")) && localHelperState !== "ready" && (
+                <div className="mb-2 flex flex-wrap items-center gap-2 rounded-xl border border-cyan-700/30 bg-cyan-950/20 px-3 py-2">
+                  <span className="text-[10px] text-cyan-100 flex-1 min-w-[220px]">
+                    Open the Local Helper once and this page will wait for it automatically.
+                  </span>
+                  <button
+                    onClick={() => { void openLocalHelper(); }}
+                    disabled={startingLocalHelper}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-cyan-700/50 px-2.5 py-1 text-[10px] font-medium text-cyan-200 hover:bg-cyan-900/30 transition-colors disabled:opacity-50"
+                  >
+                    {startingLocalHelper ? <Loader2 size={10} className="animate-spin" /> : <ExternalLink size={10} />}
+                    Open Helper
+                  </button>
+                  <a
+                    href="/downloads/Arduino-Button-Mapper-Helper-Mac.zip"
+                    download
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-700/50 px-2.5 py-1 text-[10px] font-medium text-emerald-200 hover:bg-emerald-900/30 transition-colors"
+                  >
+                    <Download size={10} /> Download
+                  </a>
+                </div>
+              )}
               <div className="flex flex-wrap items-center gap-2">
                 <button onClick={() => handleWebSerialUpload(false)} disabled={wsUploading} data-tutorial="upload-btn"
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-green-700 to-teal-700 hover:from-green-600 hover:to-teal-600 disabled:opacity-50 text-white font-semibold text-xs transition-all"
@@ -4025,6 +4089,16 @@ export default function Home() {
                 <div className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-amber-700/40 bg-amber-950/30 px-3 py-2">
                   <AlertCircle size={12} className="text-amber-400 flex-shrink-0" />
                   <p className="text-[11px] text-amber-200 flex-1 min-w-[220px]">{backendError}</p>
+                  {(uploadMethod === "local" || (!canUseRemoteBackend && uploadMethod === "auto")) && (
+                    <button
+                      onClick={() => { void openLocalHelper(); }}
+                      disabled={startingLocalHelper}
+                      className="flex items-center gap-1 rounded-lg border border-cyan-700/50 px-2 py-1 text-[10px] text-cyan-200 hover:bg-cyan-900/30 disabled:opacity-50 transition-colors"
+                    >
+                      {startingLocalHelper ? <Loader2 size={10} className="animate-spin" /> : <ExternalLink size={10} />}
+                      Open Helper
+                    </button>
+                  )}
                   <button
                     onClick={fetchPorts}
                     disabled={loadingPorts}
