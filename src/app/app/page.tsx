@@ -31,6 +31,7 @@ import {
   loadSketchWorkspace,
   saveSketchWorkspace,
 } from "@/lib/sketch-workspace";
+import { analyzeSketch } from "@/lib/sketch-diagnostics";
 import {
   supabase,
   loginOrCreate,
@@ -3492,6 +3493,18 @@ export default function Home() {
     if (!selectedPort || uploading) return;
     setUploading(true); setUploadDone(null); setUploadLog([]);
     const sketch = customSketch ?? generateSketch(buttons, leds, portInputs, irSensors, sipPuffs, joysticks);
+    const diagnostics = analyzeSketch(sketch).filter((item) => item.level === "error");
+    if (diagnostics.length > 0) {
+      setUploadLog([
+        {
+          type: "error",
+          data: `Sketch has code errors before compile:\n${diagnostics.slice(0, 4).map((item) => `- ${item.message}`).join("\n")}`,
+        },
+      ]);
+      setUploadDone(false);
+      setUploading(false);
+      return;
+    }
     try {
       const response = await fetch(`${activeBackendUrl}/api/upload`, {
         method: "POST",
@@ -3995,16 +4008,6 @@ export default function Home() {
                   className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-gray-700 bg-gray-800 hover:bg-gray-700 disabled:opacity-40 text-gray-400 hover:text-gray-200 text-xs transition-all"
                 >
                   <Usb size={12} /> Board <ChevronDown size={10} />
-                </button>
-                <button onClick={() => openSketch(false)} title="View sketch code"
-                  className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-gray-700 bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-gray-200 text-xs transition-all"
-                >
-                  <Code size={12} /> Sketch
-                </button>
-                <button onClick={() => openSketch(true)} title="Edit sketch with AI"
-                  className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl border border-cyan-700/40 bg-cyan-900/20 hover:bg-cyan-900/35 text-cyan-300 hover:text-white text-xs font-medium transition-all"
-                >
-                  <MessageSquare size={12} /> AI
                 </button>
                 <button
                   onClick={() => setShowRemap(true)}
