@@ -3,8 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import RemapModal from "@/components/RemapModal";
+import { normalizeBackendUrl } from "@/lib/backend-url";
 
-const REMOTE_BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL?.trim() || "";
+const REMOTE_BACKEND_URL = normalizeBackendUrl(process.env.NEXT_PUBLIC_BACKEND_URL);
 const LOCAL_BACKEND_URL = "http://localhost:3001";
 
 export default function QuickRemapPage() {

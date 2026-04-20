@@ -32,6 +32,7 @@ import {
   saveSketchWorkspace,
 } from "@/lib/sketch-workspace";
 import { analyzeSketch } from "@/lib/sketch-diagnostics";
+import { normalizeBackendUrl } from "@/lib/backend-url";
 import {
   supabase,
   loginOrCreate,
@@ -62,7 +63,7 @@ import {
 } from "@/lib/supabase";
 import type { SaveSlot, AppUser, AdminSettings, DinoScore, DbTemplate, Issue } from "@/lib/supabase";
 
-const REMOTE_BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL?.trim() || "";
+const REMOTE_BACKEND_URL = normalizeBackendUrl(process.env.NEXT_PUBLIC_BACKEND_URL);
 const LOCAL_BACKEND_URL = "http://localhost:3001";
 const LOCAL_HELPER_SCHEME_URL = "arduino-button-mapper-helper://launch";
 const APP_TAB_STORAGE_KEY = "abm_active_tab";

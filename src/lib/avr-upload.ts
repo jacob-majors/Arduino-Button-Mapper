@@ -29,6 +29,12 @@ function pageAlign(data: Uint8Array): number {
 
 type Progress = (msg: string) => void;
 
+function normalizeBackendUrl(backendUrl: string): string {
+  const trimmed = backendUrl.trim();
+  if (!trimmed) return trimmed;
+  return /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//.test(trimmed) ? trimmed.replace(/\/$/, "") : `https://${trimmed.replace(/\/$/, "")}`;
+}
+
 const ARDUINO_VENDOR_IDS = new Set([0x2341, 0x1B4F, 0x239A]);
 const ARDUINO_SERIAL_FILTERS = [
   { usbVendorId: 0x2341 }, // Arduino
@@ -167,6 +173,7 @@ export async function compileAndUpload(
   onProgress: Progress,
   forceNewPort = false
 ): Promise<void> {
+  backendUrl = normalizeBackendUrl(backendUrl);
   const isLocalHelper = /localhost:3001|127\.0\.0\.1:3001/.test(backendUrl);
   // ── Check Web Serial support ─────────────────────────────────────────────
   if (!("serial" in navigator)) {
