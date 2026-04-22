@@ -7,7 +7,7 @@ import {
   Loader2, CheckCircle2, XCircle, Terminal, Usb, Keyboard,
   RotateCcw, Pencil, Gamepad2, Settings, Lightbulb, Power, Code, FileCode,
   Info, ExternalLink, Radio, Wind, Joystick, Minimize2, Maximize2, Download, Star, Square,
-  AlertCircle, MessageSquare, CheckCheck, Clock, Ban,
+  AlertCircle, MessageSquare, CheckCheck, Clock, Ban, Sun, Moon,
 } from "lucide-react";
 import {
   ButtonConfig, ButtonMode, LedConfig, PortConfig,
@@ -2382,7 +2382,7 @@ export default function Home() {
   const [uploadMethod, setUploadMethod] = useState<"auto" | "web" | "local">(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("uploadMethod");
-      if (stored === "auto" || stored === "web" || stored === "local") return stored;
+      if (stored === "auto" || stored === "web") return stored;
     }
     return "auto";
   });
@@ -2484,6 +2484,10 @@ export default function Home() {
   const [allIssues, setAllIssues] = useState<Issue[]>([]);
   const [issuesLoaded, setIssuesLoaded] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [lightMode, setLightMode] = useState(() => {
+    if (typeof window !== "undefined") return localStorage.getItem("theme") === "light";
+    return false;
+  });
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportTitle, setReportTitle] = useState("");
   const [reportDesc, setReportDesc] = useState("");
@@ -2515,6 +2519,12 @@ export default function Home() {
   useEffect(() => {
     if (typeof window !== "undefined") localStorage.setItem("uploadMethod", uploadMethod);
   }, [uploadMethod]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem("theme", lightMode ? "light" : "dark");
+    document.documentElement.classList.toggle("light", lightMode);
+  }, [lightMode]);
 
   useEffect(() => {
     if (typeof window !== "undefined") localStorage.setItem(APP_TAB_STORAGE_KEY, tab);
@@ -3685,15 +3695,6 @@ export default function Home() {
                             >
                               Web
                             </button>
-                            <button
-                              onClick={() => setUploadMethod("local")}
-                              className={[
-                                "flex-1 rounded-md px-2 py-1.5 text-[11px] font-medium transition-colors",
-                                uploadMethod === "local" ? "bg-emerald-600 text-white" : "text-gray-400 hover:text-gray-200",
-                              ].join(" ")}
-                            >
-                              Local
-                            </button>
                           </div>
                           <p className="mt-2 text-[10px] text-gray-500">
                             Saved on this browser. Current: <span className="text-gray-300">{uploadMethodLabel}</span>
@@ -3730,6 +3731,16 @@ export default function Home() {
                               </a>
                             </div>
                           )}
+                        </div>
+                        <div className="px-3.5 py-2.5 border-t border-gray-700 flex items-center justify-between">
+                          <span className="text-xs text-gray-400">Theme</span>
+                          <button
+                            onClick={() => setLightMode(v => !v)}
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white transition-colors text-[11px] font-medium"
+                          >
+                            {lightMode ? <Sun size={12} /> : <Moon size={12} />}
+                            {lightMode ? "Light" : "Dark"}
+                          </button>
                         </div>
                         <button
                           onClick={() => { handleSignOut(); setShowProfileMenu(false); }}
