@@ -60,10 +60,17 @@ function highlightLine(raw: string): React.ReactNode {
 }
 
 const SOURCE_BG: Record<string, string> = {
-  button:    "border-l-2 border-emerald-500/50 bg-emerald-500/5",
-  ai:        "border-l-2 border-cyan-500/50 bg-cyan-500/5",
-  user:      "border-l-2 border-amber-500/50 bg-amber-500/5",
+  button:    "border-l-2 border-emerald-400/70 bg-emerald-400/10",
+  ai:        "border-l-2 border-cyan-300/80 bg-cyan-400/14 shadow-[inset_0_0_0_1px_rgba(34,211,238,0.08)]",
+  user:      "border-l-2 border-amber-300/80 bg-amber-400/12 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.08)]",
   generated: "",
+};
+
+const SOURCE_META: Record<string, { label: string; badge: string }> = {
+  button: { label: "Mapped input", badge: "bg-emerald-400/15 text-emerald-200 border border-emerald-400/25" },
+  ai: { label: "AI edit", badge: "bg-cyan-400/20 text-cyan-100 border border-cyan-300/40" },
+  user: { label: "Manual edit", badge: "bg-amber-400/20 text-amber-100 border border-amber-300/35" },
+  generated: { label: "Generated", badge: "" },
 };
 
 export default function SketchPage() {
@@ -117,6 +124,14 @@ export default function SketchPage() {
   const diagnostics = useMemo(() => (
     workspace ? analyzeSketch(workspace.editedCode) : []
   ), [workspace]);
+
+  const lineCounts = useMemo(() => {
+    const counts = { ai: 0, user: 0, button: 0 };
+    classification.forEach((line) => {
+      if (line.source === "ai" || line.source === "user" || line.source === "button") counts[line.source] += 1;
+    });
+    return counts;
+  }, [classification]);
 
   const pushHistory = (next: string) => {
     const history = historyRef.current;
@@ -176,7 +191,8 @@ export default function SketchPage() {
 
     const systemPrompt =
       "You are an expert Arduino programmer helping modify a HID input sketch. " +
-      "Never change pin numbers. Return only the full updated sketch when the user requests code changes. " +
+      "Never change pin numbers. If you change names, key mappings, joystick settings, LEDs, or any input configuration, you must also keep the embedded REMAP_CONFIG JSON in sync with those changes. " +
+      "Return only the full updated sketch when the user requests code changes. " +
       "If the user is asking a question, answer plainly instead of returning code.";
     const prompt = `Current Arduino sketch:\n\`\`\`cpp\n${workspace.editedCode}\n\`\`\`\n\nRequest: ${request}`;
 
@@ -205,7 +221,7 @@ export default function SketchPage() {
       if (looksLikeCode) {
         pushHistory(raw);
         setWorkspace((w) => w ? { ...w, editedCode: raw, aiCode: raw, updatedAt: Date.now() } : w);
-        setMessages((p) => [...p, { role: "assistant", content: "Sketch updated — cyan lines show what AI changed." }]);
+        setMessages((p) => [...p, { role: "assistant", content: "Sketch updated. AI-edited lines are highlighted below, and Configure will sync from the sketch when you go back." }]);
         setApiHistory((p) => [...p, { role: "user", content: prompt }, { role: "assistant", content: "Sketch updated." }]);
       } else {
         setMessages((p) => [...p, { role: "assistant", content: raw }]);
@@ -352,6 +368,26 @@ export default function SketchPage() {
             )}
           </div>
 
+          {(lineCounts.ai > 0 || lineCounts.user > 0 || lineCounts.button > 0) && (
+            <div className="flex flex-wrap items-center gap-2 border-b border-gray-800 bg-[#08101f] px-4 py-2.5 flex-shrink-0">
+              {lineCounts.ai > 0 && (
+                <span className="rounded-full border border-cyan-300/35 bg-cyan-400/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-100">
+                  {lineCounts.ai} AI-edited line{lineCounts.ai === 1 ? "" : "s"}
+                </span>
+              )}
+              {lineCounts.user > 0 && (
+                <span className="rounded-full border border-amber-300/30 bg-amber-400/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-100">
+                  {lineCounts.user} manual line{lineCounts.user === 1 ? "" : "s"}
+                </span>
+              )}
+              {lineCounts.button > 0 && (
+                <span className="rounded-full border border-emerald-300/25 bg-emerald-400/12 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-100">
+                  {lineCounts.button} mapped-input line{lineCounts.button === 1 ? "" : "s"}
+                </span>
+              )}
+            </div>
+          )}
+
           {diagnostics.length > 0 && (
             <div className="border-b border-gray-800 bg-gray-950/70 px-4 py-3 flex-shrink-0 space-y-2">
               {diagnostics.map((item, index) => (
@@ -375,8 +411,13 @@ export default function SketchPage() {
             <div ref={codeLayerRef} className="min-h-full min-w-full will-change-transform">
               {classification.map((line, i) => (
                 <div key={i} className={`flex min-w-full ${SOURCE_BG[line.source] ?? ""}`}>
-                  <span className="w-12 flex-shrink-0 select-none text-right pr-3 text-[10px] text-gray-700 leading-[1.65]">
-                    {line.index + 1}
+                  <span className="flex w-28 flex-shrink-0 items-center gap-2 select-none pl-2 pr-3 text-[10px] leading-[1.65]">
+                    <span className="w-10 text-right text-gray-700">{line.index + 1}</span>
+                    {line.source !== "generated" ? (
+                      <span className={`rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em] ${SOURCE_META[line.source].badge}`}>
+                        {SOURCE_META[line.source].label}
+                      </span>
+                    ) : null}
                   </span>
                   <span className="whitespace-pre px-2 pr-8">
                     {highlightLine(line.line)}
@@ -394,7 +435,7 @@ export default function SketchPage() {
               autoComplete="off"
               autoCorrect="off"
               wrap="off"
-              className="absolute inset-0 h-full w-full resize-none overflow-auto bg-transparent px-[3.65rem] py-0 font-mono text-[12.5px] leading-[1.65] text-transparent caret-cyan-300 outline-none"
+              className="absolute inset-0 h-full w-full resize-none overflow-auto bg-transparent px-[7.7rem] py-0 font-mono text-[12.5px] leading-[1.65] text-transparent caret-cyan-300 outline-none"
               style={{ textShadow: "0 0 0 rgba(0,0,0,0)", WebkitTextFillColor: "transparent" }}
               placeholder=""
             />

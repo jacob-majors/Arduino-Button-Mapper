@@ -12,7 +12,7 @@ import {
 import {
   ButtonConfig, ButtonMode, LedConfig, PortConfig,
   IRSensorConfig, SipPuffConfig, JoystickConfig,
-  resolveKey, generateSketch,
+  resolveKey, generateSketch, deriveConfigFromSketch,
 } from "@/lib/keymap";
 import { compileAndUpload, requestArduinoPortAccess } from "@/lib/avr-upload";
 import DinoGame from "@/components/DinoGame";
@@ -529,8 +529,9 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose, initialShow
       "You are an expert Arduino programmer helping modify a HID (keyboard/mouse) input device sketch. " +
       "The sketch uses Keyboard.h and optionally Mouse.h to map physical inputs (buttons, joysticks, IR sensors, sip & puff) to key presses. " +
       "Rules: (1) Never change pin numbers — those are fixed by hardware. " +
-      "(2) Return ONLY the complete modified Arduino sketch — raw C++ code, no markdown fences, no backticks, no explanation. " +
-      "(3) If the user asks a question rather than requesting a code change, answer in plain text instead of code.";
+      "(2) If you change names, mappings, joystick settings, LEDs, or any input configuration, you must also keep the embedded REMAP_CONFIG JSON in sync. " +
+      "(3) Return ONLY the complete modified Arduino sketch — raw C++ code, no markdown fences, no backticks, no explanation. " +
+      "(4) If the user asks a question rather than requesting a code change, answer in plain text instead of code.";
 
     const prompt =
       `Current Arduino sketch:\n\`\`\`cpp\n${editedCode}\n\`\`\`\n\nRequest: ${request}`;
@@ -2541,6 +2542,17 @@ export default function Home() {
       const workspace = loadSketchWorkspace();
       if (!workspace) return;
       setCustomSketch(getCustomSketchFromWorkspace(workspace));
+
+      const derivedConfig = deriveConfigFromSketch(workspace.editedCode);
+      if (!derivedConfig) return;
+
+      // Keep the Configure tab in sync with AI-edited sketch metadata.
+      setButtons(derivedConfig.buttons);
+      setPortInputs(derivedConfig.portInputs);
+      setLeds(derivedConfig.leds);
+      setIrSensors(derivedConfig.irSensors);
+      setSipPuffs(derivedConfig.sipPuffs);
+      setJoysticks(derivedConfig.joysticks);
     };
 
     syncSketchWorkspace();

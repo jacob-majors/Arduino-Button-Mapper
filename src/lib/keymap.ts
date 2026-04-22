@@ -103,6 +103,83 @@ export interface JoystickConfig {
   mouseClickBtn?: "left" | "right" | "middle"; // which mouse button the click pin fires
 }
 
+type EmbeddedRemapButton = {
+  t: "button" | "port";
+  p: number;
+  k: string;
+  kd: string;
+  n: string;
+  m: number;
+  lp: number;
+  lm: number;
+  st?: "switch" | "button";
+};
+
+type EmbeddedRemapIR = {
+  p: number;
+  k: string;
+  kd: string;
+  n: string;
+  ah: boolean;
+  m: number;
+  lp: number;
+  lm: number;
+};
+
+type EmbeddedRemapSipPuff = {
+  p: number;
+  k: string;
+  kd: string;
+  n: string;
+  m: number;
+  lp: number;
+  lm: number;
+};
+
+type EmbeddedRemapJoystick = {
+  x: number;
+  y: number;
+  bp: number;
+  u: string;
+  ud: string;
+  d: string;
+  dd: string;
+  l: string;
+  ld: string;
+  r: string;
+  rd: string;
+  bk: string;
+  bkd: string;
+  n: string;
+  dz: number;
+  ix: boolean;
+  iy: boolean;
+  lp: number;
+  lm: number;
+  mm?: boolean;
+  ms?: number;
+  mb?: "left" | "right" | "middle";
+};
+
+export type EmbeddedRemapConfig = {
+  v: number;
+  id: string;
+  leds: LedConfig;
+  b: EmbeddedRemapButton[];
+  ir: EmbeddedRemapIR[];
+  sp: EmbeddedRemapSipPuff[];
+  j: EmbeddedRemapJoystick[];
+};
+
+export type SketchDerivedConfig = {
+  buttons: ButtonConfig[];
+  portInputs: PortConfig[];
+  leds: LedConfig;
+  irSensors: IRSensorConfig[];
+  sipPuffs: SipPuffConfig[];
+  joysticks: JoystickConfig[];
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Map an Arduino key constant back to the browser e.key value */
@@ -131,6 +208,126 @@ function keyLiteral(k: string): string {
   // Escape backslash and single-quote so they don't break the C literal
   const escaped = k === "\\" ? "\\\\" : k === "'" ? "\\'" : k;
   return `'${escaped}'`;
+}
+
+function unescapeCString(value: string) {
+  return value.replace(/\\(["\\])/g, "$1");
+}
+
+function embeddedModeToButtonMode(mode: number): ButtonMode {
+  if (mode === 2) return "power";
+  if (mode === 1) return "toggle";
+  return "momentary";
+}
+
+function embeddedModeToLedMode(mode: number): "active" | "always" {
+  return mode === 1 ? "always" : "active";
+}
+
+export function extractRemapConfigFromSketch(code: string): EmbeddedRemapConfig | null {
+  const match = code.match(/const char REMAP_CONFIG\[\] = "((?:[^"\\]|\\.|[\r\n])*)";/);
+  if (!match) return null;
+  try {
+    const parsed = JSON.parse(unescapeCString(match[1])) as Partial<EmbeddedRemapConfig>;
+    if (!parsed || !Array.isArray(parsed.b) || !Array.isArray(parsed.ir) || !Array.isArray(parsed.sp) || !Array.isArray(parsed.j)) {
+      return null;
+    }
+    return {
+      v: typeof parsed.v === "number" ? parsed.v : 0,
+      id: typeof parsed.id === "string" ? parsed.id : "",
+      leds: parsed.leds ?? { enabled: false, onPin: 11, offPin: 12 },
+      b: parsed.b as EmbeddedRemapButton[],
+      ir: parsed.ir as EmbeddedRemapIR[],
+      sp: parsed.sp as EmbeddedRemapSipPuff[],
+      j: parsed.j as EmbeddedRemapJoystick[],
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function deriveConfigFromSketch(code: string): SketchDerivedConfig | null {
+  const config = extractRemapConfigFromSketch(code);
+  if (!config) return null;
+
+  const buttons: ButtonConfig[] = [];
+  const portInputs: PortConfig[] = [];
+
+  config.b.forEach((entry, index) => {
+    const mapped: ButtonConfig = {
+      id: `${entry.t}-${index}-${entry.p}`,
+      name: entry.n ?? "",
+      pin: entry.p,
+      keyDisplay: entry.kd ?? "",
+      arduinoKey: entry.k ?? "",
+      mode: embeddedModeToButtonMode(entry.m),
+      ledPin: typeof entry.lp === "number" ? entry.lp : -1,
+      ledMode: embeddedModeToLedMode(entry.lm),
+      inputMode: entry.m === 3 ? "tap" : "hold",
+      subtype: entry.st ?? "switch",
+    };
+    if (entry.t === "port") portInputs.push(mapped);
+    else buttons.push(mapped);
+  });
+
+  const irSensors: IRSensorConfig[] = config.ir.map((entry, index) => ({
+    id: `ir-${index}-${entry.p}`,
+    name: entry.n ?? "",
+    pin: entry.p,
+    keyDisplay: entry.kd ?? "",
+    arduinoKey: entry.k ?? "",
+    mode: entry.m === 1 ? "toggle" : "momentary",
+    activeHigh: !!entry.ah,
+    ledPin: typeof entry.lp === "number" ? entry.lp : -1,
+    ledMode: embeddedModeToLedMode(entry.lm),
+    inputMode: entry.m === 2 ? "tap" : "hold",
+  }));
+
+  const sipPuffs: SipPuffConfig[] = config.sp.map((entry, index) => ({
+    id: `sip-${index}-${entry.p}`,
+    name: entry.n ?? "Sip & Puff",
+    pin: entry.p,
+    key: entry.k ?? "",
+    keyDisplay: entry.kd ?? "",
+    ledPin: typeof entry.lp === "number" ? entry.lp : -1,
+    ledMode: embeddedModeToLedMode(entry.lm),
+    inputMode: entry.m === 1 ? "tap" : "hold",
+  }));
+
+  const joysticks: JoystickConfig[] = config.j.map((entry, index) => ({
+    id: `joy-${index}-${entry.x}-${entry.y}`,
+    name: entry.n ?? "",
+    xPin: entry.x,
+    yPin: entry.y,
+    buttonPin: typeof entry.bp === "number" ? entry.bp : -1,
+    upKey: entry.u ?? "",
+    upDisplay: entry.ud ?? "",
+    downKey: entry.d ?? "",
+    downDisplay: entry.dd ?? "",
+    leftKey: entry.l ?? "",
+    leftDisplay: entry.ld ?? "",
+    rightKey: entry.r ?? "",
+    rightDisplay: entry.rd ?? "",
+    buttonKey: entry.bk ?? "",
+    buttonDisplay: entry.bkd ?? "",
+    deadzone: typeof entry.dz === "number" ? entry.dz : 200,
+    invertX: !!entry.ix,
+    invertY: !!entry.iy,
+    ledPin: typeof entry.lp === "number" ? entry.lp : -1,
+    ledMode: embeddedModeToLedMode(entry.lm),
+    mouseMode: !!entry.mm,
+    mouseSpeed: typeof entry.ms === "number" ? entry.ms : 8,
+    mouseClickBtn: entry.mb ?? "left",
+  }));
+
+  return {
+    buttons,
+    portInputs,
+    leds: config.leds ?? { enabled: false, onPin: 11, offPin: 12 },
+    irSensors,
+    sipPuffs,
+    joysticks,
+  };
 }
 
 // ─── Sketch generation ────────────────────────────────────────────────────────
