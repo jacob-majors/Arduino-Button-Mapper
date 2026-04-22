@@ -1,4 +1,5 @@
 export const SKETCH_WORKSPACE_STORAGE_KEY = "abm_sketch_workspace";
+export const SKETCH_WORKSPACE_UPDATED_EVENT = "abm-sketch-workspace-updated";
 
 export type SketchWorkspace = {
   originalCode: string;
@@ -65,6 +66,7 @@ export function loadSketchWorkspace(): SketchWorkspace | null {
 export function saveSketchWorkspace(workspace: SketchWorkspace) {
   if (typeof window === "undefined") return;
   localStorage.setItem(SKETCH_WORKSPACE_STORAGE_KEY, JSON.stringify(workspace));
+  window.dispatchEvent(new CustomEvent(SKETCH_WORKSPACE_UPDATED_EVENT, { detail: workspace }));
 }
 
 export function extractMarkedSection(code: string, section: string) {

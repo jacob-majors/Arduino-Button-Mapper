@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import {
   classifySketchLines,
+  createSketchWorkspace,
   loadSketchWorkspace,
   saveSketchWorkspace,
   type SketchWorkspace,
@@ -90,10 +91,12 @@ export default function SketchPage() {
   const codeLayerRef = useRef<HTMLDivElement>(null);
   const historyRef = useRef<string[]>([]);
   const historyIndexRef = useRef(-1);
+  const pendingSpotlightRef = useRef<{ start: number; end: number } | null>(null);
+  const [spotlightRange, setSpotlightRange] = useState<{ start: number; end: number } | null>(null);
 
   useEffect(() => {
     const theme = localStorage.getItem("theme");
-    document.documentElement.classList.toggle("light", theme === "light");
+    document.documentElement.classList.toggle("light", theme !== "dark");
     const loaded = loadSketchWorkspace();
     setWorkspace(loaded);
     if (loaded) {
@@ -135,6 +138,45 @@ export default function SketchPage() {
     return counts;
   }, [classification]);
 
+  const findAiLineRange = (nextWorkspace: SketchWorkspace) => {
+    const nextClassification = classifySketchLines(nextWorkspace);
+    const aiIndexes = nextClassification
+      .filter((line) => line.source === "ai")
+      .map((line) => line.index);
+
+    if (aiIndexes.length > 0) {
+      return {
+        start: aiIndexes[0],
+        end: aiIndexes[aiIndexes.length - 1],
+      };
+    }
+
+    const previousLines = workspace?.editedCode.split("\n") ?? [];
+    const nextLines = nextWorkspace.editedCode.split("\n");
+    const firstDifferent = nextLines.findIndex((line, index) => line !== (previousLines[index] ?? ""));
+    if (firstDifferent >= 0) {
+      return { start: firstDifferent, end: Math.min(firstDifferent + 2, nextLines.length - 1) };
+    }
+
+    return null;
+  };
+
+  useEffect(() => {
+    const pending = pendingSpotlightRef.current;
+    const editor = editorRef.current;
+    if (!pending || !editor) return;
+
+    const lineHeight = 12.5 * 1.65;
+    const targetTop = Math.max(0, pending.start * lineHeight - editor.clientHeight * 0.28);
+    editor.scrollTo({ top: targetTop, behavior: "smooth" });
+    syncCodeScroll();
+    setSpotlightRange(pending);
+    pendingSpotlightRef.current = null;
+
+    const timer = window.setTimeout(() => setSpotlightRange(null), 4500);
+    return () => window.clearTimeout(timer);
+  }, [classification]);
+
   const pushHistory = (next: string) => {
     const history = historyRef.current;
     const current = history[historyIndexRef.current];
@@ -147,11 +189,21 @@ export default function SketchPage() {
 
   const updateCode = (next: string) => {
     pushHistory(next);
-    setWorkspace((w) => w ? { ...w, editedCode: next, updatedAt: Date.now() } : w);
+    setWorkspace((w) => {
+      if (!w) return w;
+      const nextWorkspace = { ...w, editedCode: next, updatedAt: Date.now() };
+      saveSketchWorkspace(nextWorkspace);
+      return nextWorkspace;
+    });
   };
 
   const applyHistoryState = (next: string) => {
-    setWorkspace((w) => w ? { ...w, editedCode: next, updatedAt: Date.now() } : w);
+    setWorkspace((w) => {
+      if (!w) return w;
+      const nextWorkspace = { ...w, editedCode: next, updatedAt: Date.now() };
+      saveSketchWorkspace(nextWorkspace);
+      return nextWorkspace;
+    });
   };
 
   const undo = () => {
@@ -167,7 +219,12 @@ export default function SketchPage() {
   };
 
   const resetToGenerated = () => {
-    setWorkspace((w) => w ? { ...w, editedCode: w.originalCode, aiCode: null, updatedAt: Date.now() } : w);
+    setWorkspace((w) => {
+      if (!w) return w;
+      const nextWorkspace = { ...w, editedCode: w.originalCode, aiCode: null, updatedAt: Date.now() };
+      saveSketchWorkspace(nextWorkspace);
+      return nextWorkspace;
+    });
     if (workspace) {
       historyRef.current = [workspace.originalCode];
       historyIndexRef.current = 0;
@@ -193,7 +250,7 @@ export default function SketchPage() {
 
     const systemPrompt =
       "You are an expert Arduino programmer helping modify a HID input sketch. " +
-      "Never change pin numbers. If you change names, key mappings, joystick settings, LEDs, or any input configuration, you must also keep the embedded REMAP_CONFIG JSON in sync with those changes. " +
+      "Do not change pin numbers unless the user explicitly asks for a pin change. If you change pins, names, key mappings, joystick settings, LEDs, or any input configuration, you must also keep the embedded REMAP_CONFIG JSON in sync with those changes. " +
       "Return only the full updated sketch when the user requests code changes. " +
       "If the user is asking a question, answer plainly instead of returning code.";
     const prompt = `Current Arduino sketch:\n\`\`\`cpp\n${workspace.editedCode}\n\`\`\`\n\nRequest: ${request}`;
@@ -221,9 +278,15 @@ export default function SketchPage() {
 
       const looksLikeCode = /^(\/\/|#include|void setup|void loop|bool |int |const |\/\*)/m.test(raw.slice(0, 300));
       if (looksLikeCode) {
+        const nextWorkspace = workspace
+          ? createSketchWorkspace(workspace.originalCode, raw, raw)
+          : createSketchWorkspace(raw, raw, raw);
+        const range = findAiLineRange(nextWorkspace);
+        pendingSpotlightRef.current = range;
         pushHistory(raw);
-        setWorkspace((w) => w ? { ...w, editedCode: raw, aiCode: raw, updatedAt: Date.now() } : w);
-        setMessages((p) => [...p, { role: "assistant", content: "Sketch updated. AI-edited lines are highlighted below, and Configure will sync from the sketch when you go back." }]);
+        saveSketchWorkspace(nextWorkspace);
+        setWorkspace(nextWorkspace);
+        setMessages((p) => [...p, { role: "assistant", content: "Sketch updated. I jumped to the AI-edited section and highlighted it. Configure will sync those pin/mapping changes when you go back." }]);
         setApiHistory((p) => [...p, { role: "user", content: prompt }, { role: "assistant", content: "Sketch updated." }]);
       } else {
         setMessages((p) => [...p, { role: "assistant", content: raw }]);
@@ -412,7 +475,15 @@ export default function SketchPage() {
             <div className="pointer-events-none absolute inset-0 overflow-hidden">
             <div ref={codeLayerRef} className="min-h-full min-w-full will-change-transform">
               {classification.map((line, i) => (
-                <div key={i} className={`flex min-w-full ${SOURCE_BG[line.source] ?? ""}`}>
+                <div
+                  key={i}
+                  data-line-index={line.index}
+                  className={`flex min-w-full ${SOURCE_BG[line.source] ?? ""} ${
+                    spotlightRange && line.index >= spotlightRange.start && line.index <= spotlightRange.end
+                      ? "bg-cyan-300/20 shadow-[inset_0_0_0_1px_rgba(103,232,249,0.32)]"
+                      : ""
+                  }`}
+                >
                   <span className="flex w-28 flex-shrink-0 items-center gap-2 select-none pl-2 pr-3 text-[10px] leading-[1.65]">
                     <span className="w-10 text-right text-gray-700">{line.index + 1}</span>
                     {line.source !== "generated" ? (

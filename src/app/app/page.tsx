@@ -30,6 +30,7 @@ import {
   getCustomSketchFromWorkspace,
   loadSketchWorkspace,
   saveSketchWorkspace,
+  SKETCH_WORKSPACE_UPDATED_EVENT,
 } from "@/lib/sketch-workspace";
 import { analyzeSketch } from "@/lib/sketch-diagnostics";
 import { normalizeBackendUrl } from "@/lib/backend-url";
@@ -209,7 +210,7 @@ function KeyCaptureInput({ value, display, onChange, onClear }: {
         {listening ? (
           <span className="text-blue-400 text-xs animate-pulse">Press any key...</span>
         ) : value ? (
-          <span className="text-white text-xs font-mono font-semibold truncate">{display}</span>
+          <span className="text-gray-100 text-xs font-mono font-semibold truncate">{display}</span>
         ) : (
           <span className="text-gray-600 text-xs">Click to assign</span>
         )}
@@ -528,8 +529,8 @@ function IDEModal({ originalCode, editedCode, onCodeUpdate, onClose, initialShow
     const systemPrompt =
       "You are an expert Arduino programmer helping modify a HID (keyboard/mouse) input device sketch. " +
       "The sketch uses Keyboard.h and optionally Mouse.h to map physical inputs (buttons, joysticks, IR sensors, sip & puff) to key presses. " +
-      "Rules: (1) Never change pin numbers — those are fixed by hardware. " +
-      "(2) If you change names, mappings, joystick settings, LEDs, or any input configuration, you must also keep the embedded REMAP_CONFIG JSON in sync. " +
+      "Rules: (1) Do not change pin numbers unless the user explicitly asks for a pin change. " +
+      "(2) If you change pins, names, mappings, joystick settings, LEDs, or any input configuration, you must also keep the embedded REMAP_CONFIG JSON in sync. " +
       "(3) Return ONLY the complete modified Arduino sketch — raw C++ code, no markdown fences, no backticks, no explanation. " +
       "(4) If the user asks a question rather than requesting a code change, answer in plain text instead of code.";
 
@@ -1601,10 +1602,33 @@ function JoystickCard({ joy, index, usedPins, usedAnalogPins, onUpdate, onRemove
 
 // ─── Live Wiring Diagram ──────────────────────────────────────────────────────
 
+function useIsLightTheme() {
+  const [isLightTheme, setIsLightTheme] = useState(false);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const html = document.documentElement;
+    const syncTheme = () => setIsLightTheme(html.classList.contains("light"));
+    syncTheme();
+
+    const observer = new MutationObserver(syncTheme);
+    observer.observe(html, { attributes: true, attributeFilter: ["class"] });
+    window.addEventListener("storage", syncTheme);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("storage", syncTheme);
+    };
+  }, []);
+
+  return isLightTheme;
+}
+
 function LiveWiringDiagram({ buttons, portInputs, leds, irSensors, sipPuffs, joysticks }: {
   buttons: ButtonConfig[]; portInputs: PortConfig[]; leds: LedConfig;
   irSensors: IRSensorConfig[]; sipPuffs: SipPuffConfig[]; joysticks: JoystickConfig[];
 }) {
+  const isLightTheme = useIsLightTheme();
   const BX = 240, BY = 16, BW = 132, BH = 332;
   const dpY = (pin: number) => BY + 46 + (13 - pin) * 18;
   const dpX = BX + BW;
@@ -1650,6 +1674,15 @@ function LiveWiringDiagram({ buttons, portInputs, leds, irSensors, sipPuffs, joy
   sipPuffs.forEach((s) => addD(s.pin, trunc(s.name || "Sip & Puff"), "#22d3ee"));
 
   const hasAny = right.length > 0 || left.length > 0 || leds.enabled;
+  const boardStroke = isLightTheme ? "#4b5563" : "#166534";
+  const boardFill = isLightTheme ? "#f7fafc" : "#0b1a10";
+  const boardInnerFill = isLightTheme ? "#ecf5ef" : "#0d2015";
+  const labelMuted = isLightTheme ? "#475569" : "#6b7280";
+  const unusedStroke = isLightTheme ? "#94a3b8" : "#374151";
+  const unusedFill = isLightTheme ? "#e2e8f0" : "#1f2937";
+  const unusedText = isLightTheme ? "#94a3b8" : "#374151";
+  const svgBg = isLightTheme ? "#f8fafc" : "#0a0f1a";
+  const gridStroke = isLightTheme ? "#d7dee8" : "#1f2937";
 
   return (
     <svg
@@ -1661,12 +1694,12 @@ function LiveWiringDiagram({ buttons, portInputs, leds, irSensors, sipPuffs, joy
       style={{ display: "block", width: "100%", height: "100%" }}
     >
       {/* Board body */}
-      <rect x={BX} y={BY} width={BW} height={BH} rx="7" fill="#0b1a10" stroke="#166534" strokeWidth="2" />
-      <rect x={BX + 2} y={BY + 2} width={BW - 4} height={BH - 4} rx="6" fill="#0d2015" />
+      <rect x={BX} y={BY} width={BW} height={BH} rx="7" fill={boardFill} stroke={boardStroke} strokeWidth="2" />
+      <rect x={BX + 2} y={BY + 2} width={BW - 4} height={BH - 4} rx="6" fill={boardInnerFill} />
 
       {/* Board labels */}
-      <text x={BX + BW / 2} y={BY + 16} textAnchor="middle" fontFamily="monospace" fontSize="10" fill="#4ade80" fontWeight="bold">Arduino</text>
-      <text x={BX + BW / 2} y={BY + 28} textAnchor="middle" fontFamily="monospace" fontSize="9" fill="#16a34a">Leonardo</text>
+      <text x={BX + BW / 2} y={BY + 16} textAnchor="middle" fontFamily="monospace" fontSize="10" fill={isLightTheme ? "#166534" : "#4ade80"} fontWeight="bold">Arduino</text>
+      <text x={BX + BW / 2} y={BY + 28} textAnchor="middle" fontFamily="monospace" fontSize="9" fill={isLightTheme ? "#15803d" : "#16a34a"}>Leonardo</text>
 
       {/* Reset button */}
       <circle cx={BX + 20} cy={BY + 22} r={7} fill="none" stroke="#374151" strokeWidth="1.5" />
@@ -1677,7 +1710,7 @@ function LiveWiringDiagram({ buttons, portInputs, leds, irSensors, sipPuffs, joy
       <text x={BX + 55} y={BY + BH + 13} textAnchor="middle" fontFamily="monospace" fontSize="8" fill="#4b5563">USB</text>
 
       {/* ── Digital pin header bracket (right) */}
-      <rect x={dpX} y={dpY(13) - 6} width={8} height={13 * 18 + 14} rx="2" fill="#1f2937" stroke="#374151" strokeWidth="1" />
+      <rect x={dpX} y={dpY(13) - 6} width={8} height={13 * 18 + 14} rx="2" fill={unusedFill} stroke={unusedStroke} strokeWidth="1" />
 
       {Array.from({ length: 14 }, (_, i) => {
         const pin = 13 - i;
@@ -1686,9 +1719,9 @@ function LiveWiringDiagram({ buttons, portInputs, leds, irSensors, sipPuffs, joy
         const used = !!conn;
         return (
           <g key={`d${pin}`}>
-            <line x1={dpX + 8} y1={y} x2={dpX + 14} y2={y} stroke={used ? conn!.color : "#374151"} strokeWidth={used ? 1.5 : 1} />
-            <circle cx={dpX + 14} cy={y} r={used ? 3.5 : 2} fill={used ? conn!.color : "#1f2937"} stroke={used ? conn!.color : "#4b5563"} strokeWidth="1" />
-            <text x={dpX - 3} y={y + 3.5} textAnchor="end" fontFamily="monospace" fontSize="7" fill={used ? "#6b7280" : "#374151"}>D{pin}</text>
+            <line x1={dpX + 8} y1={y} x2={dpX + 14} y2={y} stroke={used ? conn!.color : unusedStroke} strokeWidth={used ? 1.5 : 1} />
+            <circle cx={dpX + 14} cy={y} r={used ? 3.5 : 2} fill={used ? conn!.color : unusedFill} stroke={used ? conn!.color : labelMuted} strokeWidth="1" />
+            <text x={dpX - 3} y={y + 3.5} textAnchor="end" fontFamily="monospace" fontSize="7" fill={used ? labelMuted : unusedText}>D{pin}</text>
             {used && conn && (
               <>
                 <line x1={dpX + 14} y1={y} x2={dpX + 40} y2={y} stroke={conn.color} strokeWidth="1.5" strokeDasharray="4 2" opacity="0.85" />
@@ -1700,19 +1733,19 @@ function LiveWiringDiagram({ buttons, portInputs, leds, irSensors, sipPuffs, joy
       })}
 
       {/* ── Left header bracket */}
-      <rect x={apX - 8} y={BY + 40} width={8} height={BH - 52} rx="2" fill="#1f2937" stroke="#374151" strokeWidth="1" />
+      <rect x={apX - 8} y={BY + 40} width={8} height={BH - 52} rx="2" fill={unusedFill} stroke={unusedStroke} strokeWidth="1" />
 
       {/* 5V power */}
       <line x1={apX - 8} y1={BY + 52} x2={apX - 14} y2={BY + 52} stroke="#f87171" strokeWidth="1.5" />
       <circle cx={apX - 14} cy={BY + 52} r={3} fill="#f87171" />
-      <text x={leftPinLabelX} y={BY + 55.5} textAnchor="start" fontFamily="monospace" fontSize="7" fill="#6b7280">5V</text>
+      <text x={leftPinLabelX} y={BY + 55.5} textAnchor="start" fontFamily="monospace" fontSize="7" fill={labelMuted}>5V</text>
       <line x1={apX - 14} y1={BY + 52} x2={leftWireEndX} y2={BY + 52} stroke="#f87171" strokeWidth="1.5" strokeDasharray="4 2" opacity="0.7" />
       <text x={leftConnLabelX} y={BY + 55.5} textAnchor="end" fontFamily="sans-serif" fontSize="9.5" fill="#f87171" className="svg-wire-label">Power (VCC)</text>
 
       {/* GND power */}
       <line x1={apX - 8} y1={BY + 70} x2={apX - 14} y2={BY + 70} stroke="#9ca3af" strokeWidth="1.5" />
       <circle cx={apX - 14} cy={BY + 70} r={3} fill="#9ca3af" />
-      <text x={leftPinLabelX} y={BY + 73.5} textAnchor="start" fontFamily="monospace" fontSize="7" fill="#6b7280">GND</text>
+      <text x={leftPinLabelX} y={BY + 73.5} textAnchor="start" fontFamily="monospace" fontSize="7" fill={labelMuted}>GND</text>
       <line x1={apX - 14} y1={BY + 70} x2={leftWireEndX} y2={BY + 70} stroke="#9ca3af" strokeWidth="1.5" strokeDasharray="4 2" opacity="0.7" />
       <text x={leftConnLabelX} y={BY + 73.5} textAnchor="end" fontFamily="sans-serif" fontSize="9.5" fill="#9ca3af" className="svg-wire-label">Ground</text>
 
@@ -1723,9 +1756,9 @@ function LiveWiringDiagram({ buttons, portInputs, leds, irSensors, sipPuffs, joy
         const used = !!conn;
         return (
           <g key={`a${pin}`}>
-            <line x1={apX - 8} y1={y} x2={apX - 14} y2={y} stroke={used ? conn!.color : "#374151"} strokeWidth={used ? 1.5 : 1} />
-            <circle cx={apX - 14} cy={y} r={used ? 3.5 : 2} fill={used ? conn!.color : "#1f2937"} stroke={used ? conn!.color : "#4b5563"} strokeWidth="1" />
-            <text x={leftPinLabelX} y={y + 3.5} textAnchor="start" fontFamily="monospace" fontSize="7" fill={used ? "#6b7280" : "#374151"}>A{pin}</text>
+            <line x1={apX - 8} y1={y} x2={apX - 14} y2={y} stroke={used ? conn!.color : unusedStroke} strokeWidth={used ? 1.5 : 1} />
+            <circle cx={apX - 14} cy={y} r={used ? 3.5 : 2} fill={used ? conn!.color : unusedFill} stroke={used ? conn!.color : labelMuted} strokeWidth="1" />
+            <text x={leftPinLabelX} y={y + 3.5} textAnchor="start" fontFamily="monospace" fontSize="7" fill={used ? labelMuted : unusedText}>A{pin}</text>
             {used && conn && (
               <>
                 <line x1={apX - 14} y1={y} x2={leftWireEndX} y2={y} stroke={conn.color} strokeWidth="1.5" strokeDasharray="4 2" opacity="0.85" />
@@ -1738,7 +1771,7 @@ function LiveWiringDiagram({ buttons, portInputs, leds, irSensors, sipPuffs, joy
 
       {/* Empty state */}
       {!hasAny && (
-        <text x={BX + BW / 2} y={BY + BH / 2 + 10} textAnchor="middle" fontFamily="sans-serif" fontSize="10" fill="#374151">
+        <text x={BX + BW / 2} y={BY + BH / 2 + 10} textAnchor="middle" fontFamily="sans-serif" fontSize="10" fill={unusedText}>
           Configure inputs to see wiring
         </text>
       )}
@@ -1758,6 +1791,7 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
   onClose: () => void;
   embedded?: boolean;
 }) {
+  const isLightTheme = useIsLightTheme();
   useEffect(() => {
     if (embedded) return;
     const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -2025,16 +2059,19 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
       onClick={embedded ? undefined : (e) => e.target === e.currentTarget && onClose()}
     >
       {!embedded && <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />}
-      <div className={embedded ? "wiring-diagram-container relative w-full flex flex-col bg-gray-800 border border-gray-700/70 rounded-2xl shadow-2xl overflow-hidden" : "wiring-diagram-container relative z-10 w-full max-w-5xl max-h-[92vh] flex flex-col bg-gray-800 border border-gray-600 rounded-2xl shadow-2xl"}>
+      <div className={embedded
+        ? `wiring-diagram-container relative w-full flex flex-col rounded-2xl shadow-2xl overflow-hidden ${isLightTheme ? "bg-white border border-gray-200" : "bg-gray-800 border border-gray-700/70"}`
+        : `wiring-diagram-container relative z-10 w-full max-w-5xl max-h-[92vh] flex flex-col rounded-2xl shadow-2xl ${isLightTheme ? "bg-white border border-gray-200" : "bg-gray-800 border border-gray-600"}`
+      }>
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-gray-800 flex-shrink-0">
+        <div className={`flex items-center justify-between px-5 py-3 flex-shrink-0 ${isLightTheme ? "border-b border-gray-200" : "border-b border-gray-800"}`}>
           <div className="flex items-center gap-2">
             <Zap size={14} className="text-yellow-400" />
-            <span className="text-sm font-semibold text-gray-200">Wiring Diagram</span>
-            <span className="text-xs text-gray-600">— click any component for details</span>
+            <span className={`text-sm font-semibold ${isLightTheme ? "text-gray-900" : "text-gray-200"}`}>Wiring Diagram</span>
+            <span className={`text-xs ${isLightTheme ? "text-gray-500" : "text-gray-600"}`}>— click any component for details</span>
           </div>
           {!embedded && (
-            <button onClick={onClose} className="p-1.5 rounded-lg text-gray-500 hover:text-gray-200 hover:bg-gray-800 transition-colors">
+            <button onClick={onClose} className={`p-1.5 rounded-lg transition-colors ${isLightTheme ? "text-gray-500 hover:text-gray-900 hover:bg-gray-100" : "text-gray-500 hover:text-gray-200 hover:bg-gray-800"}`}>
               <X size={15} />
             </button>
           )}
@@ -2052,12 +2089,12 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
             <svg
               viewBox={`0 0 ${svgW} ${svgH}`}
               xmlns="http://www.w3.org/2000/svg"
-              style={{ width: "100%", height: "auto", background: "#0a0f1a", borderRadius: 10 }}
+              style={{ width: "100%", height: "auto", background: isLightTheme ? "#f8fafc" : "#0a0f1a", borderRadius: 10 }}
             >
               {/* Background grid */}
               <defs>
                 <pattern id="wdgrid" width="20" height="20" patternUnits="userSpaceOnUse">
-                  <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#1f2937" strokeWidth="0.5" />
+                  <path d="M 20 0 L 0 0 0 20" fill="none" stroke={isLightTheme ? "#d7dee8" : "#1f2937"} strokeWidth="0.5" />
                 </pattern>
               </defs>
               <rect width={svgW} height={svgH} fill="url(#wdgrid)" />
@@ -2485,8 +2522,8 @@ export default function Home() {
   const [issuesLoaded, setIssuesLoaded] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [lightMode, setLightMode] = useState(() => {
-    if (typeof window !== "undefined") return localStorage.getItem("theme") === "light";
-    return false;
+    if (typeof window !== "undefined") return localStorage.getItem("theme") !== "dark";
+    return true;
   });
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportTitle, setReportTitle] = useState("");
@@ -2568,9 +2605,11 @@ export default function Home() {
     syncSketchWorkspace();
     window.addEventListener("focus", syncSketchWorkspace);
     window.addEventListener("storage", syncSketchWorkspace);
+    window.addEventListener(SKETCH_WORKSPACE_UPDATED_EVENT, syncSketchWorkspace);
     return () => {
       window.removeEventListener("focus", syncSketchWorkspace);
       window.removeEventListener("storage", syncSketchWorkspace);
+      window.removeEventListener(SKETCH_WORKSPACE_UPDATED_EVENT, syncSketchWorkspace);
     };
   }, []);
 
