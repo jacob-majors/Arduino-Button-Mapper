@@ -1880,6 +1880,13 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
   const svgRows = Math.max(1, Math.ceil(cards.length / COLS));
   const svgW = COLS * CELL_W + 20;
   const svgH = svgRows * CELL_H + 50;
+  const cardBg = isLightTheme ? "#f8fafc" : "#0d1424";
+  const cardStroke = isLightTheme ? "#cbd5e1" : "#1e3a5f";
+  const signalBadgeBg = "#ffffff";
+  const gndBadgeBg = isLightTheme ? "#ffffff" : "#6b728028";
+  const gndBadgeStroke = isLightTheme ? "#cbd5e1" : "#6b728070";
+  const gndBadgeText = isLightTheme ? "#475569" : "#9ca3af";
+  const moduleBg = isLightTheme ? "#f3e8ff" : "#1a0a2a";
 
   // ── Physical-drawing style component icons ──────────────────────────────────
 
@@ -2139,14 +2146,14 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
                     <g key={card.id}>
                       {/* Cell bg */}
                       <rect x={CX} y={CY} width={CELL_W - 12} height={CELL_H - 14} rx="8"
-                        fill="#0d1424" stroke="#2d1f5a" strokeWidth="1" opacity="0.95" />
+                        fill={cardBg} stroke={isLightTheme ? "#a78bfa" : "#2d1f5a"} strokeWidth="1" opacity="0.98" />
                       {/* Name */}
                       <text x={CX + 134} y={CY + 18} textAnchor="middle" fontFamily="sans-serif"
-                        fontSize="9" fill="#a78bfa" fontWeight="700" opacity="0.9">{card.name}</text>
+                        fontSize="9" fill={isLightTheme ? "#7c3aed" : "#a78bfa"} fontWeight="700" opacity="0.95">{card.name}</text>
 
                       {/* Module PCB */}
                       <rect x={CX + 14} y={modTop} width={240} height={modH} rx="5"
-                        fill="#1a0a2a" stroke="#a78bfa" strokeWidth="1.5" />
+                        fill={moduleBg} stroke="#a78bfa" strokeWidth="1.5" />
 
                       {/* Joystick stick + ball (centered on module) */}
                       <circle cx={CX + 128} cy={modTop + modH / 2} r={14} fill="#120520" stroke="#a78bfa" strokeWidth="1" />
@@ -2176,7 +2183,7 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
                       {jPins.map((p) => (
                         <g key={p.label + "-badge"}>
                           <rect x={p.x - 20} y={pinBadgeY} width={40} height={20} rx="5"
-                            fill={p.fill} stroke={p.stroke} strokeWidth="1.2" />
+                            fill={signalBadgeBg} stroke={isLightTheme ? p.color : p.stroke} strokeWidth="1.2" />
                           <text x={p.x} y={pinBadgeY + 14} textAnchor="middle"
                             fontFamily="monospace" fontSize="9" fill={p.color} fontWeight="700">{p.arduinoLabel}</text>
                         </g>
@@ -2189,11 +2196,11 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
                   <g key={card.id}>
                     {/* Cell background */}
                     <rect x={CX} y={CY} width={CELL_W - 12} height={CELL_H - 14} rx="8"
-                      fill="#0d1424" stroke="#1e3a5f" strokeWidth="1" opacity="0.95" />
+                      fill={cardBg} stroke={cardStroke} strokeWidth="1" opacity="0.98" />
 
                     {/* Component name */}
                     <text x={compX} y={CY + 19} textAnchor="middle" fontFamily="sans-serif"
-                      fontSize="9" fill={color} fontWeight="700" opacity="0.9">{card.name}</text>
+                      fontSize="9" fill={isLightTheme ? "#334155" : color} fontWeight="700" opacity="0.95">{card.name}</text>
 
                     {/* GND wire (drawn before component so icon sits on top) */}
                     {card.needsGND && (
@@ -2210,16 +2217,16 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
                     {card.needsGND && (
                       <>
                         <rect x={gndX - 22} y={powerBadgeY} width={44} height={20} rx="5"
-                          fill="#6b728028" stroke="#6b728070" strokeWidth="1.2" />
+                          fill={gndBadgeBg} stroke={gndBadgeStroke} strokeWidth="1.2" />
                         <text x={gndX} y={powerBadgeY + 14} textAnchor="middle"
-                          fontFamily="monospace" fontSize="9" fill="#9ca3af" fontWeight="700">GND</text>
+                          fontFamily="monospace" fontSize="9" fill={gndBadgeText} fontWeight="700">GND</text>
                       </>
                     )}
                     {/* VCC badge */}
                     {card.needsVCC && (
                       <>
                         <rect x={vccX - 22} y={powerBadgeY} width={44} height={20} rx="5"
-                          fill="#f8717128" stroke="#f8717170" strokeWidth="1.2" />
+                          fill={signalBadgeBg} stroke="#f87171" strokeWidth="1.2" />
                         <text x={vccX} y={powerBadgeY + 14} textAnchor="middle"
                           fontFamily="monospace" fontSize="9" fill="#f87171" fontWeight="700">+5V</text>
                       </>
@@ -2249,7 +2256,7 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
 
                     {/* Signal pin badge (drawn last — sits on top of wire left end) */}
                     <rect x={sigBadgeX} y={compY - 11} width={sigBadgeW} height={22} rx="5"
-                      fill={color + "28"} stroke={color + "80"} strokeWidth="1.2" />
+                      fill={signalBadgeBg} stroke={color} strokeWidth="1.2" />
                     <text x={sigBadgeX + sigBadgeW / 2} y={compY + 5} textAnchor="middle"
                       fontFamily="monospace" fontSize="10" fill={color} fontWeight="700">
                       {card.signalPin}
@@ -2264,14 +2271,14 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
         {/* ── Resistor Info Popup ── */}
         {showResistorInfo && (
           <div
-            className="absolute top-14 left-1/2 -translate-x-1/2 z-30 w-80 bg-gray-800 border border-yellow-700/50 rounded-xl shadow-2xl p-4"
+            className={`absolute top-14 left-1/2 -translate-x-1/2 z-30 w-80 rounded-xl shadow-2xl p-4 ${isLightTheme ? "bg-white border border-yellow-300" : "bg-gray-800 border border-yellow-700/50"}`}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm font-semibold text-yellow-400">LED Series Resistor</span>
               <button
                 onClick={() => setShowResistorInfo(false)}
-                className="text-gray-500 hover:text-gray-200 p-0.5"
+                className={`p-0.5 ${isLightTheme ? "text-gray-500 hover:text-gray-900" : "text-gray-500 hover:text-gray-200"}`}
               >
                 <X size={13} />
               </button>
@@ -2304,14 +2311,14 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
             {/* Value */}
             <div className="text-center mb-3">
               <span className="text-3xl font-bold text-yellow-400 tabular-nums">220Ω</span>
-              <span className="text-xs text-gray-500 ml-2">±5% gold tolerance</span>
+              <span className={`text-xs ml-2 ${isLightTheme ? "text-gray-600" : "text-gray-500"}`}>±5% gold tolerance</span>
             </div>
 
             {/* Formula */}
-            <div className="text-xs text-gray-400 bg-gray-900 rounded-lg p-2.5 space-y-1">
+            <div className={`text-xs rounded-lg p-2.5 space-y-1 ${isLightTheme ? "text-gray-700 bg-gray-50" : "text-gray-400 bg-gray-900"}`}>
               <div className="font-mono">R = (V<sub>supply</sub> − V<sub>f</sub>) ÷ I<sub>LED</sub></div>
               <div className="font-mono">= (5V − 2V) ÷ 20mA = 150Ω min</div>
-              <div className="pt-1 border-t border-gray-800 mt-1 space-y-0.5">
+              <div className={`pt-1 mt-1 space-y-0.5 ${isLightTheme ? "border-t border-gray-200" : "border-t border-gray-800"}`}>
                 <div className="text-yellow-400/80">220Ω → red / green / yellow LEDs</div>
                 <div className="text-blue-400/80">100Ω → blue / white LEDs (V<sub>f</sub> ≈ 3.2V)</div>
               </div>
@@ -2371,28 +2378,28 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
           const info = infoMap[componentInfo.type] ?? { title: componentInfo.label, desc: "Component info not available.", wiring: "" };
           return (
             <div
-              className="absolute top-14 left-1/2 -translate-x-1/2 z-30 w-80 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl p-4"
+              className={`absolute top-14 left-1/2 -translate-x-1/2 z-30 w-80 rounded-xl shadow-2xl p-4 ${isLightTheme ? "bg-white border border-gray-200" : "bg-gray-800 border border-gray-700"}`}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-2">
                 <div>
-                  <span className="text-sm font-semibold text-gray-100">{info.title}</span>
+                  <span className={`text-sm font-semibold ${isLightTheme ? "text-gray-900" : "text-gray-100"}`}>{info.title}</span>
                   {componentInfo.label && (
-                    <span className="ml-2 text-xs text-gray-500 font-mono">{componentInfo.label}</span>
+                    <span className={`ml-2 text-xs font-mono ${isLightTheme ? "text-gray-500" : "text-gray-500"}`}>{componentInfo.label}</span>
                   )}
                 </div>
                 <button
                   onClick={() => setComponentInfo(null)}
-                  className="text-gray-500 hover:text-gray-200 p-0.5"
+                  className={`p-0.5 ${isLightTheme ? "text-gray-500 hover:text-gray-900" : "text-gray-500 hover:text-gray-200"}`}
                 >
                   <X size={13} />
                 </button>
               </div>
-              <p className="text-xs text-gray-400 leading-relaxed mb-2">{info.desc}</p>
+              <p className={`text-xs leading-relaxed mb-2 ${isLightTheme ? "text-gray-700" : "text-gray-400"}`}>{info.desc}</p>
               {info.wiring && (
-                <div className="bg-gray-900 rounded-lg p-2.5">
+                <div className={`rounded-lg p-2.5 ${isLightTheme ? "bg-gray-50" : "bg-gray-900"}`}>
                   <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide block mb-1">Wiring</span>
-                  <p className="text-xs text-gray-300 leading-relaxed">{info.wiring}</p>
+                  <p className={`text-xs leading-relaxed ${isLightTheme ? "text-gray-700" : "text-gray-300"}`}>{info.wiring}</p>
                 </div>
               )}
             </div>
