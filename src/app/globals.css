@@ -367,3 +367,29 @@ html.light .hover\:text-gray-400:hover { color: #5C4D43 !important; }
 html.light .hover\:text-gray-300:hover { color: #3D3028 !important; }
 html.light .hover\:text-gray-200:hover,
 html.light .hover\:text-gray-100:hover { color: #1C1714 !important; }
+
+/* ── Very-light text tokens (100 / 50) → deep readable on cream ─── */
+html.light .text-blue-100    { color: #1e3a8a !important; }
+html.light .text-cyan-100    { color: #0e4f5f !important; }
+html.light .text-amber-100   { color: #78350f !important; }
+html.light .text-emerald-100 { color: #065f46 !important; }
+html.light .text-rose-100    { color: #881337 !important; }
+html.light .text-violet-100  { color: #4c1d95 !important; }
+html.light .text-cyan-50     { color: #0e4f5f !important; }
+html.light .text-amber-50    { color: #78350f !important; }
+html.light .text-slate-950   { color: #1C1714 !important; }
+
+/* ── Transparent inputs: prevent light-mode override adding white bg ─ */
+html.light input.bg-transparent,
+html.light textarea.bg-transparent {
+  background-color: transparent !important;
+  border-color: transparent !important;
+}
+
+/* ── Wire labels: darken bright neon colors for cream background ───── */
+html.light .wire-color-label {
+  filter: brightness(0.52) saturate(1.4) !important;
+}
+html.light .svg-wire-label {
+  filter: brightness(0.52) saturate(1.4) !important;
+}

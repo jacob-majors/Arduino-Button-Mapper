@@ -821,7 +821,7 @@ function LedInfoModal({ onClose }: { onClose: () => void }) {
 
         <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-5">
           {/* Circuit diagram SVG */}
-          <div className="bg-white rounded-xl p-4 flex items-center justify-center">
+          <div className="bg-gray-100 rounded-xl p-4 flex items-center justify-center">
             <svg viewBox="0 0 580 380" width="100%" style={{ maxHeight: 320 }} xmlns="http://www.w3.org/2000/svg">
               {/* Arduino board */}
               <rect x="120" y="60" width="180" height="280" rx="14" fill="none" stroke="#b89a70" strokeWidth="3" />
@@ -970,7 +970,7 @@ function WiringTable({ wires, docsUrl, docsLabel, compact = false }: {
       </div>
       {wires.map((w) => (
         <div key={`${w.label}-${w.to}`} className="flex items-center gap-2">
-          <span className={`font-mono font-semibold flex-shrink-0 ${compact ? "text-[10px] w-24" : "text-xs w-24"}`} style={{ color: w.color }}>{w.label}</span>
+          <span className={`wire-color-label font-mono font-semibold flex-shrink-0 ${compact ? "text-[10px] w-24" : "text-xs w-24"}`} style={{ color: w.color }}>{w.label}</span>
           <div className="flex-1 flex items-center gap-1.5">
             <div className="flex-1 border-t border-dashed" style={{ borderColor: `${w.color}55` }} />
             <span className={`${compact ? "text-[10px]" : "text-xs"} font-mono text-gray-300`}>{w.to}</span>
@@ -1692,7 +1692,7 @@ function LiveWiringDiagram({ buttons, portInputs, leds, irSensors, sipPuffs, joy
             {used && conn && (
               <>
                 <line x1={dpX + 14} y1={y} x2={dpX + 40} y2={y} stroke={conn.color} strokeWidth="1.5" strokeDasharray="4 2" opacity="0.85" />
-                <text x={dpX + 44} y={y + 3.5} fontFamily="sans-serif" fontSize="9.5" fill={conn.color} fontWeight="500">{conn.label}</text>
+                <text x={dpX + 44} y={y + 3.5} fontFamily="sans-serif" fontSize="9.5" fill={conn.color} fontWeight="500" className="svg-wire-label">{conn.label}</text>
               </>
             )}
           </g>
@@ -1707,14 +1707,14 @@ function LiveWiringDiagram({ buttons, portInputs, leds, irSensors, sipPuffs, joy
       <circle cx={apX - 14} cy={BY + 52} r={3} fill="#f87171" />
       <text x={leftPinLabelX} y={BY + 55.5} textAnchor="start" fontFamily="monospace" fontSize="7" fill="#6b7280">5V</text>
       <line x1={apX - 14} y1={BY + 52} x2={leftWireEndX} y2={BY + 52} stroke="#f87171" strokeWidth="1.5" strokeDasharray="4 2" opacity="0.7" />
-      <text x={leftConnLabelX} y={BY + 55.5} textAnchor="end" fontFamily="sans-serif" fontSize="9.5" fill="#f87171">Power (VCC)</text>
+      <text x={leftConnLabelX} y={BY + 55.5} textAnchor="end" fontFamily="sans-serif" fontSize="9.5" fill="#f87171" className="svg-wire-label">Power (VCC)</text>
 
       {/* GND power */}
       <line x1={apX - 8} y1={BY + 70} x2={apX - 14} y2={BY + 70} stroke="#9ca3af" strokeWidth="1.5" />
       <circle cx={apX - 14} cy={BY + 70} r={3} fill="#9ca3af" />
       <text x={leftPinLabelX} y={BY + 73.5} textAnchor="start" fontFamily="monospace" fontSize="7" fill="#6b7280">GND</text>
       <line x1={apX - 14} y1={BY + 70} x2={leftWireEndX} y2={BY + 70} stroke="#9ca3af" strokeWidth="1.5" strokeDasharray="4 2" opacity="0.7" />
-      <text x={leftConnLabelX} y={BY + 73.5} textAnchor="end" fontFamily="sans-serif" fontSize="9.5" fill="#9ca3af">Ground</text>
+      <text x={leftConnLabelX} y={BY + 73.5} textAnchor="end" fontFamily="sans-serif" fontSize="9.5" fill="#9ca3af" className="svg-wire-label">Ground</text>
 
       {/* ── Analog pins (left) */}
       {Array.from({ length: 6 }, (_, pin) => {
@@ -1729,7 +1729,7 @@ function LiveWiringDiagram({ buttons, portInputs, leds, irSensors, sipPuffs, joy
             {used && conn && (
               <>
                 <line x1={apX - 14} y1={y} x2={leftWireEndX} y2={y} stroke={conn.color} strokeWidth="1.5" strokeDasharray="4 2" opacity="0.85" />
-                <text x={leftConnLabelX} y={y + 3.5} textAnchor="end" fontFamily="sans-serif" fontSize="9.5" fill={conn.color} fontWeight="500">{conn.label}</text>
+                <text x={leftConnLabelX} y={y + 3.5} textAnchor="end" fontFamily="sans-serif" fontSize="9.5" fill={conn.color} fontWeight="500" className="svg-wire-label">{conn.label}</text>
               </>
             )}
           </g>

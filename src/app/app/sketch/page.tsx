@@ -38,10 +38,10 @@ function highlightLine(raw: string): React.ReactNode {
   if (/^\s*#/.test(raw)) return <span className="text-violet-400">{raw}</span>;
 
   const patterns: { re: RegExp; cls: string }[] = [
-    { re: /"[^"]*"/g, cls: "text-amber-300" },
-    { re: /\b(void|int|bool|const|if|else|for|while|return|true|false|HIGH|LOW|INPUT_PULLUP|OUTPUT|long|unsigned|char|byte)\b/g, cls: "text-sky-300" },
-    { re: /\b([A-Za-z_]\w*)\s*(?=\()/g, cls: "text-emerald-300" },
-    { re: /\b\d+\b/g, cls: "text-orange-300" },
+    { re: /"[^"]*"/g, cls: "text-amber-400" },
+    { re: /\b(void|int|bool|const|if|else|for|while|return|true|false|HIGH|LOW|INPUT_PULLUP|OUTPUT|long|unsigned|char|byte)\b/g, cls: "text-sky-400" },
+    { re: /\b([A-Za-z_]\w*)\s*(?=\()/g, cls: "text-emerald-400" },
+    { re: /\b\d+\b/g, cls: "text-orange-400" },
   ];
 
   const tokens: React.ReactNode[] = [];
@@ -50,12 +50,12 @@ function highlightLine(raw: string): React.ReactNode {
   let m: RegExpExecArray | null;
   combined.lastIndex = 0;
   while ((m = combined.exec(raw)) !== null) {
-    if (m.index > pos) tokens.push(<span key={pos} className="text-gray-200">{raw.slice(pos, m.index)}</span>);
+    if (m.index > pos) tokens.push(<span key={pos} className="text-gray-300">{raw.slice(pos, m.index)}</span>);
     const gi = patterns.findIndex((_, i) => m![i + 1] !== undefined);
-    tokens.push(<span key={m.index} className={patterns[gi]?.cls ?? "text-gray-200"}>{m[0]}</span>);
+    tokens.push(<span key={m.index} className={patterns[gi]?.cls ?? "text-gray-300"}>{m[0]}</span>);
     pos = m.index + m[0].length;
   }
-  if (pos < raw.length) tokens.push(<span key={pos} className="text-gray-200">{raw.slice(pos)}</span>);
+  if (pos < raw.length) tokens.push(<span key={pos} className="text-gray-300">{raw.slice(pos)}</span>);
   return <>{tokens}</>;
 }
 
@@ -67,9 +67,9 @@ const SOURCE_BG: Record<string, string> = {
 };
 
 const SOURCE_META: Record<string, { label: string; badge: string }> = {
-  button: { label: "Mapped input", badge: "bg-emerald-400/15 text-emerald-200 border border-emerald-400/25" },
-  ai: { label: "AI edit", badge: "bg-cyan-400/20 text-cyan-100 border border-cyan-300/40" },
-  user: { label: "Manual edit", badge: "bg-amber-400/20 text-amber-100 border border-amber-300/35" },
+  button: { label: "Mapped input", badge: "bg-emerald-400/15 text-emerald-300 border border-emerald-400/25" },
+  ai: { label: "AI edit", badge: "bg-cyan-400/20 text-cyan-300 border border-cyan-300/40" },
+  user: { label: "Manual edit", badge: "bg-amber-400/20 text-amber-300 border border-amber-300/35" },
   generated: { label: "Generated", badge: "" },
 };
 
@@ -92,6 +92,8 @@ export default function SketchPage() {
   const historyIndexRef = useRef(-1);
 
   useEffect(() => {
+    const theme = localStorage.getItem("theme");
+    document.documentElement.classList.toggle("light", theme === "light");
     const loaded = loadSketchWorkspace();
     setWorkspace(loaded);
     if (loaded) {
@@ -298,7 +300,7 @@ export default function SketchPage() {
   const isModified = workspace.editedCode !== workspace.originalCode;
 
   return (
-    <div className="flex h-screen flex-col bg-[#060816] text-gray-100 overflow-hidden">
+    <div className="flex h-screen flex-col bg-gray-950 text-gray-100 overflow-hidden">
 
       {/* Header */}
       <header className="flex items-center justify-between gap-3 border-b border-gray-800 bg-gray-950/90 px-4 py-2.5 flex-shrink-0">
@@ -311,7 +313,7 @@ export default function SketchPage() {
           <FileCode size={14} className="text-cyan-400 flex-shrink-0" />
           <span className="text-sm font-semibold truncate">Arduino Sketch</span>
           {isModified && (
-            <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300 flex-shrink-0">modified</span>
+            <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400 flex-shrink-0">modified</span>
           )}
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
@@ -369,19 +371,19 @@ export default function SketchPage() {
           </div>
 
           {(lineCounts.ai > 0 || lineCounts.user > 0 || lineCounts.button > 0) && (
-            <div className="flex flex-wrap items-center gap-2 border-b border-gray-800 bg-[#08101f] px-4 py-2.5 flex-shrink-0">
+            <div className="flex flex-wrap items-center gap-2 border-b border-gray-800 bg-gray-900 px-4 py-2.5 flex-shrink-0">
               {lineCounts.ai > 0 && (
-                <span className="rounded-full border border-cyan-300/35 bg-cyan-400/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-100">
+                <span className="rounded-full border border-cyan-300/35 bg-cyan-400/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-cyan-300">
                   {lineCounts.ai} AI-edited line{lineCounts.ai === 1 ? "" : "s"}
                 </span>
               )}
               {lineCounts.user > 0 && (
-                <span className="rounded-full border border-amber-300/30 bg-amber-400/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-100">
+                <span className="rounded-full border border-amber-300/30 bg-amber-400/15 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-300">
                   {lineCounts.user} manual line{lineCounts.user === 1 ? "" : "s"}
                 </span>
               )}
               {lineCounts.button > 0 && (
-                <span className="rounded-full border border-emerald-300/25 bg-emerald-400/12 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-100">
+                <span className="rounded-full border border-emerald-300/25 bg-emerald-400/12 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-300">
                   {lineCounts.button} mapped-input line{lineCounts.button === 1 ? "" : "s"}
                 </span>
               )}
@@ -395,8 +397,8 @@ export default function SketchPage() {
                   key={`${item.message}-${index}`}
                   className={`rounded-xl border px-3 py-2 text-xs leading-relaxed ${
                     item.level === "error"
-                      ? "border-rose-500/25 bg-rose-500/10 text-rose-100"
-                      : "border-amber-500/25 bg-amber-500/10 text-amber-100"
+                      ? "border-rose-500/25 bg-rose-500/10 text-rose-300"
+                      : "border-amber-500/25 bg-amber-500/10 text-amber-300"
                   }`}
                 >
                   {item.message}
@@ -406,7 +408,7 @@ export default function SketchPage() {
           )}
 
           {/* Color-coded view */}
-          <div className="relative flex-1 overflow-hidden font-mono text-[12.5px] leading-[1.65] bg-[#07091a]">
+          <div className="relative flex-1 overflow-hidden font-mono text-[12.5px] leading-[1.65] bg-gray-950">
             <div className="pointer-events-none absolute inset-0 overflow-hidden">
             <div ref={codeLayerRef} className="min-h-full min-w-full will-change-transform">
               {classification.map((line, i) => (
@@ -451,7 +453,7 @@ export default function SketchPage() {
 
           <div className="flex-1 overflow-auto px-3 py-3 space-y-2 min-h-0">
             {aiBugHelp && (
-              <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-2.5 text-xs leading-relaxed text-cyan-50 whitespace-pre-wrap">
+              <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/10 px-3 py-2.5 text-xs leading-relaxed text-cyan-300 whitespace-pre-wrap">
                 {aiBugHelp}
               </div>
             )}
@@ -472,8 +474,8 @@ export default function SketchPage() {
               messages.map((msg, i) => (
                 <div key={i} className={`rounded-xl px-3 py-2.5 text-xs leading-relaxed ${
                   msg.role === "user"
-                    ? "bg-cyan-500/10 border border-cyan-500/20 text-cyan-50 ml-3"
-                    : "bg-gray-900/80 border border-gray-800 text-gray-200"
+                    ? "bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 ml-3"
+                    : "bg-gray-900/80 border border-gray-800 text-gray-300"
                 }`}>
                   {msg.content}
                 </div>
