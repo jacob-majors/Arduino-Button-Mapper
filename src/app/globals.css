@@ -70,6 +70,11 @@ html.light .bg-gray-700 { background-color: #FFFFFF !important; }
 html.light .bg-gray-600 { background-color: #EDE8DF !important; }
 html.light .bg-gray-500 { background-color: #DDD0C4 !important; }
 
+html.light .bg-gray-950\/90 { background-color: rgba(237, 232, 223, 0.97) !important; }
+html.light .bg-gray-950\/80 { background-color: rgba(237, 232, 223, 0.93) !important; }
+html.light .bg-gray-950\/70 { background-color: rgba(237, 232, 223, 0.88) !important; }
+html.light .bg-gray-950\/60 { background-color: rgba(237, 232, 223, 0.82) !important; }
+html.light .bg-gray-950\/50 { background-color: rgba(237, 232, 223, 0.72) !important; }
 html.light .bg-gray-950\/40 { background-color: rgba(237, 232, 223, 0.72) !important; }
 html.light .bg-gray-900\/80 { background-color: rgba(245, 240, 232, 0.95) !important; }
 html.light .bg-gray-900\/70 { background-color: rgba(245, 240, 232, 0.88) !important; }
@@ -393,3 +398,20 @@ html.light .wire-color-label {
 html.light .svg-wire-label {
   filter: brightness(0.52) saturate(1.4) !important;
 }
+
+/* ── Wiring component diagram: keep dark so SVG icons render correctly ── */
+html.light .wiring-diagram-container {
+  background-color: #111827 !important;
+  border-color: #374151 !important;
+}
+html.light .wiring-diagram-container .text-gray-200 { color: #e5e7eb !important; }
+html.light .wiring-diagram-container .text-gray-300 { color: #d1d5db !important; }
+html.light .wiring-diagram-container .text-gray-400 { color: #9ca3af !important; }
+html.light .wiring-diagram-container .text-gray-500 { color: #6b7280 !important; }
+html.light .wiring-diagram-container .text-gray-600 { color: #6b7280 !important; }
+html.light .wiring-diagram-container .border-gray-800 { border-color: #374151 !important; }
+html.light .wiring-diagram-container .border-gray-700 { border-color: #374151 !important; }
+html.light .wiring-diagram-container .bg-gray-800 { background-color: #111827 !important; }
+html.light .wiring-diagram-container .bg-gray-700 { background-color: #1f2937 !important; }
+html.light .wiring-diagram-container .text-yellow-400 { color: #fbbf24 !important; }
+html.light .wiring-diagram-container .text-yellow-600 { color: #d97706 !important; }

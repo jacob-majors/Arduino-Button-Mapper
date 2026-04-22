@@ -2025,7 +2025,7 @@ function WiringDiagramModal({ buttons, portInputs, leds, irSensors, sipPuffs, jo
       onClick={embedded ? undefined : (e) => e.target === e.currentTarget && onClose()}
     >
       {!embedded && <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />}
-      <div className={embedded ? "relative w-full flex flex-col bg-gray-800 border border-gray-700/70 rounded-2xl shadow-2xl overflow-hidden" : "relative z-10 w-full max-w-5xl max-h-[92vh] flex flex-col bg-gray-800 border border-gray-600 rounded-2xl shadow-2xl"}>
+      <div className={embedded ? "wiring-diagram-container relative w-full flex flex-col bg-gray-800 border border-gray-700/70 rounded-2xl shadow-2xl overflow-hidden" : "wiring-diagram-container relative z-10 w-full max-w-5xl max-h-[92vh] flex flex-col bg-gray-800 border border-gray-600 rounded-2xl shadow-2xl"}>
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-800 flex-shrink-0">
           <div className="flex items-center gap-2">
@@ -3934,7 +3934,7 @@ export default function Home() {
               />
             </div>
 
-            <section className="bg-gray-800/80 border border-gray-700/70 rounded-3xl p-5">
+            <section className="wiring-diagram-container bg-gray-800/80 border border-gray-700/70 rounded-3xl p-5">
               <div className="flex items-center justify-between gap-3 mb-4">
                 <div>
                   <h2 className="text-sm font-semibold text-gray-200">Individual Component Wiring</h2>
